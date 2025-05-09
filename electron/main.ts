@@ -1,5 +1,6 @@
 import { app, BrowserWindow } from 'electron'
 import path from 'path'
+import '@/services/database' // Initialize database
 
 function createWindow() {
   const win = new BrowserWindow({
