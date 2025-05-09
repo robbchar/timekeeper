@@ -6,10 +6,10 @@ export const settingsReducer = (state: Settings, action: Action): Settings => {
     case ActionType.UPDATE_SETTINGS:
       return {
         ...state,
-        ...action.payload
+        ...action.payload,
       };
 
     default:
       return state;
   }
-}; 
+};

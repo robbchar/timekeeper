@@ -1,6 +1,6 @@
 export enum Theme {
   LIGHT = 'light',
-  DARK = 'dark'
+  DARK = 'dark',
 }
 
 export enum ActionType {
@@ -8,26 +8,26 @@ export enum ActionType {
   ADD_PROJECT = 'ADD_PROJECT',
   UPDATE_PROJECT = 'UPDATE_PROJECT',
   DELETE_PROJECT = 'DELETE_PROJECT',
-  
+
   // Session actions
   START_SESSION = 'START_SESSION',
   STOP_SESSION = 'STOP_SESSION',
   UPDATE_SESSION = 'UPDATE_SESSION',
   DELETE_SESSION = 'DELETE_SESSION',
-  
+
   // Tag actions
   ADD_TAG = 'ADD_TAG',
   UPDATE_TAG = 'UPDATE_TAG',
   DELETE_TAG = 'DELETE_TAG',
-  
+
   // Settings actions
   UPDATE_SETTINGS = 'UPDATE_SETTINGS',
-  
+
   // UI actions
   TOGGLE_THEME = 'TOGGLE_THEME',
   SET_CURRENT_PROJECT = 'SET_CURRENT_PROJECT',
   SET_LOADING = 'SET_LOADING',
-  SET_ERROR = 'SET_ERROR'
+  SET_ERROR = 'SET_ERROR',
 }
 
 export interface Project {
@@ -83,5 +83,18 @@ export interface AppState {
 
 export interface Action {
   type: ActionType;
-  payload?: any;
-} 
+  payload?:
+    | Project
+    | Session
+    | Tag
+    | Settings
+    | UIState
+    | string
+    | boolean
+    | null
+    | Partial<Project>
+    | Partial<Session>
+    | Partial<Tag>
+    | Partial<Settings>
+    | Partial<UIState>;
+}

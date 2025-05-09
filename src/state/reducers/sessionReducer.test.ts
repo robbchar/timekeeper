@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { sessionReducer } from './sessionReducer';
 import { ActionType } from '@/types/state';
-import type { Session } from '@/types/state';
+import type { Session, Action } from '@/types/state';
 
 describe('sessionReducer', () => {
   const mockSession: Session = {
@@ -11,14 +11,14 @@ describe('sessionReducer', () => {
     notes: 'Test session',
     tags: ['test'],
     createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-01')
+    updatedAt: new Date('2024-01-01'),
   };
 
   it('should start a session', () => {
     const initialState: Session[] = [];
     const action = {
       type: ActionType.START_SESSION,
-      payload: mockSession
+      payload: mockSession,
     };
 
     const newState = sessionReducer(initialState, action);
@@ -30,7 +30,7 @@ describe('sessionReducer', () => {
     const initialState: Session[] = [mockSession];
     const action = {
       type: ActionType.STOP_SESSION,
-      payload: { id: '1' }
+      payload: { id: '1' },
     };
 
     const newState = sessionReducer(initialState, action);
@@ -43,7 +43,7 @@ describe('sessionReducer', () => {
     const initialState: Session[] = [mockSession];
     const action = {
       type: ActionType.UPDATE_SESSION,
-      payload: { id: '1', notes: 'Updated notes' }
+      payload: { id: '1', notes: 'Updated notes' },
     };
 
     const newState = sessionReducer(initialState, action);
@@ -56,7 +56,7 @@ describe('sessionReducer', () => {
     const initialState: Session[] = [mockSession];
     const action = {
       type: ActionType.DELETE_SESSION,
-      payload: '1'
+      payload: '1',
     };
 
     const newState = sessionReducer(initialState, action);
@@ -65,12 +65,12 @@ describe('sessionReducer', () => {
 
   it('should return initial state for unknown action', () => {
     const initialState: Session[] = [mockSession];
-    const action = {
-      type: 'UNKNOWN_ACTION',
-      payload: null
+    const action: Action = {
+      type: 'UNKNOWN_ACTION' as ActionType,
+      payload: null,
     };
 
-    const newState = sessionReducer(initialState, action as any);
+    const newState = sessionReducer(initialState, action);
     expect(newState).toEqual(initialState);
   });
-}); 
+});

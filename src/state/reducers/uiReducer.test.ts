@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { uiReducer } from './uiReducer';
 import { ActionType, Theme } from '@/types/state';
-import type { UIState } from '@/types/state';
+import type { UIState, Action } from '@/types/state';
 
 describe('uiReducer', () => {
   const mockUIState: UIState = {
@@ -9,13 +9,13 @@ describe('uiReducer', () => {
     currentProject: null,
     isTimerRunning: false,
     isLoading: false,
-    error: null
+    error: null,
   };
 
   it('should toggle theme', () => {
     const initialState: UIState = mockUIState;
     const action = {
-      type: ActionType.TOGGLE_THEME
+      type: ActionType.TOGGLE_THEME,
     };
 
     const newState = uiReducer(initialState, action);
@@ -29,7 +29,7 @@ describe('uiReducer', () => {
     const initialState: UIState = mockUIState;
     const action = {
       type: ActionType.SET_CURRENT_PROJECT,
-      payload: '1'
+      payload: '1',
     };
 
     const newState = uiReducer(initialState, action);
@@ -40,7 +40,7 @@ describe('uiReducer', () => {
     const initialState: UIState = mockUIState;
     const action = {
       type: ActionType.SET_LOADING,
-      payload: true
+      payload: true,
     };
 
     const newState = uiReducer(initialState, action);
@@ -51,7 +51,7 @@ describe('uiReducer', () => {
     const initialState: UIState = mockUIState;
     const action = {
       type: ActionType.SET_ERROR,
-      payload: 'Test error'
+      payload: 'Test error',
     };
 
     const newState = uiReducer(initialState, action);
@@ -60,12 +60,12 @@ describe('uiReducer', () => {
 
   it('should return initial state for unknown action', () => {
     const initialState: UIState = mockUIState;
-    const action = {
-      type: 'UNKNOWN_ACTION',
-      payload: null
+    const action: Action = {
+      type: 'UNKNOWN_ACTION' as ActionType,
+      payload: null,
     };
 
-    const newState = uiReducer(initialState, action as any);
+    const newState = uiReducer(initialState, action);
     expect(newState).toEqual(initialState);
   });
-}); 
+});

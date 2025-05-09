@@ -14,15 +14,15 @@ export const initialState: AppState = {
     timeFormat: '24h',
     timerRounding: 5,
     autoStartBreaks: false,
-    breakDuration: 5
+    breakDuration: 5,
   },
   ui: {
     theme: Theme.LIGHT,
     currentProject: null,
     isTimerRunning: false,
     isLoading: false,
-    error: null
-  }
+    error: null,
+  },
 };
 
 export const rootReducer = (state: AppState = initialState, action: Action): AppState => {
@@ -33,7 +33,7 @@ export const rootReducer = (state: AppState = initialState, action: Action): App
     case ActionType.DELETE_PROJECT:
       return {
         ...state,
-        projects: projectReducer(state.projects, action)
+        projects: projectReducer(state.projects, action),
       };
 
     // Session actions
@@ -43,7 +43,7 @@ export const rootReducer = (state: AppState = initialState, action: Action): App
     case ActionType.DELETE_SESSION:
       return {
         ...state,
-        sessions: sessionReducer(state.sessions, action)
+        sessions: sessionReducer(state.sessions, action),
       };
 
     // Tag actions
@@ -52,14 +52,14 @@ export const rootReducer = (state: AppState = initialState, action: Action): App
     case ActionType.DELETE_TAG:
       return {
         ...state,
-        tags: tagReducer(state.tags, action)
+        tags: tagReducer(state.tags, action),
       };
 
     // Settings actions
     case ActionType.UPDATE_SETTINGS:
       return {
         ...state,
-        settings: settingsReducer(state.settings, action)
+        settings: settingsReducer(state.settings, action),
       };
 
     // UI actions
@@ -69,10 +69,10 @@ export const rootReducer = (state: AppState = initialState, action: Action): App
     case ActionType.SET_ERROR:
       return {
         ...state,
-        ui: uiReducer(state.ui, action)
+        ui: uiReducer(state.ui, action),
       };
 
     default:
       return state;
   }
-}; 
+};

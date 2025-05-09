@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { tagReducer } from './tagReducer';
 import { ActionType } from '@/types/state';
-import type { Tag } from '@/types/state';
+import type { Tag, Action } from '@/types/state';
 
 describe('tagReducer', () => {
   const mockTag: Tag = {
@@ -9,14 +9,14 @@ describe('tagReducer', () => {
     name: 'Test Tag',
     color: '#FF0000',
     createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-01')
+    updatedAt: new Date('2024-01-01'),
   };
 
   it('should add a tag', () => {
     const initialState: Tag[] = [];
     const action = {
       type: ActionType.ADD_TAG,
-      payload: mockTag
+      payload: mockTag,
     };
 
     const newState = tagReducer(initialState, action);
@@ -28,7 +28,7 @@ describe('tagReducer', () => {
     const initialState: Tag[] = [mockTag];
     const action = {
       type: ActionType.UPDATE_TAG,
-      payload: { id: '1', name: 'Updated Tag' }
+      payload: { id: '1', name: 'Updated Tag' },
     };
 
     const newState = tagReducer(initialState, action);
@@ -41,7 +41,7 @@ describe('tagReducer', () => {
     const initialState: Tag[] = [mockTag];
     const action = {
       type: ActionType.DELETE_TAG,
-      payload: '1'
+      payload: '1',
     };
 
     const newState = tagReducer(initialState, action);
@@ -50,12 +50,12 @@ describe('tagReducer', () => {
 
   it('should return initial state for unknown action', () => {
     const initialState: Tag[] = [mockTag];
-    const action = {
-      type: 'UNKNOWN_ACTION',
-      payload: null
+    const action: Action = {
+      type: 'UNKNOWN_ACTION' as ActionType,
+      payload: null,
     };
 
-    const newState = tagReducer(initialState, action as any);
+    const newState = tagReducer(initialState, action);
     expect(newState).toEqual(initialState);
   });
-}); 
+});

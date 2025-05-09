@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { projectReducer } from './projectReducer';
 import { ActionType } from '@/types/state';
-import type { Project } from '@/types/state';
+import type { Project, Action } from '@/types/state';
 
 describe('projectReducer', () => {
   const mockProject: Project = {
@@ -9,14 +9,14 @@ describe('projectReducer', () => {
     name: 'Test Project',
     description: 'Test Description',
     createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-01')
+    updatedAt: new Date('2024-01-01'),
   };
 
   it('should add a project', () => {
     const initialState: Project[] = [];
     const action = {
       type: ActionType.ADD_PROJECT,
-      payload: mockProject
+      payload: mockProject,
     };
 
     const newState = projectReducer(initialState, action);
@@ -29,7 +29,7 @@ describe('projectReducer', () => {
 
     const action = {
       type: ActionType.UPDATE_PROJECT,
-      payload: { id: '1', name: 'Updated Project' }
+      payload: { id: '1', name: 'Updated Project' },
     };
 
     const newState = projectReducer(initialState, action);
@@ -42,7 +42,7 @@ describe('projectReducer', () => {
     const initialState: Project[] = [mockProject];
     const action = {
       type: ActionType.DELETE_PROJECT,
-      payload: '1'
+      payload: '1',
     };
 
     const newState = projectReducer(initialState, action);
@@ -51,12 +51,12 @@ describe('projectReducer', () => {
 
   it('should return initial state for unknown action', () => {
     const initialState: Project[] = [mockProject];
-    const action = {
-      type: 'UNKNOWN_ACTION',
-      payload: null
+    const action: Action = {
+      type: 'UNKNOWN_ACTION' as ActionType,
+      payload: null,
     };
 
-    const newState = projectReducer(initialState, action as any);
+    const newState = projectReducer(initialState, action);
     expect(newState).toEqual(initialState);
   });
-}); 
+});

@@ -16,7 +16,7 @@ describe('useProjects', () => {
       id: '1',
       name: 'Test Project',
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
     };
 
     act(() => {
@@ -37,7 +37,7 @@ describe('useSessions', () => {
       startTime: new Date(),
       tags: [],
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
     };
 
     act(() => {
@@ -62,7 +62,7 @@ describe('useTags', () => {
       id: '1',
       name: 'Test Tag',
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
     };
 
     act(() => {
@@ -112,4 +112,4 @@ describe('useUI', () => {
 
     expect(result.current.ui.error).toBe('Test error');
   });
-}); 
+});
