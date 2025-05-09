@@ -36,10 +36,10 @@
 
 ## 🧪 Dev Environment Setup
 
-- [ ] Bootstrap Electron app with Vite + React + TypeScript
-- [ ] Set up SQLite schema and data access layer
-- [ ] Add Context-based state management with reducer logic
-- [ ] Wire up testing framework (Vitest + RTL)
+- [x] Bootstrap Electron app with Vite + React + TypeScript
+- [x] Wire up testing framework (Vitest + RTL)
+- [x] Set up SQLite schema and data access layer
+- [x] Add Context-based state management with reducer logic
 
 ## 🧰 UI Scaffolding
 
