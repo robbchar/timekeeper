@@ -26,4 +26,4 @@ export const sessionReducer = (state: Session[], action: Action): Session[] => {
     default:
       return state;
   }
-}; 
+};

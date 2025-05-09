@@ -6,28 +6,28 @@ export const uiReducer = (state: UIState, action: Action): UIState => {
     case ActionType.TOGGLE_THEME:
       return {
         ...state,
-        theme: state.theme === Theme.LIGHT ? Theme.DARK : Theme.LIGHT
+        theme: state.theme === Theme.LIGHT ? Theme.DARK : Theme.LIGHT,
       };
 
     case ActionType.SET_CURRENT_PROJECT:
       return {
         ...state,
-        currentProject: action.payload
+        currentProject: action.payload,
       };
 
     case ActionType.SET_LOADING:
       return {
         ...state,
-        isLoading: action.payload
+        isLoading: action.payload,
       };
 
     case ActionType.SET_ERROR:
       return {
         ...state,
-        error: action.payload
+        error: action.payload,
       };
 
     default:
       return state;
   }
-}; 
+};

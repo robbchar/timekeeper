@@ -8,9 +8,7 @@ export const tagReducer = (state: Tag[], action: Action): Tag[] => {
 
     case ActionType.UPDATE_TAG:
       return state.map(tag =>
-        tag.id === action.payload.id
-          ? { ...tag, ...action.payload, updatedAt: new Date() }
-          : tag
+        tag.id === action.payload.id ? { ...tag, ...action.payload, updatedAt: new Date() } : tag
       );
 
     case ActionType.DELETE_TAG:
@@ -19,4 +17,4 @@ export const tagReducer = (state: Tag[], action: Action): Tag[] => {
     default:
       return state;
   }
-}; 
+};

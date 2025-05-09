@@ -17,11 +17,7 @@ interface AppProviderProps {
 export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
   const [state, dispatch] = useReducer(rootReducer, initialState);
 
-  return (
-    <AppContext.Provider value={{ state, dispatch }}>
-      {children}
-    </AppContext.Provider>
-  );
+  return <AppContext.Provider value={{ state, dispatch }}>{children}</AppContext.Provider>;
 };
 
 export const useAppContext = () => {
@@ -30,4 +26,4 @@ export const useAppContext = () => {
     throw new Error('useAppContext must be used within an AppProvider');
   }
   return context;
-}; 
+};

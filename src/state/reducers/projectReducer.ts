@@ -19,4 +19,4 @@ export const projectReducer = (state: Project[], action: Action): Project[] => {
     default:
       return state;
   }
-}; 
+};
