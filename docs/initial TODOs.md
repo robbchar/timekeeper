@@ -36,7 +36,7 @@
 
 ## 🧪 Dev Environment Setup
 
-- [ ] Bootstrap Electron app with Vite + React + TypeScript
+- [x] Bootstrap Electron app with Vite + React + TypeScript
 - [ ] Set up SQLite schema and data access layer
 - [ ] Add Context-based state management with reducer logic
 - [ ] Wire up testing framework (Vitest + RTL)
