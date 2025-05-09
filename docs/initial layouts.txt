@@ -1,0 +1,47 @@
++------------------------------------------------------------+
+| App Header / Nav (AppShell)                               |
++-----------------------------+------------------------------+
+| Sidebar (optional)          |  TimerPanel                  |
+| - Timer                     |  -------------------------   |
+| - Projects                  |  | Project: [Dropdown]     | |
+|                             |  | Description: [Input]    | |
+|                             |  |                         | |
+|                             |  |  [ Start / Stop Timer ] | |
+|                             |  -------------------------   |
+|                             |                              |
+|                             |  [ Now Running: 00:13:25 ]   |
+|                             |                              |
+|                             |  SessionList:                |
+|                             |  -------------------------   |
+|                             |  | Date | Project | Time  |  |
+|                             |  | Edit | Delete         |  |
+|                             |  -------------------------   |
++-----------------------------+------------------------------+
+
+
+
++------------------------------------------------------------+
+| App Header / Nav (AppShell)                               |
++-----------------------------+------------------------------+
+| Sidebar (optional)          |  ProjectList                 |
+| - Timer                     |  -------------------------   |
+| - Projects                  |  | Project A [Edit] [Del] | |
+|                             |  | Project B [Edit] [Del] | |
+|                             |  | ...                   | |
+|                             |  -------------------------   |
+|                             |                              |
+|                             |  AddProjectForm              |
+|                             |  -------------------------   |
+|                             |  | Name: [__________]     | |
+|                             |  | Color: [Pick]         | |
+|                             |  |     [ Add Project ]   | |
+|                             |  -------------------------   |
++-----------------------------+------------------------------+
+
+
+
+## Interaction Notes
+- Timer Page is the daily-use view. 
+  - It keeps the timer always accessible, allows description input, and lists the current session history.
+- Projects Page is for configuration/management, cleanly separating it from time tracking.
+- Navigation between pages can be minimal — a tab bar or sidebar.
