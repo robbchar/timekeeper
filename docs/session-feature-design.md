@@ -72,8 +72,8 @@ interface Session {
 
    - [x] Create session data model
    - [x] Add session state management
-   - [ ] Implement session controls
-   - [ ] Basic session display
+   - [x] Implement session controls
+   - [x] Basic session display
 
 2. Phase 2: Session History
 

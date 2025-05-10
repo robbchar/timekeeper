@@ -11,7 +11,7 @@ export default defineConfig({
       entry: 'electron/main.ts',
     }),
   ],
-  base: './',
+  base: process.env.ELECTRON ? './' : '/',
   build: {
     outDir: 'dist',
     emptyOutDir: true,
@@ -25,5 +25,8 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
+  },
+  server: {
+    port: 5173,
   },
 });

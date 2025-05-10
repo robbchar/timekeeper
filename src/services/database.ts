@@ -77,7 +77,7 @@ function initializeDatabase() {
 initializeDatabase();
 
 // Define types for our database entities
-interface Project {
+export interface Project {
   id: number;
   name: string;
   description?: string;
@@ -85,7 +85,7 @@ interface Project {
   created_at: string;
 }
 
-interface Session {
+export interface Session {
   id: number;
   project_id: number;
   start_time: string;
@@ -94,86 +94,80 @@ interface Session {
   notes?: string;
 }
 
-interface Tag {
+export interface Tag {
   id: number;
   name: string;
   color?: string;
 }
 
+// Define the window interface to include our database API
+declare global {
+  interface Window {
+    database: {
+      createProject: (
+        name: string,
+        description?: string,
+        color?: string
+      ) => Promise<{ lastInsertRowid: number }>;
+      getProjects: () => Promise<Project[]>;
+      createSession: (
+        projectId: number,
+        startTime: string,
+        notes?: string
+      ) => Promise<{ lastInsertRowid: number }>;
+      endSession: (
+        sessionId: number,
+        endTime: string,
+        duration: number
+      ) => Promise<{ changes: number }>;
+      getSessions: (startDate?: string, endDate?: string) => Promise<Session[]>;
+      createTag: (name: string, color?: string) => Promise<{ lastInsertRowid: number }>;
+      getTags: () => Promise<Tag[]>;
+      getSetting: (key: string) => Promise<string | undefined>;
+      setSetting: (key: string, value: string) => Promise<{ changes: number }>;
+    };
+  }
+}
+
 // Export database instance and helper functions
 export const database = {
   // Project operations
-  createProject: (name: string, description?: string, color?: string) => {
-    const stmt = db.prepare(`
-      INSERT INTO projects (name, description, color)
-      VALUES (?, ?, ?)
-    `);
-    return stmt.run(name, description, color);
+  createProject: async (name: string, description?: string, color?: string) => {
+    return window.database.createProject(name, description, color);
   },
 
-  getProjects: (): Project[] => {
-    const stmt = db.prepare('SELECT * FROM projects ORDER BY name');
-    return stmt.all() as Project[];
+  getProjects: async () => {
+    return window.database.getProjects();
   },
 
   // Session operations
-  createSession: (projectId: number, startTime: string, notes?: string) => {
-    const stmt = db.prepare(`
-      INSERT INTO sessions (project_id, start_time, notes)
-      VALUES (?, ?, ?)
-    `);
-    return stmt.run(projectId, startTime, notes);
+  createSession: async (projectId: number, startTime: string, notes?: string) => {
+    return window.database.createSession(projectId, startTime, notes);
   },
 
-  endSession: (sessionId: number, endTime: string, duration: number) => {
-    const stmt = db.prepare(`
-      UPDATE sessions
-      SET end_time = ?, duration = ?
-      WHERE id = ?
-    `);
-    return stmt.run(endTime, duration, sessionId);
+  endSession: async (sessionId: number, endTime: string, duration: number) => {
+    return window.database.endSession(sessionId, endTime, duration);
   },
 
-  getSessions: (startDate?: string, endDate?: string): Session[] => {
-    let query = 'SELECT * FROM sessions';
-    const params: string[] = [];
-
-    if (startDate && endDate) {
-      query += ' WHERE start_time BETWEEN ? AND ?';
-      params.push(startDate, endDate);
-    }
-
-    query += ' ORDER BY start_time DESC';
-    const stmt = db.prepare(query);
-    return stmt.all(...params) as Session[];
+  getSessions: async (startDate?: string, endDate?: string) => {
+    return window.database.getSessions(startDate, endDate);
   },
 
   // Tag operations
-  createTag: (name: string, color?: string) => {
-    const stmt = db.prepare(`
-      INSERT INTO tags (name, color)
-      VALUES (?, ?)
-    `);
-    return stmt.run(name, color);
+  createTag: async (name: string, color?: string) => {
+    return window.database.createTag(name, color);
   },
 
-  getTags: (): Tag[] => {
-    const stmt = db.prepare('SELECT * FROM tags ORDER BY name');
-    return stmt.all() as Tag[];
+  getTags: async () => {
+    return window.database.getTags();
   },
 
   // Settings operations
-  getSetting: (key: string) => {
-    const stmt = db.prepare('SELECT value FROM settings WHERE key = ?');
-    const result = stmt.get(key) as { value: string } | undefined;
-    return result?.value;
+  getSetting: async (key: string) => {
+    return window.database.getSetting(key);
   },
 
-  setSetting: (key: string, value: string) => {
-    const stmt = db.prepare(`
-      INSERT OR REPLACE INTO settings (key, value)
-      VALUES (?, ?)
-    `);
-    return stmt.run(key, value);
+  setSetting: async (key: string, value: string) => {
+    return window.database.setSetting(key, value);
   },
 };
