@@ -1,24 +1,41 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import { ProjectsPage } from './ProjectsPage';
 import { AppProvider } from '@/state/context/AppContext';
 import { ThemeProvider } from 'styled-components';
 import { theme } from '@/styles/theme';
+import { useDatabase } from '@/contexts/DatabaseContext';
+import { DatabaseProvider } from '@/contexts/DatabaseContext';
+
+// Mock the useDatabase hook
+vi.mock('@/contexts/DatabaseContext', () => ({
+  useDatabase: vi.fn().mockReturnValue({
+    getAllProjects: vi.fn().mockResolvedValue([]),
+  }),
+  DatabaseProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
   <ThemeProvider theme={theme}>
-    <AppProvider>{children}</AppProvider>
+    <DatabaseProvider>
+      <AppProvider>{children}</AppProvider>
+    </DatabaseProvider>
   </ThemeProvider>
 );
 
 describe('ProjectsPage', () => {
-  it('renders the projects page with title', () => {
+  it('renders the projects page with title', async () => {
     render(<ProjectsPage />, { wrapper });
-    expect(screen.getByRole('heading', { name: 'Projects' })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Projects' })).toBeInTheDocument();
+    });
   });
 
-  it('shows add project modal when clicking add button', () => {
+  it('shows add project modal when clicking add button', async () => {
     render(<ProjectsPage />, { wrapper });
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    });
 
     const addButton = screen.getByRole('button', { name: /add project/i });
     fireEvent.click(addButton);
@@ -27,8 +44,11 @@ describe('ProjectsPage', () => {
     expect(screen.getByRole('textbox', { name: /project name/i })).toBeInTheDocument();
   });
 
-  it('adds a new project when submitting the form', () => {
+  it('adds a new project when submitting the form', async () => {
     render(<ProjectsPage />, { wrapper });
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    });
 
     // Open modal
     const addButton = screen.getByRole('button', { name: /add project/i });
@@ -47,8 +67,11 @@ describe('ProjectsPage', () => {
     expect(screen.getByText('New Test Project')).toBeInTheDocument();
   });
 
-  it('closes modal when clicking cancel', () => {
+  it('closes modal when clicking cancel', async () => {
     render(<ProjectsPage />, { wrapper });
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    });
 
     // Open modal
     const addButton = screen.getByRole('button', { name: /add project/i });
@@ -62,8 +85,11 @@ describe('ProjectsPage', () => {
     expect(screen.queryByRole('heading', { name: 'Add New Project' })).not.toBeInTheDocument();
   });
 
-  it('closes modal when clicking outside', () => {
+  it('closes modal when clicking outside', async () => {
     render(<ProjectsPage />, { wrapper });
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    });
 
     // Open modal
     const addButton = screen.getByRole('button', { name: /add project/i });
@@ -77,8 +103,13 @@ describe('ProjectsPage', () => {
     expect(screen.queryByRole('heading', { name: 'Add New Project' })).not.toBeInTheDocument();
   });
 
-  it('shows edit modal when clicking edit button', () => {
+  it('shows edit modal when clicking edit button', async () => {
     render(<ProjectsPage />, { wrapper });
+
+    // Wait for loading to finish
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    });
 
     // Add a project first
     const addButton = screen.getByRole('button', { name: /add project/i });
@@ -98,8 +129,13 @@ describe('ProjectsPage', () => {
     expect(screen.getByRole('textbox', { name: /project name/i })).toHaveValue('Test Project');
   });
 
-  it('updates project when submitting edit form', () => {
+  it('updates project when submitting edit form', async () => {
     render(<ProjectsPage />, { wrapper });
+
+    // Wait for loading to finish
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    });
 
     // Add a project first
     const addButton = screen.getByRole('button', { name: /add project/i });
@@ -128,8 +164,13 @@ describe('ProjectsPage', () => {
     expect(screen.queryByText('Test Project')).not.toBeInTheDocument();
   });
 
-  it('shows delete confirmation modal when clicking delete button', () => {
+  it('shows delete confirmation modal when clicking delete button', async () => {
     render(<ProjectsPage />, { wrapper });
+
+    // Wait for loading to finish
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    });
 
     // Add a project first
     const addButton = screen.getByRole('button', { name: /add project/i });
@@ -149,8 +190,13 @@ describe('ProjectsPage', () => {
     expect(screen.getByText(/are you sure you want to delete "Test Project"/i)).toBeInTheDocument();
   });
 
-  it('deletes project when confirming deletion', () => {
+  it('deletes project when confirming deletion', async () => {
     render(<ProjectsPage />, { wrapper });
+
+    // Wait for loading to finish
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    });
 
     // Add a project first
     const addButton = screen.getByRole('button', { name: /add project/i });
@@ -173,8 +219,13 @@ describe('ProjectsPage', () => {
     expect(screen.queryByText('Test Project')).not.toBeInTheDocument();
   });
 
-  it('cancels deletion when clicking cancel', () => {
+  it('cancels deletion when clicking cancel', async () => {
     render(<ProjectsPage />, { wrapper });
+
+    // Wait for loading to finish
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    });
 
     // Add a project first
     const addButton = screen.getByRole('button', { name: /add project/i });
@@ -197,8 +248,13 @@ describe('ProjectsPage', () => {
     expect(screen.getByText('Test Project')).toBeInTheDocument();
   });
 
-  it('cancels deletion when clicking outside modal', () => {
+  it('cancels deletion when clicking outside modal', async () => {
     render(<ProjectsPage />, { wrapper });
+
+    // Wait for loading to finish
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    });
 
     // Add a project first
     const addButton = screen.getByRole('button', { name: /add project/i });
@@ -221,8 +277,13 @@ describe('ProjectsPage', () => {
     expect(screen.getByText('Test Project')).toBeInTheDocument();
   });
 
-  it('shows error when submitting empty project name', () => {
+  it('shows error when submitting empty project name', async () => {
     render(<ProjectsPage />, { wrapper });
+
+    // Wait for loading to finish
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    });
 
     // Open modal
     const addButton = screen.getByRole('button', { name: /add project/i });
@@ -237,8 +298,13 @@ describe('ProjectsPage', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Project name is required');
   });
 
-  it('shows error when creating project with duplicate name', () => {
+  it('shows error when creating project with duplicate name', async () => {
     render(<ProjectsPage />, { wrapper });
+
+    // Wait for loading to finish
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    });
 
     // Add first project
     const addButton = screen.getByRole('button', { name: /add project/i });
@@ -261,8 +327,13 @@ describe('ProjectsPage', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('A project with this name already exists');
   });
 
-  it('allows editing project name to same name', () => {
+  it('allows editing project name to same name', async () => {
     render(<ProjectsPage />, { wrapper });
+
+    // Wait for loading to finish
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    });
 
     // Add a project
     const addButton = screen.getByRole('button', { name: /add project/i });
@@ -286,8 +357,13 @@ describe('ProjectsPage', () => {
     expect(screen.getByText('Test Project')).toBeInTheDocument();
   });
 
-  it('shows error when editing project to duplicate name', () => {
+  it('shows error when editing project to duplicate name', async () => {
     render(<ProjectsPage />, { wrapper });
+
+    // Wait for loading to finish
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    });
 
     // Add first project
     const addButton = screen.getByRole('button', { name: /add project/i });
@@ -319,12 +395,50 @@ describe('ProjectsPage', () => {
     // Check for error message
     expect(screen.getByRole('alert')).toHaveTextContent('A project with this name already exists');
   });
+
+  it('fetches projects on mount', async () => {
+    const mockProjects = [
+      {
+        id: '1',
+        name: 'Project 1',
+        description: '',
+        totalTime: 0,
+        sessionCount: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        id: '2',
+        name: 'Project 2',
+        description: '',
+        totalTime: 0,
+        sessionCount: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+    (useDatabase as ReturnType<typeof vi.fn>).mockReturnValue({
+      getAllProjects: vi.fn().mockResolvedValue(mockProjects),
+    });
+
+    render(<ProjectsPage />, { wrapper });
+
+    await waitFor(() => {
+      expect(screen.getByText('Project 1')).toBeInTheDocument();
+      expect(screen.getByText('Project 2')).toBeInTheDocument();
+    });
+  });
 });
 
 describe('Project Stats', () => {
   it('shows stats when expanded', async () => {
     render(<ProjectsPage />, { wrapper });
 
+    // Wait for loading to finish
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    });
+
     // Add a project first
     const addButton = screen.getByRole('button', { name: /add project/i });
     fireEvent.click(addButton);
@@ -344,22 +458,33 @@ describe('Project Stats', () => {
       expect(screen.getByText('Test Project')).toBeInTheDocument();
     });
 
-    // Find and click the stats toggle button
-    const toggleButton = screen.getByRole('button', { name: /show stats/i });
+    // Find the Test Project card and get the toggle button within it
+    const testProjectCard = screen.getByText('Test Project').closest('.sc-jMpmlX');
+    if (!testProjectCard) {
+      throw new Error('Test Project card not found');
+    }
+    const toggleButton = within(testProjectCard as HTMLElement).getByRole('button', {
+      name: /show stats/i,
+    });
     expect(toggleButton).toHaveAttribute('aria-expanded', 'false');
 
     fireEvent.click(toggleButton);
     expect(toggleButton).toHaveAttribute('aria-expanded', 'true');
 
     // Check if stats are displayed
-    expect(screen.getByText('Total Time')).toBeInTheDocument();
-    expect(screen.getByText('0s')).toBeInTheDocument();
-    expect(screen.getByText('Average Session')).toBeInTheDocument();
-    expect(screen.getByText('No sessions')).toBeInTheDocument();
+    expect(within(testProjectCard as HTMLElement).getByText('Total Time')).toBeInTheDocument();
+    expect(within(testProjectCard as HTMLElement).getByText('0s')).toBeInTheDocument();
+    expect(within(testProjectCard as HTMLElement).getByText('Average Session')).toBeInTheDocument();
+    expect(within(testProjectCard as HTMLElement).getByText('No sessions')).toBeInTheDocument();
   });
 
   it('hides stats when collapsed', async () => {
     render(<ProjectsPage />, { wrapper });
+
+    // Wait for loading to finish
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    });
 
     // Add a project first
     const addButton = screen.getByRole('button', { name: /add project/i });
@@ -381,7 +506,13 @@ describe('Project Stats', () => {
     });
 
     // Find and click the stats toggle button
-    const toggleButton = screen.getByRole('button', { name: /show stats/i });
+    const testProjectCard = screen.getByText('Test Project').closest('.sc-jMpmlX');
+    if (!testProjectCard) {
+      throw new Error('Test Project card not found');
+    }
+    const toggleButton = within(testProjectCard as HTMLElement).getByRole('button', {
+      name: /show stats/i,
+    });
     expect(toggleButton).toHaveAttribute('aria-expanded', 'false');
 
     fireEvent.click(toggleButton);
@@ -394,6 +525,11 @@ describe('Project Stats', () => {
 
   it('shows zero time for new projects', async () => {
     render(<ProjectsPage />, { wrapper });
+
+    // Wait for loading to finish
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    });
 
     // Click add project button
     const addButton = screen.getByRole('button', { name: /add project/i });
@@ -415,13 +551,17 @@ describe('Project Stats', () => {
     });
 
     // Expand stats
-    const toggleButton = screen.getByRole('button', { name: /show stats/i });
+    const newProjectCard = screen.getByText('New Project').closest('.sc-jMpmlX');
+    if (!newProjectCard) {
+      throw new Error('New Project card not found');
+    }
+    const toggleButton = within(newProjectCard as HTMLElement).getByText('Show Stats');
     fireEvent.click(toggleButton);
 
     // Check if zero stats are displayed
-    expect(screen.getByText('Total Time')).toBeInTheDocument();
-    expect(screen.getByText('0s')).toBeInTheDocument();
-    expect(screen.getByText('Average Session')).toBeInTheDocument();
-    expect(screen.getByText('No sessions')).toBeInTheDocument();
+    expect(within(newProjectCard as HTMLElement).getByText('Total Time')).toBeInTheDocument();
+    expect(within(newProjectCard as HTMLElement).getByText('0s')).toBeInTheDocument();
+    expect(within(newProjectCard as HTMLElement).getByText('Average Session')).toBeInTheDocument();
+    expect(within(newProjectCard as HTMLElement).getByText('No sessions')).toBeInTheDocument();
   });
 });
