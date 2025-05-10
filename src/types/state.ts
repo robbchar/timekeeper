@@ -1,3 +1,5 @@
+import type { SessionState } from './session';
+
 export enum Theme {
   LIGHT = 'light',
   DARK = 'dark',
@@ -76,7 +78,7 @@ export interface UIState {
 
 export interface AppState {
   projects: Project[];
-  sessions: Session[];
+  sessions: SessionState;
   tags: Tag[];
   settings: Settings;
   ui: UIState;

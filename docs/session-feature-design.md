@@ -70,10 +70,9 @@ interface Session {
 
 1. Phase 1: Basic Session Management
 
-   - [ ] Create session data model
-   - [ ] Add session state management
+   - [x] Create session data model
+   - [x] Add session state management
    - [ ] Implement session controls
-   - [ ] Add project selection
    - [ ] Basic session display
 
 2. Phase 2: Session History
