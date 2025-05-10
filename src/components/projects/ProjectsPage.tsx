@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { useProjects } from '@/state/hooks/useAppState';
 import type { Project } from '@/types/state';
 import { v4 as uuidv4 } from 'uuid';
+import { formatDuration } from '@/utils/time';
 
 const PageContainer = styled.div`
   padding: 2rem;
@@ -180,6 +181,42 @@ const ErrorMessage = styled.p`
   margin-top: 0.5rem;
 `;
 
+const StatsSection = styled.div`
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid ${({ theme }) => theme.colors.border};
+`;
+
+const StatsToggle = styled.button`
+  background: none;
+  border: none;
+  color: ${({ theme }) => theme.colors.text};
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  width: 100%;
+  text-align: left;
+  font-size: 0.9rem;
+
+  &:hover {
+    color: ${({ theme }) => theme.colors.primary};
+  }
+`;
+
+const StatsContent = styled.div<{ isExpanded: boolean }>`
+  display: ${({ isExpanded }) => (isExpanded ? 'block' : 'none')};
+  padding: 0.5rem;
+`;
+
+const StatRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+`;
+
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -306,11 +343,15 @@ export const ProjectsPage: React.FC = () => {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [deletingProject, setDeletingProject] = useState<Project | null>(null);
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
 
   const handleAddSubmit = (name: string) => {
     const newProject: Project = {
       id: uuidv4(),
       name,
+      description: '',
+      totalTime: 0,
+      sessionCount: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -360,6 +401,18 @@ export const ProjectsPage: React.FC = () => {
     setDeletingProject(null);
   };
 
+  const toggleProjectStats = (projectId: string) => {
+    setExpandedProjects(prev => {
+      const next = new Set(prev);
+      if (next.has(projectId)) {
+        next.delete(projectId);
+      } else {
+        next.add(projectId);
+      }
+      return next;
+    });
+  };
+
   return (
     <PageContainer>
       <Header>
@@ -388,6 +441,28 @@ export const ProjectsPage: React.FC = () => {
                 🗑️
               </DeleteButton>
             </ProjectActions>
+            <StatsSection>
+              <StatsToggle
+                onClick={() => toggleProjectStats(project.id)}
+                aria-expanded={expandedProjects.has(project.id)}
+              >
+                {expandedProjects.has(project.id) ? 'Hide Stats' : 'Show Stats'}
+              </StatsToggle>
+              <StatsContent isExpanded={expandedProjects.has(project.id)}>
+                <StatRow>
+                  <span>Total Time</span>
+                  <span>{formatDuration(project.totalTime)}</span>
+                </StatRow>
+                <StatRow>
+                  <span>Average Session</span>
+                  <span>
+                    {project.sessionCount
+                      ? formatDuration((project.totalTime || 0) / project.sessionCount)
+                      : 'No sessions'}
+                  </span>
+                </StatRow>
+              </StatsContent>
+            </StatsSection>
           </ProjectCard>
         ))}
       </ProjectList>

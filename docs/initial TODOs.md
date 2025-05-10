@@ -65,7 +65,7 @@
 - [x] Add new project form
 - [x] Edit project name/description
 - [x] Delete project (with confirm)
-- [ ] (Optional) Project usage stats
+- [x] (Optional) Project usage stats
 
 ### Tags Component
 

@@ -1,14 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import { ProjectsPage } from './ProjectsPage';
 import { AppProvider } from '@/state/context/AppContext';
 import { ThemeProvider } from 'styled-components';
 import { theme } from '@/styles/theme';
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
-  <AppProvider>
-    <ThemeProvider theme={theme}>{children}</ThemeProvider>
-  </AppProvider>
+  <ThemeProvider theme={theme}>
+    <AppProvider>{children}</AppProvider>
+  </ThemeProvider>
 );
 
 describe('ProjectsPage', () => {
@@ -318,5 +318,110 @@ describe('ProjectsPage', () => {
 
     // Check for error message
     expect(screen.getByRole('alert')).toHaveTextContent('A project with this name already exists');
+  });
+});
+
+describe('Project Stats', () => {
+  it('shows stats when expanded', async () => {
+    render(<ProjectsPage />, { wrapper });
+
+    // Add a project first
+    const addButton = screen.getByRole('button', { name: /add project/i });
+    fireEvent.click(addButton);
+
+    // Fill in the form
+    fireEvent.change(screen.getByLabelText(/project name/i), {
+      target: { value: 'Test Project' },
+    });
+
+    // Submit the form
+    const form = screen.getByRole('form');
+    const submitButton = within(form).getByRole('button', { name: /add project/i });
+    fireEvent.click(submitButton);
+
+    // Wait for the project to appear
+    await waitFor(() => {
+      expect(screen.getByText('Test Project')).toBeInTheDocument();
+    });
+
+    // Find and click the stats toggle button
+    const toggleButton = screen.getByRole('button', { name: /show stats/i });
+    expect(toggleButton).toHaveAttribute('aria-expanded', 'false');
+
+    fireEvent.click(toggleButton);
+    expect(toggleButton).toHaveAttribute('aria-expanded', 'true');
+
+    // Check if stats are displayed
+    expect(screen.getByText('Total Time')).toBeInTheDocument();
+    expect(screen.getByText('0s')).toBeInTheDocument();
+    expect(screen.getByText('Average Session')).toBeInTheDocument();
+    expect(screen.getByText('No sessions')).toBeInTheDocument();
+  });
+
+  it('hides stats when collapsed', async () => {
+    render(<ProjectsPage />, { wrapper });
+
+    // Add a project first
+    const addButton = screen.getByRole('button', { name: /add project/i });
+    fireEvent.click(addButton);
+
+    // Fill in the form
+    fireEvent.change(screen.getByLabelText(/project name/i), {
+      target: { value: 'Test Project' },
+    });
+
+    // Submit the form
+    const form = screen.getByRole('form');
+    const submitButton = within(form).getByRole('button', { name: /add project/i });
+    fireEvent.click(submitButton);
+
+    // Wait for the project to appear
+    await waitFor(() => {
+      expect(screen.getByText('Test Project')).toBeInTheDocument();
+    });
+
+    // Find and click the stats toggle button
+    const toggleButton = screen.getByRole('button', { name: /show stats/i });
+    expect(toggleButton).toHaveAttribute('aria-expanded', 'false');
+
+    fireEvent.click(toggleButton);
+    expect(toggleButton).toHaveAttribute('aria-expanded', 'true');
+
+    // Click again to collapse
+    fireEvent.click(toggleButton);
+    expect(toggleButton).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('shows zero time for new projects', async () => {
+    render(<ProjectsPage />, { wrapper });
+
+    // Click add project button
+    const addButton = screen.getByRole('button', { name: /add project/i });
+    fireEvent.click(addButton);
+
+    // Fill in the form
+    fireEvent.change(screen.getByLabelText(/project name/i), {
+      target: { value: 'New Project' },
+    });
+
+    // Submit the form
+    const form = screen.getByRole('form');
+    const submitButton = within(form).getByRole('button', { name: /add project/i });
+    fireEvent.click(submitButton);
+
+    // Wait for the new project to appear
+    await waitFor(() => {
+      expect(screen.getByText('New Project')).toBeInTheDocument();
+    });
+
+    // Expand stats
+    const toggleButton = screen.getByRole('button', { name: /show stats/i });
+    fireEvent.click(toggleButton);
+
+    // Check if zero stats are displayed
+    expect(screen.getByText('Total Time')).toBeInTheDocument();
+    expect(screen.getByText('0s')).toBeInTheDocument();
+    expect(screen.getByText('Average Session')).toBeInTheDocument();
+    expect(screen.getByText('No sessions')).toBeInTheDocument();
   });
 });
