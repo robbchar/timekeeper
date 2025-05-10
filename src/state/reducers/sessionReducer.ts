@@ -95,7 +95,7 @@ export const sessionReducer = (
       if (!state.currentSession) {
         return {
           ...state,
-          error: 'No session to end',
+          error: 'No active session to end',
         };
       }
 
@@ -107,9 +107,9 @@ export const sessionReducer = (
 
       const completedSession: Session = {
         ...state.currentSession,
-        status: 'completed',
         endTime,
         duration,
+        status: 'completed',
       };
 
       return {

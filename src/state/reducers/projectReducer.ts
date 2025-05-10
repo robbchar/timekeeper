@@ -3,15 +3,26 @@ import { ActionType } from '@/types/state';
 
 export const projectReducer = (state: Project[], action: Action): Project[] => {
   switch (action.type) {
-    case ActionType.ADD_PROJECT:
-      return [...state, action.payload];
+    case ActionType.ADD_PROJECT: {
+      const project = action.payload as Project;
+      return [
+        ...state,
+        {
+          ...project,
+          totalTime: 0,
+          sessionCount: 0,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ];
+    }
 
-    case ActionType.UPDATE_PROJECT:
-      return state.map(project =>
-        project.id === action.payload.id
-          ? { ...project, ...action.payload, updatedAt: new Date() }
-          : project
+    case ActionType.UPDATE_PROJECT: {
+      const project = action.payload as Project;
+      return state.map(p =>
+        p.id === project.id ? { ...p, ...project, updatedAt: new Date() } : p
       );
+    }
 
     case ActionType.DELETE_PROJECT:
       return state.filter(project => project.id !== action.payload);

@@ -6,7 +6,8 @@ import type { SessionState, SessionAction } from '@/types/session';
 export const appReducer = (state: AppState, action: Action): AppState => {
   switch (action.type) {
     case ActionType.CREATE_SESSION:
-    case ActionType.END_SESSION:
+    case ActionType.PAUSE_SESSION:
+    case ActionType.RESUME_SESSION:
     case ActionType.UPDATE_SESSION_NOTES:
       return {
         ...state,
@@ -15,6 +16,40 @@ export const appReducer = (state: AppState, action: Action): AppState => {
           action as unknown as SessionAction
         ),
       };
+
+    case ActionType.END_SESSION: {
+      const newSessions = sessionReducer(
+        state.sessions as unknown as SessionState,
+        action as unknown as SessionAction
+      );
+
+      // Update project stats if a session was completed
+      if (newSessions.sessions.length > state.sessions.sessions.length) {
+        const completedSession = newSessions.sessions[newSessions.sessions.length - 1];
+        const updatedProjects = state.projects.map(project => {
+          if (project.id === completedSession.projectId) {
+            return {
+              ...project,
+              totalTime: project.totalTime + completedSession.duration,
+              sessionCount: project.sessionCount + 1,
+              updatedAt: new Date(),
+            };
+          }
+          return project;
+        });
+
+        return {
+          ...state,
+          projects: updatedProjects,
+          sessions: newSessions,
+        };
+      }
+
+      return {
+        ...state,
+        sessions: newSessions,
+      };
+    }
 
     case ActionType.ADD_PROJECT:
       return {
@@ -68,6 +103,24 @@ export const appReducer = (state: AppState, action: Action): AppState => {
         ui: {
           ...state.ui,
           theme: state.ui.theme === Theme.LIGHT ? Theme.DARK : Theme.LIGHT,
+        },
+      };
+
+    case ActionType.SET_CURRENT_PROJECT:
+      return {
+        ...state,
+        ui: {
+          ...state.ui,
+          currentProject: action.payload as string,
+        },
+      };
+
+    case ActionType.SET_LOADING:
+      return {
+        ...state,
+        ui: {
+          ...state.ui,
+          isLoading: action.payload as boolean,
         },
       };
 

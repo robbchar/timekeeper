@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import styled from 'styled-components';
 import Layout from './components/layout/Layout';
 import TimerPage from './components/timer/TimerPage';
+import { ProjectsPage } from './components/projects/ProjectsPage';
 
 const AppContainer = styled.div`
   height: 100vh;
@@ -15,7 +16,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route index element={<TimerPage />} />
-            <Route path="projects" element={<div>Projects Page</div>} />
+            <Route path="projects" element={<ProjectsPage />} />
             <Route path="settings" element={<div>Settings Page</div>} />
           </Route>
         </Routes>

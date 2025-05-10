@@ -53,19 +53,19 @@
 
 ### Timer Page
 
-- [ ] Add live timer display and controls (Start, Stop, Resume)
-- [ ] Show current session details (project, optional notes/tags)
+- [x] Add live timer display and controls (Start, Stop, Resume)
+- [x] Show current session details (project, optional notes/tags)
 - [ ] Add note field and tag selector
 - [ ] List today's or active session history
 - [ ] Session controls: edit/delete/resume past sessions
 
 ### Projects Page
 
-- [ ] Display list of all projects
-- [ ] Add new project form
-- [ ] Edit project name/description
-- [ ] Delete project (with confirm)
-- [ ] (Optional) Project usage stats
+- [x] Display list of all projects
+- [x] Add new project form
+- [x] Edit project name/description
+- [x] Delete project (with confirm)
+- [x] (Optional) Project usage stats
 
 ### Tags Component
 
