@@ -24,7 +24,7 @@ describe('TimerPage', () => {
     expect(screen.getByText('00:00:01')).toBeInTheDocument();
   });
 
-  it('stops timer when stop button is clicked', () => {
+  it('pauses timer when pause button is clicked', () => {
     render(<TimerPage />);
 
     // Start the timer
@@ -34,8 +34,8 @@ describe('TimerPage', () => {
       vi.advanceTimersByTime(1000);
     });
 
-    // Stop the timer
-    fireEvent.click(screen.getByText('Stop'));
+    // Pause the timer
+    fireEvent.click(screen.getByText('Pause'));
 
     act(() => {
       vi.advanceTimersByTime(1000);
@@ -45,24 +45,52 @@ describe('TimerPage', () => {
     expect(screen.getByText('00:00:01')).toBeInTheDocument();
   });
 
-  it('shows start and resume buttons when timer is stopped', () => {
+  it('resumes timer when start button is clicked after pause', () => {
     render(<TimerPage />);
-
-    // Initially shows Start button
-    expect(screen.getByText('Start')).toBeInTheDocument();
-    expect(screen.getByText('Resume')).toBeInTheDocument();
 
     // Start the timer
     fireEvent.click(screen.getByText('Start'));
 
-    // Shows Stop button
-    expect(screen.getByText('Stop')).toBeInTheDocument();
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
 
-    // Stop the timer
-    fireEvent.click(screen.getByText('Stop'));
+    // Pause the timer
+    fireEvent.click(screen.getByText('Pause'));
 
-    // Shows Start and Resume buttons again
-    expect(screen.getByText('Start')).toBeInTheDocument();
-    expect(screen.getByText('Resume')).toBeInTheDocument();
+    // Resume the timer
+    fireEvent.click(screen.getByText('Start'));
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+
+    // Time should have increased
+    expect(screen.getByText('00:00:02')).toBeInTheDocument();
+  });
+
+  it('resets timer when start is clicked after a new session', () => {
+    render(<TimerPage />);
+
+    // Start the timer
+    fireEvent.click(screen.getByText('Start'));
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+
+    // Pause the timer
+    fireEvent.click(screen.getByText('Pause'));
+
+    // Wait a bit
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+
+    // Start a new session
+    fireEvent.click(screen.getByText('Start'));
+
+    // Timer should be reset
+    expect(screen.getByText('00:00:00')).toBeInTheDocument();
   });
 });

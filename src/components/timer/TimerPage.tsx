@@ -14,6 +14,7 @@ const TimerPage = () => {
   const [isRunning, setIsRunning] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [startTime, setStartTime] = useState<number | null>(null);
+  const [pausedTime, setPausedTime] = useState<number | null>(null);
 
   const updateTimer = useCallback(() => {
     if (isRunning && startTime) {
@@ -37,17 +38,21 @@ const TimerPage = () => {
   }, [isRunning, updateTimer]);
 
   const handleStart = () => {
-    setStartTime(Date.now() - elapsedTime);
+    if (pausedTime) {
+      // Resume from pause
+      setStartTime(Date.now() - pausedTime);
+      setPausedTime(null);
+    } else {
+      // Start new timer
+      setStartTime(Date.now());
+      setElapsedTime(0);
+    }
     setIsRunning(true);
   };
 
   const handleStop = () => {
     setIsRunning(false);
-  };
-
-  const handleResume = () => {
-    setStartTime(Date.now() - elapsedTime);
-    setIsRunning(true);
+    setPausedTime(elapsedTime);
   };
 
   return (
@@ -57,7 +62,7 @@ const TimerPage = () => {
         isRunning={isRunning}
         onStart={handleStart}
         onStop={handleStop}
-        onResume={handleResume}
+        onResume={handleStart}
       />
     </PageContainer>
   );

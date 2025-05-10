@@ -4,51 +4,54 @@ interface TimerControlsProps {
   isRunning: boolean;
   onStart: () => void;
   onStop: () => void;
-  onResume: () => void;
 }
 
 const ControlsContainer = styled.div`
   display: flex;
-  gap: 1rem;
   justify-content: center;
-  margin: 1rem 0;
+  margin: 2rem 0;
 `;
 
-const Button = styled.button<{ variant?: 'primary' | 'secondary' }>`
-  padding: 0.75rem 1.5rem;
-  font-size: 1rem;
+const CircularButton = styled.button<{ isRunning: boolean }>`
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
   border: none;
-  border-radius: 4px;
+  background-color: ${({ isRunning }) => (isRunning ? '#dc3545' : '#28a745')};
+  color: white;
+  font-size: 1.2rem;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
-  background-color: ${({ variant }) => (variant === 'primary' ? '#007bff' : '#6c757d')};
-  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 
   &:hover {
-    background-color: ${({ variant }) => (variant === 'primary' ? '#0056b3' : '#5a6268')};
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
   }
 
-  &:disabled {
-    background-color: #ccc;
-    cursor: not-allowed;
+  &:active {
+    transform: scale(0.95);
   }
 `;
 
-const TimerControls = ({ isRunning, onStart, onStop, onResume }: TimerControlsProps) => {
+const TimerControls = ({ isRunning, onStart, onStop }: TimerControlsProps) => {
+  const handleClick = () => {
+    if (isRunning) {
+      onStop();
+    } else {
+      onStart();
+    }
+  };
+
   return (
     <ControlsContainer>
-      {!isRunning ? (
-        <>
-          <Button variant="primary" onClick={onStart}>
-            Start
-          </Button>
-          <Button onClick={onResume} disabled={true}>
-            Resume
-          </Button>
-        </>
-      ) : (
-        <Button onClick={onStop}>Stop</Button>
-      )}
+      <CircularButton isRunning={isRunning} onClick={handleClick}>
+        {isRunning ? 'Pause' : 'Start'}
+      </CircularButton>
     </ControlsContainer>
   );
 };
