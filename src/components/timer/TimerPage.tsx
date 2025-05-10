@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import TimerDisplay from './TimerDisplay';
 import TimerControls from './TimerControls';
@@ -12,22 +12,16 @@ const PageContainer = styled.div`
 
 const TimerPage = () => {
   const [isRunning, setIsRunning] = useState(false);
-  const [elapsedTime, setElapsedTime] = useState(0);
-  const [startTime, setStartTime] = useState<number | null>(null);
-  const [pausedTime, setPausedTime] = useState<number | null>(null);
-
-  const updateTimer = useCallback(() => {
-    if (isRunning && startTime) {
-      const currentTime = Date.now();
-      setElapsedTime(currentTime - startTime);
-    }
-  }, [isRunning, startTime]);
+  const [seconds, setSeconds] = useState(0);
+  const [pausedSeconds, setPausedSeconds] = useState<number | null>(null);
 
   useEffect(() => {
     let intervalId: number;
 
     if (isRunning) {
-      intervalId = window.setInterval(updateTimer, 1000);
+      intervalId = window.setInterval(() => {
+        setSeconds(prev => prev + 1);
+      }, 1000);
     }
 
     return () => {
@@ -35,30 +29,28 @@ const TimerPage = () => {
         clearInterval(intervalId);
       }
     };
-  }, [isRunning, updateTimer]);
+  }, [isRunning]);
 
   const handleStart = () => {
-    if (pausedTime) {
+    if (pausedSeconds !== null) {
       // Resume from pause
-      setStartTime(Date.now() - pausedTime);
-      setPausedTime(null);
+      setSeconds(pausedSeconds);
+      setPausedSeconds(null);
     } else {
-      // Start new session - reset everything
-      setStartTime(Date.now());
-      setElapsedTime(0);
-      setPausedTime(null);
+      // Start new session
+      setSeconds(0);
     }
     setIsRunning(true);
   };
 
   const handleStop = () => {
     setIsRunning(false);
-    setPausedTime(elapsedTime);
+    setPausedSeconds(seconds);
   };
 
   return (
     <PageContainer>
-      <TimerDisplay elapsedTime={elapsedTime} />
+      <TimerDisplay elapsedTime={seconds * 1000} />
       <TimerControls isRunning={isRunning} onStart={handleStart} onStop={handleStop} />
     </PageContainer>
   );

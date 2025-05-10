@@ -1,5 +1,4 @@
 import styled from 'styled-components';
-import { format } from 'date-fns';
 
 interface TimerDisplayProps {
   elapsedTime: number; // in milliseconds
@@ -15,8 +14,12 @@ const DisplayContainer = styled.div`
 `;
 
 const formatTime = (milliseconds: number): string => {
-  const date = new Date(milliseconds);
-  return format(date, 'HH:mm:ss');
+  const totalSeconds = Math.floor(milliseconds / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return [hours, minutes, seconds].map(num => num.toString().padStart(2, '0')).join(':');
 };
 
 const TimerDisplay = ({ elapsedTime }: TimerDisplayProps) => {
