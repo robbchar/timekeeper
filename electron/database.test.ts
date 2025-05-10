@@ -37,6 +37,12 @@ describe('Main Process Database', () => {
         notes TEXT,
         FOREIGN KEY (project_id) REFERENCES projects(id)
       );
+
+      CREATE TABLE IF NOT EXISTS tags (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        color TEXT
+      );
     `);
   });
 
@@ -151,6 +157,41 @@ describe('Main Process Database', () => {
       expect(sessions.length).toBe(2);
       expect((sessions[0] as { start_time: string }).start_time).toBe(startTime1);
       expect((sessions[1] as { start_time: string }).start_time).toBe(startTime2);
+    });
+  });
+
+  describe('Tags', () => {
+    it('should create and retrieve a tag', () => {
+      const stmt = db.prepare('INSERT INTO tags (name, color) VALUES (?, ?)');
+      const result = stmt.run('Urgent', '#ff0000');
+      expect(result.lastInsertRowid).toBeGreaterThan(0);
+
+      const getStmt = db.prepare('SELECT * FROM tags WHERE id = ?');
+      const tag = getStmt.get(result.lastInsertRowid) as {
+        name: string;
+        color: string;
+      };
+      expect(tag).toMatchObject({
+        name: 'Urgent',
+        color: '#ff0000',
+      });
+    });
+
+    it('should not allow duplicate tag names', () => {
+      db.prepare('INSERT INTO tags (name) VALUES (?)').run('UniqueTag');
+      expect(() => {
+        db.prepare('INSERT INTO tags (name) VALUES (?)').run('UniqueTag');
+      }).toThrow();
+    });
+
+    it('should return all tags', () => {
+      db.prepare('INSERT INTO tags (name) VALUES (?)').run('Tag1');
+      db.prepare('INSERT INTO tags (name) VALUES (?)').run('Tag2');
+      const stmt = db.prepare('SELECT * FROM tags ORDER BY name');
+      const tags = stmt.all();
+      expect(tags.length).toBe(2);
+      expect((tags[0] as { name: string }).name).toBe('Tag1');
+      expect((tags[1] as { name: string }).name).toBe('Tag2');
     });
   });
 });
