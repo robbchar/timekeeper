@@ -1,8 +1,9 @@
-import React, { useState, useContext } from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
-import { AppContext } from '@/state/context/AppContext';
+import { useAppContext } from '@/state/context/AppContext';
 import { ActionType } from '@/types/state';
 import type { Project } from '@/types/state';
+import { useDatabase } from '@/contexts/DatabaseContext';
 
 const Container = styled.div`
   padding: 1.5rem;
@@ -80,27 +81,72 @@ const Button = styled.button<{ variant: 'start' | 'stop' }>`
   }
 `;
 
+const ErrorMessage = styled.div`
+  color: ${({ theme }) => theme.colors.error};
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+`;
+
+const LoadingMessage = styled.div`
+  color: ${({ theme }) => theme.colors.text.secondary};
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+`;
+
 const SessionControls: React.FC = () => {
-  const { state, dispatch } = useContext(AppContext);
+  const { state, dispatch } = useAppContext();
+  const { createSession, endSession } = useDatabase();
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
-  if (!state || !dispatch) {
-    throw new Error('SessionControls must be used within an AppProvider');
-  }
+  const handleStartSession = async () => {
+    if (!selectedProjectId) return;
 
-  const handleStartSession = () => {
-    if (selectedProjectId) {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const startTime = new Date().toISOString();
+      await createSession(Number(selectedProjectId), startTime, notes);
+
       dispatch({
         type: ActionType.CREATE_SESSION,
-        payload: { projectId: selectedProjectId, notes },
+        payload: {
+          projectId: selectedProjectId,
+          notes,
+        },
       });
+
+      // Clear form
+      setNotes('');
+    } catch (err) {
+      setError('Failed to start session. Please try again.');
+      console.error('Error starting session:', err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleStopSession = () => {
-    if (state.sessions.currentSession) {
+  const handleStopSession = async () => {
+    if (!state.sessions.currentSession) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const endTime = new Date().toISOString();
+      const startTime = new Date(state.sessions.currentSession.startTime);
+      const duration = Math.floor((new Date(endTime).getTime() - startTime.getTime()) / 1000);
+
+      await endSession(Number(state.sessions.currentSession.id), endTime, duration);
       dispatch({ type: ActionType.END_SESSION });
+    } catch (err) {
+      setError('Failed to stop session. Please try again.');
+      console.error('Error stopping session:', err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -119,23 +165,26 @@ const SessionControls: React.FC = () => {
           value={notes}
           onChange={e => setNotes(e.target.value)}
           placeholder="Add notes..."
+          disabled={isLoading}
         />
         <ButtonContainer>
           <Button
             variant="start"
             onClick={handleStartSession}
-            disabled={!selectedProjectId || !!state.sessions.currentSession}
+            disabled={!selectedProjectId || !!state.sessions.currentSession || isLoading}
           >
-            Start Session
+            {isLoading ? 'Starting...' : 'Start Session'}
           </Button>
           <Button
             variant="stop"
             onClick={handleStopSession}
-            disabled={!state.sessions.currentSession}
+            disabled={!state.sessions.currentSession || isLoading}
           >
-            Stop Session
+            {isLoading ? 'Stopping...' : 'Stop Session'}
           </Button>
         </ButtonContainer>
+        {error && <ErrorMessage>{error}</ErrorMessage>}
+        {isLoading && <LoadingMessage>Processing...</LoadingMessage>}
       </Controls>
     </Container>
   );
