@@ -196,9 +196,9 @@ const ProjectModal: React.FC<ModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <Modal onClick={onClose}>
+    <Modal onClick={onClose} role="dialog" aria-modal="true">
       <ModalContent onClick={e => e.stopPropagation()}>
-        <Form onSubmit={handleSubmit}>
+        <Form onSubmit={handleSubmit} role="form">
           <ModalTitle>{title}</ModalTitle>
           <Input
             type="text"
@@ -206,6 +206,7 @@ const ProjectModal: React.FC<ModalProps> = ({
             value={projectName}
             onChange={e => setProjectName(e.target.value)}
             autoFocus
+            aria-label="Project Name"
           />
           <ButtonGroup>
             <Button type="button" onClick={onClose}>
@@ -271,7 +272,11 @@ export const ProjectsPage: React.FC = () => {
             <ProjectName>{project.name}</ProjectName>
             <ProjectDate>Created: {new Date(project.createdAt).toLocaleDateString()}</ProjectDate>
             <ProjectActions>
-              <IconButton onClick={() => handleEditClick(project)} title="Edit Project">
+              <IconButton
+                onClick={() => handleEditClick(project)}
+                title="Edit Project"
+                aria-label="Edit Project"
+              >
                 ✏️
               </IconButton>
             </ProjectActions>

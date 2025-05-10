@@ -62,8 +62,8 @@
 ### Projects Page
 
 - [ ] Display list of all projects
-- [ ] Add new project form
-- [ ] Edit project name/description
+- [x] Add new project form
+- [x] Edit project name/description
 - [ ] Delete project (with confirm)
 - [ ] (Optional) Project usage stats
 
