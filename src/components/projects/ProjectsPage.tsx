@@ -90,6 +90,14 @@ const IconButton = styled.button`
   }
 `;
 
+const DeleteButton = styled(IconButton)`
+  color: ${({ theme }) => theme.colors.error};
+
+  &:hover {
+    color: ${({ theme }) => theme.colors.errorHover};
+  }
+`;
+
 const Modal = styled.div`
   position: fixed;
   top: 0;
@@ -174,6 +182,41 @@ interface ModalProps {
   title: string;
 }
 
+interface ConfirmModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  message: string;
+}
+
+const ConfirmModal: React.FC<ConfirmModalProps> = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  title,
+  message,
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <Modal onClick={onClose} role="dialog" aria-modal="true">
+      <ModalContent onClick={e => e.stopPropagation()}>
+        <ModalTitle>{title}</ModalTitle>
+        <p>{message}</p>
+        <ButtonGroup>
+          <Button type="button" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="button" variant="primary" onClick={onConfirm}>
+            Delete
+          </Button>
+        </ButtonGroup>
+      </ModalContent>
+    </Modal>
+  );
+};
+
 const ProjectModal: React.FC<ModalProps> = ({
   isOpen,
   onClose,
@@ -223,10 +266,12 @@ const ProjectModal: React.FC<ModalProps> = ({
 };
 
 export const ProjectsPage: React.FC = () => {
-  const { projects, addProject, updateProject } = useProjects();
+  const { projects, addProject, updateProject, deleteProject } = useProjects();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [deletingProject, setDeletingProject] = useState<Project | null>(null);
 
   const handleAddSubmit = (name: string) => {
     const newProject: Project = {
@@ -259,6 +304,18 @@ export const ProjectsPage: React.FC = () => {
     setIsEditModalOpen(true);
   };
 
+  const handleDeleteClick = (project: Project) => {
+    setDeletingProject(project);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (!deletingProject) return;
+    deleteProject(deletingProject.id);
+    setIsDeleteModalOpen(false);
+    setDeletingProject(null);
+  };
+
   return (
     <PageContainer>
       <Header>
@@ -279,6 +336,13 @@ export const ProjectsPage: React.FC = () => {
               >
                 ✏️
               </IconButton>
+              <DeleteButton
+                onClick={() => handleDeleteClick(project)}
+                title="Delete Project"
+                aria-label="Delete Project"
+              >
+                🗑️
+              </DeleteButton>
             </ProjectActions>
           </ProjectCard>
         ))}
@@ -300,6 +364,17 @@ export const ProjectsPage: React.FC = () => {
         onSubmit={handleEditSubmit}
         initialName={editingProject?.name}
         title="Edit Project"
+      />
+
+      <ConfirmModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => {
+          setIsDeleteModalOpen(false);
+          setDeletingProject(null);
+        }}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Project"
+        message={`Are you sure you want to delete "${deletingProject?.name}"? This action cannot be undone.`}
       />
     </PageContainer>
   );

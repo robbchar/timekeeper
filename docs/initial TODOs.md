@@ -64,7 +64,7 @@
 - [ ] Display list of all projects
 - [x] Add new project form
 - [x] Edit project name/description
-- [ ] Delete project (with confirm)
+- [x] Delete project (with confirm)
 - [ ] (Optional) Project usage stats
 
 ### Tags Component

@@ -127,4 +127,97 @@ describe('ProjectsPage', () => {
     expect(screen.getByText('Updated Project')).toBeInTheDocument();
     expect(screen.queryByText('Test Project')).not.toBeInTheDocument();
   });
+
+  it('shows delete confirmation modal when clicking delete button', () => {
+    render(<ProjectsPage />, { wrapper });
+
+    // Add a project first
+    const addButton = screen.getByRole('button', { name: /add project/i });
+    fireEvent.click(addButton);
+    const input = screen.getByRole('textbox', { name: /project name/i });
+    fireEvent.change(input, { target: { value: 'Test Project' } });
+    const form = screen.getByRole('form');
+    const submitButton = within(form).getByRole('button', { name: /add project/i });
+    fireEvent.click(submitButton);
+
+    // Click delete button
+    const deleteButton = screen.getByRole('button', { name: /delete project/i });
+    fireEvent.click(deleteButton);
+
+    // Check if confirmation modal is shown
+    expect(screen.getByRole('heading', { name: 'Delete Project' })).toBeInTheDocument();
+    expect(screen.getByText(/are you sure you want to delete "Test Project"/i)).toBeInTheDocument();
+  });
+
+  it('deletes project when confirming deletion', () => {
+    render(<ProjectsPage />, { wrapper });
+
+    // Add a project first
+    const addButton = screen.getByRole('button', { name: /add project/i });
+    fireEvent.click(addButton);
+    const input = screen.getByRole('textbox', { name: /project name/i });
+    fireEvent.change(input, { target: { value: 'Test Project' } });
+    const form = screen.getByRole('form');
+    const submitButton = within(form).getByRole('button', { name: /add project/i });
+    fireEvent.click(submitButton);
+
+    // Click delete button
+    const deleteButton = screen.getByRole('button', { name: /delete project/i });
+    fireEvent.click(deleteButton);
+
+    // Confirm deletion
+    const confirmButton = screen.getByRole('button', { name: /^delete$/i });
+    fireEvent.click(confirmButton);
+
+    // Check if project was deleted
+    expect(screen.queryByText('Test Project')).not.toBeInTheDocument();
+  });
+
+  it('cancels deletion when clicking cancel', () => {
+    render(<ProjectsPage />, { wrapper });
+
+    // Add a project first
+    const addButton = screen.getByRole('button', { name: /add project/i });
+    fireEvent.click(addButton);
+    const input = screen.getByRole('textbox', { name: /project name/i });
+    fireEvent.change(input, { target: { value: 'Test Project' } });
+    const form = screen.getByRole('form');
+    const submitButton = within(form).getByRole('button', { name: /add project/i });
+    fireEvent.click(submitButton);
+
+    // Click delete button
+    const deleteButton = screen.getByRole('button', { name: /delete project/i });
+    fireEvent.click(deleteButton);
+
+    // Click cancel
+    const cancelButton = screen.getByRole('button', { name: /cancel/i });
+    fireEvent.click(cancelButton);
+
+    // Check if project still exists
+    expect(screen.getByText('Test Project')).toBeInTheDocument();
+  });
+
+  it('cancels deletion when clicking outside modal', () => {
+    render(<ProjectsPage />, { wrapper });
+
+    // Add a project first
+    const addButton = screen.getByRole('button', { name: /add project/i });
+    fireEvent.click(addButton);
+    const input = screen.getByRole('textbox', { name: /project name/i });
+    fireEvent.change(input, { target: { value: 'Test Project' } });
+    const form = screen.getByRole('form');
+    const submitButton = within(form).getByRole('button', { name: /add project/i });
+    fireEvent.click(submitButton);
+
+    // Click delete button
+    const deleteButton = screen.getByRole('button', { name: /delete project/i });
+    fireEvent.click(deleteButton);
+
+    // Click outside modal
+    const modal = screen.getByRole('dialog');
+    fireEvent.click(modal);
+
+    // Check if project still exists
+    expect(screen.getByText('Test Project')).toBeInTheDocument();
+  });
 });
