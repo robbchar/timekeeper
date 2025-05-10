@@ -27,3 +27,8 @@ release
 
 # Coverage
 coverage
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
