@@ -43,9 +43,10 @@ const TimerPage = () => {
       setStartTime(Date.now() - pausedTime);
       setPausedTime(null);
     } else {
-      // Start new timer
+      // Start new session - reset everything
       setStartTime(Date.now());
       setElapsedTime(0);
+      setPausedTime(null);
     }
     setIsRunning(true);
   };
@@ -58,12 +59,7 @@ const TimerPage = () => {
   return (
     <PageContainer>
       <TimerDisplay elapsedTime={elapsedTime} />
-      <TimerControls
-        isRunning={isRunning}
-        onStart={handleStart}
-        onStop={handleStop}
-        onResume={handleStart}
-      />
+      <TimerControls isRunning={isRunning} onStart={handleStart} onStop={handleStop} />
     </PageContainer>
   );
 };

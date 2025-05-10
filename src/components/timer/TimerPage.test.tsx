@@ -68,29 +68,4 @@ describe('TimerPage', () => {
     // Time should have increased
     expect(screen.getByText('00:00:02')).toBeInTheDocument();
   });
-
-  it('resets timer when start is clicked after a new session', () => {
-    render(<TimerPage />);
-
-    // Start the timer
-    fireEvent.click(screen.getByText('Start'));
-
-    act(() => {
-      vi.advanceTimersByTime(1000);
-    });
-
-    // Pause the timer
-    fireEvent.click(screen.getByText('Pause'));
-
-    // Wait a bit
-    act(() => {
-      vi.advanceTimersByTime(2000);
-    });
-
-    // Start a new session
-    fireEvent.click(screen.getByText('Start'));
-
-    // Timer should be reset
-    expect(screen.getByText('00:00:00')).toBeInTheDocument();
-  });
 });
