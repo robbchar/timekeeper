@@ -43,6 +43,11 @@ describe('Main Process Database', () => {
         name TEXT NOT NULL UNIQUE,
         color TEXT
       );
+
+      CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
     `);
   });
 
@@ -192,6 +197,32 @@ describe('Main Process Database', () => {
       expect(tags.length).toBe(2);
       expect((tags[0] as { name: string }).name).toBe('Tag1');
       expect((tags[1] as { name: string }).name).toBe('Tag2');
+    });
+  });
+
+  describe('Settings', () => {
+    it('should set and get a setting', () => {
+      const stmt = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)');
+      stmt.run('theme', 'dark');
+      const getStmt = db.prepare('SELECT value FROM settings WHERE key = ?');
+      const result = getStmt.get('theme') as { value: string };
+      expect(result.value).toBe('dark');
+    });
+
+    it('should update a setting', () => {
+      db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('timer', '25');
+      const updateStmt = db.prepare('UPDATE settings SET value = ? WHERE key = ?');
+      const updateResult = updateStmt.run('30', 'timer');
+      expect(updateResult.changes).toBe(1);
+      const getStmt = db.prepare('SELECT value FROM settings WHERE key = ?');
+      const result = getStmt.get('timer') as { value: string };
+      expect(result.value).toBe('30');
+    });
+
+    it('should return undefined for non-existent setting', () => {
+      const getStmt = db.prepare('SELECT value FROM settings WHERE key = ?');
+      const result = getStmt.get('nonexistent');
+      expect(result).toBeUndefined();
     });
   });
 });
