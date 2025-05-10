@@ -16,6 +16,7 @@
 ## 📐 Design & Structure
 
 - [x] Identify core data models:
+
   - Project
   - Session
   - Tag
@@ -44,12 +45,14 @@
 ## 🧰 UI Scaffolding
 
 ### Layout
-- [ ] Build base layout:
-  - [ ] Sidebar navigation (Timer, Projects, Settings)
-  - [ ] Header with project switcher or clock
-  - [ ] Main content area
+
+- [x] Build base layout:
+  - [x] Sidebar navigation (Timer, Projects, Settings)
+  - [x] Header with project switcher or clock
+  - [x] Main content area
 
 ### Timer Page
+
 - [ ] Add live timer display and controls (Start, Stop, Resume)
 - [ ] Show current session details (project, optional notes/tags)
 - [ ] Add note field and tag selector
@@ -57,6 +60,7 @@
 - [ ] Session controls: edit/delete/resume past sessions
 
 ### Projects Page
+
 - [ ] Display list of all projects
 - [ ] Add new project form
 - [ ] Edit project name/description
@@ -64,23 +68,27 @@
 - [ ] (Optional) Project usage stats
 
 ### Tags Component
+
 - [ ] Create modal or dropdown for tag selection
 - [ ] Allow tag creation (inline or in a separate view)
 - [ ] Associate tags with sessions
 - [ ] Optional: assign colors or categories to tags
 
 ### Settings Panel
+
 - [ ] UI theme (light/dark toggle)
 - [ ] Default project
 - [ ] Time format (12/24h)
 - [ ] Timer rounding options (e.g., nearest 5 min)
 
 ### Timeline View (Optional)
+
 - [ ] Implement visual timeline (using a lib or simple blocks)
 - [ ] Filter by project, tag, or date
 - [ ] Allow zoom or scroll through history
 
 ### Export View
+
 - [ ] Basic data export to CSV or JSON
 - [ ] Filters for date range or project
 - [ ] Trigger download of exported data
