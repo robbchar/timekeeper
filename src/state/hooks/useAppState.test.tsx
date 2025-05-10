@@ -1,9 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { AppProvider } from '@/state/context/AppContext';
 import { useProjects, useSessions, useTags, useSettings, useUI } from './useAppState';
 import { Theme } from '@/types/state';
-import type { Project, Session, Tag } from '@/types/state';
+import type { Project, Tag } from '@/types/state';
+import type { CreateSessionParams } from '@/types/session';
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
   <AppProvider>{children}</AppProvider>
@@ -29,29 +30,43 @@ describe('useProjects', () => {
 });
 
 describe('useSessions', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
   it('should start and stop a session', () => {
     const { result } = renderHook(() => useSessions(), { wrapper });
-    const mockSession: Session = {
-      id: '1',
+    const startTime = new Date('2024-01-01T10:00:00');
+    vi.setSystemTime(startTime);
+
+    const sessionParams: CreateSessionParams = {
       projectId: '1',
-      startTime: new Date(),
-      tags: [],
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      notes: 'Test session',
     };
 
     act(() => {
-      result.current.startSession(mockSession);
+      result.current.startSession(sessionParams);
     });
 
-    expect(result.current.sessions).toHaveLength(1);
-    expect(result.current.sessions[0]).toEqual(mockSession);
+    expect(result.current.currentSession).toBeDefined();
+    expect(result.current.currentSession?.projectId).toBe('1');
+    expect(result.current.currentSession?.notes).toBe('Test session');
+    expect(result.current.currentSession?.status).toBe('active');
+
+    // Advance time by 1 hour
+    vi.advanceTimersByTime(3600000);
 
     act(() => {
-      result.current.stopSession('1');
+      result.current.stopSession();
     });
 
-    expect(result.current.sessions[0].endTime).toBeInstanceOf(Date);
+    expect(result.current.currentSession).toBeNull();
+    expect(result.current.sessions).toHaveLength(1);
+    expect(result.current.sessions[0].status).toBe('completed');
+    expect(result.current.sessions[0].endTime).toBeDefined();
+    expect(result.current.sessions[0].duration).toBe(3600000); // 1 hour in milliseconds
   });
 });
 
