@@ -53,8 +53,8 @@
 
 ### Timer Page
 
-- [ ] Add live timer display and controls (Start, Stop, Resume)
-- [ ] Show current session details (project, optional notes/tags)
+- [x] Add live timer display and controls (Start, Stop, Resume)
+- [x] Show current session details (project, optional notes/tags)
 - [ ] Add note field and tag selector
 - [ ] List today's or active session history
 - [ ] Session controls: edit/delete/resume past sessions
