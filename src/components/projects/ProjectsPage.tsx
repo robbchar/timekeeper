@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { useProjects } from '@/state/hooks/useAppState';
+import { useDatabase } from '@/contexts/DatabaseContext';
 import type { Project } from '@/types/state';
 import { v4 as uuidv4 } from 'uuid';
 import { formatDuration } from '@/utils/time';
@@ -337,13 +337,41 @@ const ProjectModal: React.FC<ModalProps> = ({
 };
 
 export const ProjectsPage: React.FC = () => {
-  const { projects, addProject, updateProject, deleteProject } = useProjects();
+  const { getAllProjects } = useDatabase();
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [deletingProject, setDeletingProject] = useState<Project | null>(null);
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        const fetchedProjects = await getAllProjects();
+        const mappedProjects: Project[] = fetchedProjects.map(project => ({
+          id: project.id.toString(),
+          name: project.name,
+          description: project.description || '',
+          totalTime: 0,
+          sessionCount: 0,
+          createdAt: new Date(project.created_at),
+          updatedAt: new Date(project.created_at),
+        }));
+        setProjects(mappedProjects);
+      } catch (err) {
+        setError('Failed to fetch projects');
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProjects();
+  }, [getAllProjects]);
 
   const handleAddSubmit = (name: string) => {
     const newProject: Project = {
@@ -355,31 +383,20 @@ export const ProjectsPage: React.FC = () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-
-    addProject(newProject);
+    setProjects(prev => [...prev, newProject]);
     setIsAddModalOpen(false);
   };
 
   const handleEditSubmit = (name: string) => {
     if (!editingProject) return;
-
-    // Check for duplicates excluding the current project
-    const isDuplicate = projects.some(
-      project =>
-        project.id !== editingProject.id && project.name.toLowerCase() === name.toLowerCase()
-    );
-
-    if (isDuplicate) {
-      return;
-    }
-
     const updatedProject: Project = {
       ...editingProject,
       name,
       updatedAt: new Date(),
     };
-
-    updateProject(updatedProject);
+    setProjects(prev =>
+      prev.map(project => (project.id === updatedProject.id ? updatedProject : project))
+    );
     setIsEditModalOpen(false);
     setEditingProject(null);
   };
@@ -396,7 +413,7 @@ export const ProjectsPage: React.FC = () => {
 
   const handleDeleteConfirm = () => {
     if (!deletingProject) return;
-    deleteProject(deletingProject.id);
+    setProjects(prev => prev.filter(project => project.id !== deletingProject.id));
     setIsDeleteModalOpen(false);
     setDeletingProject(null);
   };
@@ -413,6 +430,9 @@ export const ProjectsPage: React.FC = () => {
     });
   };
 
+  if (isLoading) return <div>Loading...</div>;
+  if (error) return <div>{error}</div>;
+
   return (
     <PageContainer>
       <Header>
@@ -424,7 +444,7 @@ export const ProjectsPage: React.FC = () => {
         {projects.map((project: Project) => (
           <ProjectCard key={project.id}>
             <ProjectName>{project.name}</ProjectName>
-            <ProjectDate>Created: {new Date(project.createdAt).toLocaleDateString()}</ProjectDate>
+            <ProjectDate>Created: {project.createdAt.toLocaleDateString()}</ProjectDate>
             <ProjectActions>
               <IconButton
                 onClick={() => handleEditClick(project)}
