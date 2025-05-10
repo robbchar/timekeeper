@@ -1,76 +1,179 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { sessionReducer } from './sessionReducer';
+import type { SessionState } from '@/types/session';
 import { ActionType } from '@/types/state';
-import type { Session, Action } from '@/types/state';
+import type { SessionAction } from './sessionReducer';
 
 describe('sessionReducer', () => {
-  const mockSession: Session = {
-    id: '1',
-    projectId: '1',
-    startTime: new Date('2024-01-01T10:00:00'),
-    notes: 'Test session',
-    tags: ['test'],
-    createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-01'),
+  const initialState: SessionState = {
+    currentSession: null,
+    sessions: [],
+    isLoading: false,
+    error: null,
   };
 
-  it('should start a session', () => {
-    const initialState: Session[] = [];
-    const action = {
-      type: ActionType.START_SESSION,
-      payload: mockSession,
-    };
-
-    const newState = sessionReducer(initialState, action);
-    expect(newState).toHaveLength(1);
-    expect(newState[0]).toEqual(mockSession);
+  beforeEach(() => {
+    vi.useFakeTimers();
   });
 
-  it('should stop a session', () => {
-    const initialState: Session[] = [mockSession];
-    const action = {
-      type: ActionType.STOP_SESSION,
-      payload: { id: '1' },
-    };
-
-    const newState = sessionReducer(initialState, action);
-    expect(newState).toHaveLength(1);
-    expect(newState[0].endTime).toBeInstanceOf(Date);
-    expect(newState[0].updatedAt).toBeInstanceOf(Date);
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
-  it('should update a session', () => {
-    const initialState: Session[] = [mockSession];
-    const action = {
-      type: ActionType.UPDATE_SESSION,
-      payload: { id: '1', notes: 'Updated notes' },
+  it('should create a new session', () => {
+    const action: SessionAction = {
+      type: ActionType.CREATE_SESSION,
+      payload: {
+        projectId: 'project-1',
+        notes: 'Test session',
+      },
     };
 
     const newState = sessionReducer(initialState, action);
-    expect(newState).toHaveLength(1);
-    expect(newState[0].notes).toBe('Updated notes');
-    expect(newState[0].updatedAt).toBeInstanceOf(Date);
+
+    expect(newState.currentSession).toBeDefined();
+    expect(newState.currentSession?.projectId).toBe('project-1');
+    expect(newState.currentSession?.notes).toBe('Test session');
+    expect(newState.currentSession?.status).toBe('active');
+    expect(newState.error).toBeNull();
   });
 
-  it('should delete a session', () => {
-    const initialState: Session[] = [mockSession];
-    const action = {
-      type: ActionType.DELETE_SESSION,
-      payload: '1',
+  it('should not create a new session if one is active', () => {
+    const stateWithActiveSession: SessionState = {
+      ...initialState,
+      currentSession: {
+        id: 'session-1',
+        projectId: 'project-1',
+        startTime: new Date(),
+        duration: 0,
+        status: 'active',
+        totalPausedTime: 0,
+      },
     };
 
-    const newState = sessionReducer(initialState, action);
-    expect(newState).toHaveLength(0);
+    const action: SessionAction = {
+      type: ActionType.CREATE_SESSION,
+      payload: {
+        projectId: 'project-2',
+      },
+    };
+
+    const newState = sessionReducer(stateWithActiveSession, action);
+
+    expect(newState.currentSession).toBe(stateWithActiveSession.currentSession);
+    expect(newState.error).toBe('Cannot start a new session while another is active');
   });
 
-  it('should return initial state for unknown action', () => {
-    const initialState: Session[] = [mockSession];
-    const action: Action = {
-      type: 'UNKNOWN_ACTION' as ActionType,
-      payload: null,
+  it('should pause an active session', () => {
+    const stateWithActiveSession: SessionState = {
+      ...initialState,
+      currentSession: {
+        id: 'session-1',
+        projectId: 'project-1',
+        startTime: new Date(),
+        duration: 0,
+        status: 'active',
+        totalPausedTime: 0,
+      },
     };
 
-    const newState = sessionReducer(initialState, action);
-    expect(newState).toEqual(initialState);
+    const action: SessionAction = { type: ActionType.PAUSE_SESSION };
+
+    const newState = sessionReducer(stateWithActiveSession, action);
+
+    expect(newState.currentSession?.status).toBe('paused');
+    expect(newState.currentSession?.lastPausedAt).toBeDefined();
+    expect(newState.error).toBeNull();
+  });
+
+  it('should resume a paused session', () => {
+    const startTime = new Date('2024-01-01T10:00:00');
+    const pauseTime = new Date('2024-01-01T10:30:00');
+    const resumeTime = new Date('2024-01-01T11:00:00');
+
+    // Set initial time
+    vi.setSystemTime(startTime);
+
+    const stateWithPausedSession: SessionState = {
+      ...initialState,
+      currentSession: {
+        id: 'session-1',
+        projectId: 'project-1',
+        startTime,
+        duration: 0,
+        status: 'paused',
+        lastPausedAt: pauseTime,
+        totalPausedTime: 0,
+      },
+    };
+
+    // Advance to resume time
+    vi.setSystemTime(resumeTime);
+
+    const action: SessionAction = { type: ActionType.RESUME_SESSION };
+
+    const newState = sessionReducer(stateWithPausedSession, action);
+
+    expect(newState.currentSession?.status).toBe('active');
+    expect(newState.currentSession?.lastPausedAt).toBeUndefined();
+    expect(newState.currentSession?.totalPausedTime).toBe(1800000); // 30 minutes in milliseconds
+    expect(newState.error).toBeNull();
+  });
+
+  it('should end a session', () => {
+    const startTime = new Date('2024-01-01T10:00:00');
+    vi.setSystemTime(startTime);
+
+    const stateWithActiveSession: SessionState = {
+      ...initialState,
+      currentSession: {
+        id: 'session-1',
+        projectId: 'project-1',
+        startTime,
+        duration: 0,
+        status: 'active',
+        totalPausedTime: 0,
+      },
+    };
+
+    // Advance time by 1 hour
+    vi.advanceTimersByTime(3600000);
+
+    const action: SessionAction = { type: ActionType.END_SESSION };
+
+    const newState = sessionReducer(stateWithActiveSession, action);
+
+    expect(newState.currentSession).toBeNull();
+    expect(newState.sessions).toHaveLength(1);
+    expect(newState.sessions[0].status).toBe('completed');
+    expect(newState.sessions[0].endTime).toBeDefined();
+    expect(newState.sessions[0].duration).toBe(3600000); // 1 hour in milliseconds
+    expect(newState.error).toBeNull();
+  });
+
+  it('should update session notes', () => {
+    const stateWithActiveSession: SessionState = {
+      ...initialState,
+      currentSession: {
+        id: 'session-1',
+        projectId: 'project-1',
+        startTime: new Date(),
+        duration: 0,
+        status: 'active',
+        totalPausedTime: 0,
+      },
+    };
+
+    const action: SessionAction = {
+      type: ActionType.UPDATE_SESSION_NOTES,
+      payload: {
+        notes: 'Updated notes',
+      },
+    };
+
+    const newState = sessionReducer(stateWithActiveSession, action);
+
+    expect(newState.currentSession?.notes).toBe('Updated notes');
+    expect(newState.error).toBeNull();
   });
 });

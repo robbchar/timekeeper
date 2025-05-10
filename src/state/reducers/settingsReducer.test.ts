@@ -6,30 +6,27 @@ import type { Settings, Action } from '@/types/state';
 describe('settingsReducer', () => {
   const mockSettings: Settings = {
     timeFormat: '24h',
-    timerRounding: 5,
-    autoStartBreaks: false,
-    breakDuration: 5,
+    defaultProject: undefined,
   };
 
   it('should update settings', () => {
     const initialState: Settings = mockSettings;
     const action = {
       type: ActionType.UPDATE_SETTINGS,
-      payload: { timeFormat: '12h', timerRounding: 10 },
+      payload: { timeFormat: '12h' as const },
     };
 
     const newState = settingsReducer(initialState, action);
     expect(newState).toEqual({
       ...mockSettings,
       timeFormat: '12h',
-      timerRounding: 10,
     });
   });
 
   it('should return initial state for unknown action', () => {
     const initialState: Settings = mockSettings;
     const action: Action = {
-      type: 'UNKNOWN_ACTION' as ActionType,
+      type: ActionType.ADD_PROJECT,
       payload: null,
     };
 

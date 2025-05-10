@@ -1,27 +1,154 @@
-import type { Session, Action } from '@/types/state';
+import { v4 as uuidv4 } from 'uuid';
+import type { Session, SessionState } from '@/types/session';
 import { ActionType } from '@/types/state';
 
-export const sessionReducer = (state: Session[], action: Action): Session[] => {
+export type SessionAction =
+  | { type: ActionType.CREATE_SESSION; payload: { projectId: string; notes?: string } }
+  | { type: ActionType.PAUSE_SESSION }
+  | { type: ActionType.RESUME_SESSION }
+  | { type: ActionType.END_SESSION }
+  | { type: ActionType.UPDATE_SESSION_NOTES; payload: { notes: string } }
+  | { type: ActionType.SET_ERROR; payload: string }
+  | { type: ActionType.CLEAR_ERROR };
+
+const initialState: SessionState = {
+  currentSession: null,
+  sessions: [],
+  isLoading: false,
+  error: null,
+};
+
+export const sessionReducer = (
+  state: SessionState = initialState,
+  action: SessionAction
+): SessionState => {
   switch (action.type) {
-    case ActionType.START_SESSION:
-      return [...state, action.payload];
+    case ActionType.CREATE_SESSION: {
+      if (state.currentSession) {
+        return {
+          ...state,
+          error: 'Cannot start a new session while another is active',
+        };
+      }
 
-    case ActionType.STOP_SESSION:
-      return state.map(session =>
-        session.id === action.payload.id
-          ? { ...session, endTime: new Date(), updatedAt: new Date() }
-          : session
-      );
+      const newSession: Session = {
+        id: uuidv4(),
+        projectId: action.payload.projectId,
+        startTime: new Date(),
+        duration: 0,
+        notes: action.payload.notes,
+        status: 'active',
+        totalPausedTime: 0,
+      };
 
-    case ActionType.UPDATE_SESSION:
-      return state.map(session =>
-        session.id === action.payload.id
-          ? { ...session, ...action.payload, updatedAt: new Date() }
-          : session
-      );
+      return {
+        ...state,
+        currentSession: newSession,
+        error: null,
+      };
+    }
 
-    case ActionType.DELETE_SESSION:
-      return state.filter(session => session.id !== action.payload);
+    case ActionType.PAUSE_SESSION: {
+      if (!state.currentSession || state.currentSession.status !== 'active') {
+        return {
+          ...state,
+          error: 'No active session to pause',
+        };
+      }
+
+      return {
+        ...state,
+        currentSession: {
+          ...state.currentSession,
+          status: 'paused',
+          lastPausedAt: new Date(),
+        },
+        error: null,
+      };
+    }
+
+    case ActionType.RESUME_SESSION: {
+      if (!state.currentSession || state.currentSession.status !== 'paused') {
+        return {
+          ...state,
+          error: 'No paused session to resume',
+        };
+      }
+
+      const pausedTime = state.currentSession.lastPausedAt
+        ? new Date().getTime() - state.currentSession.lastPausedAt.getTime()
+        : 0;
+
+      return {
+        ...state,
+        currentSession: {
+          ...state.currentSession,
+          status: 'active',
+          lastPausedAt: undefined,
+          totalPausedTime: state.currentSession.totalPausedTime + pausedTime,
+        },
+        error: null,
+      };
+    }
+
+    case ActionType.END_SESSION: {
+      if (!state.currentSession) {
+        return {
+          ...state,
+          error: 'No session to end',
+        };
+      }
+
+      const endTime = new Date();
+      const duration =
+        endTime.getTime() -
+        state.currentSession.startTime.getTime() -
+        state.currentSession.totalPausedTime;
+
+      const completedSession: Session = {
+        ...state.currentSession,
+        status: 'completed',
+        endTime,
+        duration,
+      };
+
+      return {
+        ...state,
+        currentSession: null,
+        sessions: [...state.sessions, completedSession],
+        error: null,
+      };
+    }
+
+    case ActionType.UPDATE_SESSION_NOTES: {
+      if (!state.currentSession) {
+        return {
+          ...state,
+          error: 'No active session to update',
+        };
+      }
+
+      return {
+        ...state,
+        currentSession: {
+          ...state.currentSession,
+          notes: action.payload.notes,
+        },
+        error: null,
+      };
+    }
+
+    case ActionType.SET_ERROR:
+      return {
+        ...state,
+        error: action.payload,
+      };
+
+    case ActionType.CLEAR_ERROR:
+      return {
+        ...state,
+        error: null,
+      };
 
     default:
       return state;
