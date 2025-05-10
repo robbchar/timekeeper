@@ -174,12 +174,19 @@ const ModalTitle = styled.h2`
   font-size: 1.5rem;
 `;
 
+const ErrorMessage = styled.p`
+  color: ${({ theme }) => theme.colors.error};
+  font-size: 0.875rem;
+  margin-top: 0.5rem;
+`;
+
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (name: string) => void;
   initialName?: string;
   title: string;
+  existingProjects?: Project[];
 }
 
 interface ConfirmModalProps {
@@ -223,17 +230,34 @@ const ProjectModal: React.FC<ModalProps> = ({
   onSubmit,
   initialName = '',
   title,
+  existingProjects = [],
 }) => {
   const [projectName, setProjectName] = useState(initialName);
+  const [error, setError] = useState<string | null>(null);
 
   React.useEffect(() => {
     setProjectName(initialName);
-  }, [initialName]);
+    setError(null);
+  }, [initialName, isOpen]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!projectName.trim()) return;
-    onSubmit(projectName.trim());
+    if (!projectName.trim()) {
+      setError('Project name is required');
+      return;
+    }
+
+    const trimmedName = projectName.trim();
+    const isDuplicate = existingProjects.some(
+      project => project.name.toLowerCase() === trimmedName.toLowerCase()
+    );
+
+    if (isDuplicate) {
+      setError('A project with this name already exists');
+      return;
+    }
+
+    onSubmit(trimmedName);
   };
 
   if (!isOpen) return null;
@@ -247,10 +271,20 @@ const ProjectModal: React.FC<ModalProps> = ({
             type="text"
             placeholder="Project Name"
             value={projectName}
-            onChange={e => setProjectName(e.target.value)}
+            onChange={e => {
+              setProjectName(e.target.value);
+              setError(null);
+            }}
             autoFocus
             aria-label="Project Name"
+            aria-invalid={!!error}
+            aria-describedby={error ? 'project-name-error' : undefined}
           />
+          {error && (
+            <ErrorMessage id="project-name-error" role="alert">
+              {error}
+            </ErrorMessage>
+          )}
           <ButtonGroup>
             <Button type="button" onClick={onClose}>
               Cancel
@@ -287,6 +321,16 @@ export const ProjectsPage: React.FC = () => {
 
   const handleEditSubmit = (name: string) => {
     if (!editingProject) return;
+
+    // Check for duplicates excluding the current project
+    const isDuplicate = projects.some(
+      project =>
+        project.id !== editingProject.id && project.name.toLowerCase() === name.toLowerCase()
+    );
+
+    if (isDuplicate) {
+      return;
+    }
 
     const updatedProject: Project = {
       ...editingProject,
@@ -353,6 +397,7 @@ export const ProjectsPage: React.FC = () => {
         onClose={() => setIsAddModalOpen(false)}
         onSubmit={handleAddSubmit}
         title="Add New Project"
+        existingProjects={projects}
       />
 
       <ProjectModal
@@ -364,6 +409,7 @@ export const ProjectsPage: React.FC = () => {
         onSubmit={handleEditSubmit}
         initialName={editingProject?.name}
         title="Edit Project"
+        existingProjects={projects}
       />
 
       <ConfirmModal

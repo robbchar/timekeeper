@@ -61,7 +61,7 @@
 
 ### Projects Page
 
-- [ ] Display list of all projects
+- [x] Display list of all projects
 - [x] Add new project form
 - [x] Edit project name/description
 - [x] Delete project (with confirm)

@@ -220,4 +220,103 @@ describe('ProjectsPage', () => {
     // Check if project still exists
     expect(screen.getByText('Test Project')).toBeInTheDocument();
   });
+
+  it('shows error when submitting empty project name', () => {
+    render(<ProjectsPage />, { wrapper });
+
+    // Open modal
+    const addButton = screen.getByRole('button', { name: /add project/i });
+    fireEvent.click(addButton);
+
+    // Submit empty form
+    const form = screen.getByRole('form');
+    const submitButton = within(form).getByRole('button', { name: /add project/i });
+    fireEvent.click(submitButton);
+
+    // Check for error message
+    expect(screen.getByRole('alert')).toHaveTextContent('Project name is required');
+  });
+
+  it('shows error when creating project with duplicate name', () => {
+    render(<ProjectsPage />, { wrapper });
+
+    // Add first project
+    const addButton = screen.getByRole('button', { name: /add project/i });
+    fireEvent.click(addButton);
+    const input = screen.getByRole('textbox', { name: /project name/i });
+    fireEvent.change(input, { target: { value: 'Test Project' } });
+    const form = screen.getByRole('form');
+    const submitButton = within(form).getByRole('button', { name: /add project/i });
+    fireEvent.click(submitButton);
+
+    // Try to add duplicate project
+    fireEvent.click(addButton);
+    const newInput = screen.getByRole('textbox', { name: /project name/i });
+    fireEvent.change(newInput, { target: { value: 'Test Project' } });
+    const newForm = screen.getByRole('form');
+    const newSubmitButton = within(newForm).getByRole('button', { name: /add project/i });
+    fireEvent.click(newSubmitButton);
+
+    // Check for error message
+    expect(screen.getByRole('alert')).toHaveTextContent('A project with this name already exists');
+  });
+
+  it('allows editing project name to same name', () => {
+    render(<ProjectsPage />, { wrapper });
+
+    // Add a project
+    const addButton = screen.getByRole('button', { name: /add project/i });
+    fireEvent.click(addButton);
+    const input = screen.getByRole('textbox', { name: /project name/i });
+    fireEvent.change(input, { target: { value: 'Test Project' } });
+    const form = screen.getByRole('form');
+    const submitButton = within(form).getByRole('button', { name: /add project/i });
+    fireEvent.click(submitButton);
+
+    // Edit the project
+    const editButton = screen.getByRole('button', { name: /edit project/i });
+    fireEvent.click(editButton);
+
+    // Submit with same name
+    const editForm = screen.getByRole('form');
+    const saveButton = within(editForm).getByRole('button', { name: /save changes/i });
+    fireEvent.click(saveButton);
+
+    // Check if project still exists
+    expect(screen.getByText('Test Project')).toBeInTheDocument();
+  });
+
+  it('shows error when editing project to duplicate name', () => {
+    render(<ProjectsPage />, { wrapper });
+
+    // Add first project
+    const addButton = screen.getByRole('button', { name: /add project/i });
+    fireEvent.click(addButton);
+    const input = screen.getByRole('textbox', { name: /project name/i });
+    fireEvent.change(input, { target: { value: 'Project One' } });
+    const form = screen.getByRole('form');
+    const submitButton = within(form).getByRole('button', { name: /add project/i });
+    fireEvent.click(submitButton);
+
+    // Add second project
+    fireEvent.click(addButton);
+    const input2 = screen.getByRole('textbox', { name: /project name/i });
+    fireEvent.change(input2, { target: { value: 'Project Two' } });
+    const form2 = screen.getByRole('form');
+    const submitButton2 = within(form2).getByRole('button', { name: /add project/i });
+    fireEvent.click(submitButton2);
+
+    // Try to edit second project to first project's name
+    const editButtons = screen.getAllByRole('button', { name: /edit project/i });
+    fireEvent.click(editButtons[1]); // Click edit on second project
+
+    const editForm = screen.getByRole('form');
+    const editInput = screen.getByRole('textbox', { name: /project name/i });
+    fireEvent.change(editInput, { target: { value: 'Project One' } });
+    const saveButton = within(editForm).getByRole('button', { name: /save changes/i });
+    fireEvent.click(saveButton);
+
+    // Check for error message
+    expect(screen.getByRole('alert')).toHaveTextContent('A project with this name already exists');
+  });
 });
