@@ -120,6 +120,21 @@ export function setupDatabaseHandlers() {
     return stmt.all() as Project[];
   });
 
+  ipcMain.handle('database:updateProject', (_, id: number, name: string) => {
+    const stmt = db.prepare('UPDATE projects SET name = ? WHERE id = ?');
+    return stmt.run(name, id);
+  });
+
+  ipcMain.handle('database:deleteProject', (_, id: number) => {
+    // First delete any sessions associated with this project
+    const deleteSessions = db.prepare('DELETE FROM sessions WHERE project_id = ?');
+    deleteSessions.run(id);
+
+    // Then delete the project
+    const deleteProject = db.prepare('DELETE FROM projects WHERE id = ?');
+    return deleteProject.run(id);
+  });
+
   // Session operations
   ipcMain.handle(
     'database:createSession',

@@ -9,6 +9,11 @@ contextBridge.exposeInMainWorld('database', {
 
   getProjects: () => ipcRenderer.invoke('database:getProjects'),
 
+  updateProject: (id: number, name: string) =>
+    ipcRenderer.invoke('database:updateProject', id, name),
+
+  deleteProject: (id: number) => ipcRenderer.invoke('database:deleteProject', id),
+
   // Session operations
   createSession: (projectId: number, startTime: string, notes?: string) =>
     ipcRenderer.invoke('database:createSession', projectId, startTime, notes),

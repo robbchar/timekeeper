@@ -1,3 +1,4 @@
+import React from 'react';
 import { Outlet } from 'react-router-dom';
 import styled from 'styled-components';
 
@@ -8,12 +9,8 @@ const MainContainer = styled.main`
   overflow-y: auto;
 `;
 
-const MainContent = () => {
-  return (
-    <MainContainer>
-      <Outlet />
-    </MainContainer>
-  );
+const MainContent: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
+  return <MainContainer>{children ? children : <Outlet />}</MainContainer>;
 };
 
 export default MainContent;

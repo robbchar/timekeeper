@@ -7,16 +7,24 @@ import path from 'path';
 export default defineConfig({
   plugins: [
     react(),
-    electron({
-      entry: 'electron/main.ts',
-      vite: {
-        build: {
-          rollupOptions: {
-            external: ['better-sqlite3'],
+    electron([
+      {
+        entry: 'electron/main.ts',
+        vite: {
+          build: {
+            rollupOptions: {
+              external: ['better-sqlite3'],
+            },
           },
         },
       },
-    }),
+      {
+        entry: 'electron/preload.ts',
+        onstart(options) {
+          options.reload();
+        },
+      },
+    ]),
   ],
   base: process.env.ELECTRON ? './' : '/',
   build: {

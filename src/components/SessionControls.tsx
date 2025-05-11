@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useAppContext } from '@/state/context/AppContext';
 import { useSessions } from '@/state/hooks/useAppState';
+import { useProjects } from '@/contexts/ProjectsContext';
 import { ActionType } from '@/types/state';
 import type { Project } from '@/types/state';
 
@@ -96,6 +97,7 @@ const LoadingMessage = styled.div`
 const SessionControls: React.FC = () => {
   const { state, dispatch } = useAppContext();
   const { startSession, stopSession } = useSessions();
+  const { projects, isLoading: projectsLoading } = useProjects();
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -139,14 +141,15 @@ const SessionControls: React.FC = () => {
         <Select
           value={selectedProjectId}
           onChange={e => setSelectedProjectId(e.target.value)}
-          disabled={!!state.sessions.currentSession || isLoading}
+          disabled={!!state.sessions.currentSession || isLoading || projectsLoading}
         >
           <option value="">Select a project</option>
-          {state.projects.map((project: Project) => (
-            <option key={project.id} value={project.id}>
-              {project.name}
-            </option>
-          ))}
+          {!projectsLoading &&
+            projects.map((project: Project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
         </Select>
         <TextArea
           value={notes}
@@ -159,7 +162,7 @@ const SessionControls: React.FC = () => {
             <Button
               variant="start"
               onClick={handleStartSession}
-              disabled={!selectedProjectId || isLoading}
+              disabled={!selectedProjectId || isLoading || projectsLoading}
             >
               {isLoading ? 'Starting...' : 'Start Session'}
             </Button>
@@ -171,7 +174,7 @@ const SessionControls: React.FC = () => {
           )}
         </ButtonContainer>
         {state.ui.error && <ErrorMessage>{state.ui.error}</ErrorMessage>}
-        {isLoading && <LoadingMessage>Processing...</LoadingMessage>}
+        {(isLoading || projectsLoading) && <LoadingMessage>Processing...</LoadingMessage>}
       </Controls>
     </Container>
   );

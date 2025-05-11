@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useDatabase } from '@/contexts/DatabaseContext';
+import { useProjects } from '@/contexts/ProjectsContext';
 import type { Project } from '@/types/state';
-import { v4 as uuidv4 } from 'uuid';
 import { formatDuration } from '@/utils/time';
 
 const PageContainer = styled.div`
@@ -84,6 +84,7 @@ const IconButton = styled.button`
   cursor: pointer;
   border-radius: 0.25rem;
   transition: all 0.2s;
+  font-size: 1.25rem;
 
   &:hover {
     background: ${({ theme }) => theme.colors.background.primary};
@@ -205,8 +206,8 @@ const StatsToggle = styled.button`
   }
 `;
 
-const StatsContent = styled.div<{ isExpanded: boolean }>`
-  display: ${({ isExpanded }) => (isExpanded ? 'block' : 'none')};
+const StatsContent = styled.div<{ $isExpanded: boolean }>`
+  display: ${({ $isExpanded }) => ($isExpanded ? 'block' : 'none')};
   padding: 0.5rem;
 `;
 
@@ -337,89 +338,58 @@ const ProjectModal: React.FC<ModalProps> = ({
 };
 
 export const ProjectsPage: React.FC = () => {
-  const { getAllProjects } = useDatabase();
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { createProject, deleteProject, updateProject } = useDatabase();
+  const { projects, isLoading, error, refreshProjects } = useProjects();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [editingProject, setEditingProject] = useState<Project | null>(null);
-  const [deletingProject, setDeletingProject] = useState<Project | null>(null);
-  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [expandedStats, setExpandedStats] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    const fetchProjects = async () => {
-      try {
-        const fetchedProjects = await getAllProjects();
-        const mappedProjects: Project[] = fetchedProjects.map(project => ({
-          id: project.id.toString(),
-          name: project.name,
-          description: project.description || '',
-          totalTime: 0,
-          sessionCount: 0,
-          createdAt: new Date(project.created_at),
-          updatedAt: new Date(project.created_at),
-        }));
-        setProjects(mappedProjects);
-      } catch (err) {
-        setError('Failed to fetch projects');
-        console.error(err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchProjects();
-  }, [getAllProjects]);
-
-  const handleAddSubmit = (name: string) => {
-    const newProject: Project = {
-      id: uuidv4(),
-      name,
-      description: '',
-      totalTime: 0,
-      sessionCount: 0,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    setProjects(prev => [...prev, newProject]);
-    setIsAddModalOpen(false);
+  const handleAddSubmit = async (name: string) => {
+    try {
+      await createProject(name);
+      await refreshProjects();
+      setIsAddModalOpen(false);
+    } catch (error) {
+      console.error('Failed to create project:', error);
+    }
   };
 
-  const handleEditSubmit = (name: string) => {
-    if (!editingProject) return;
-    const updatedProject: Project = {
-      ...editingProject,
-      name,
-      updatedAt: new Date(),
-    };
-    setProjects(prev =>
-      prev.map(project => (project.id === updatedProject.id ? updatedProject : project))
-    );
-    setIsEditModalOpen(false);
-    setEditingProject(null);
+  const handleEditSubmit = async (name: string) => {
+    if (!selectedProject) return;
+    try {
+      await updateProject(parseInt(selectedProject.id), name);
+      await refreshProjects();
+      setIsEditModalOpen(false);
+    } catch (error) {
+      console.error('Failed to edit project:', error);
+    }
   };
 
   const handleEditClick = (project: Project) => {
-    setEditingProject(project);
+    setSelectedProject(project);
     setIsEditModalOpen(true);
   };
 
   const handleDeleteClick = (project: Project) => {
-    setDeletingProject(project);
+    setSelectedProject(project);
     setIsDeleteModalOpen(true);
   };
 
-  const handleDeleteConfirm = () => {
-    if (!deletingProject) return;
-    setProjects(prev => prev.filter(project => project.id !== deletingProject.id));
-    setIsDeleteModalOpen(false);
-    setDeletingProject(null);
+  const handleDeleteConfirm = async () => {
+    if (!selectedProject) return;
+    try {
+      await deleteProject(parseInt(selectedProject.id));
+      await refreshProjects();
+      setIsDeleteModalOpen(false);
+    } catch (error) {
+      console.error('Failed to delete project:', error);
+    }
   };
 
   const toggleProjectStats = (projectId: string) => {
-    setExpandedProjects(prev => {
+    setExpandedStats(prev => {
       const next = new Set(prev);
       if (next.has(projectId)) {
         next.delete(projectId);
@@ -441,10 +411,10 @@ export const ProjectsPage: React.FC = () => {
       </Header>
 
       <ProjectList>
-        {projects.map((project: Project) => (
+        {projects.map(project => (
           <ProjectCard key={project.id}>
             <ProjectName>{project.name}</ProjectName>
-            <ProjectDate>Created: {project.createdAt.toLocaleDateString()}</ProjectDate>
+            <ProjectDate>Created {new Date(project.createdAt).toLocaleDateString()}</ProjectDate>
             <ProjectActions>
               <IconButton
                 onClick={() => handleEditClick(project)}
@@ -462,24 +432,17 @@ export const ProjectsPage: React.FC = () => {
               </DeleteButton>
             </ProjectActions>
             <StatsSection>
-              <StatsToggle
-                onClick={() => toggleProjectStats(project.id)}
-                aria-expanded={expandedProjects.has(project.id)}
-              >
-                {expandedProjects.has(project.id) ? 'Hide Stats' : 'Show Stats'}
+              <StatsToggle onClick={() => toggleProjectStats(project.id)}>
+                {expandedStats.has(project.id) ? '▼' : '▶'} Project Stats
               </StatsToggle>
-              <StatsContent isExpanded={expandedProjects.has(project.id)}>
+              <StatsContent $isExpanded={expandedStats.has(project.id)}>
                 <StatRow>
-                  <span>Total Time</span>
+                  <span>Total Time:</span>
                   <span>{formatDuration(project.totalTime)}</span>
                 </StatRow>
                 <StatRow>
-                  <span>Average Session</span>
-                  <span>
-                    {project.sessionCount
-                      ? formatDuration((project.totalTime || 0) / project.sessionCount)
-                      : 'No sessions'}
-                  </span>
+                  <span>Sessions:</span>
+                  <span>{project.sessionCount}</span>
                 </StatRow>
               </StatsContent>
             </StatsSection>
@@ -497,25 +460,19 @@ export const ProjectsPage: React.FC = () => {
 
       <ProjectModal
         isOpen={isEditModalOpen}
-        onClose={() => {
-          setIsEditModalOpen(false);
-          setEditingProject(null);
-        }}
+        onClose={() => setIsEditModalOpen(false)}
         onSubmit={handleEditSubmit}
-        initialName={editingProject?.name}
+        initialName={selectedProject?.name}
         title="Edit Project"
         existingProjects={projects}
       />
 
       <ConfirmModal
         isOpen={isDeleteModalOpen}
-        onClose={() => {
-          setIsDeleteModalOpen(false);
-          setDeletingProject(null);
-        }}
+        onClose={() => setIsDeleteModalOpen(false)}
         onConfirm={handleDeleteConfirm}
         title="Delete Project"
-        message={`Are you sure you want to delete "${deletingProject?.name}"? This action cannot be undone.`}
+        message={`Are you sure you want to delete "${selectedProject?.name}"? This action cannot be undone.`}
       />
     </PageContainer>
   );

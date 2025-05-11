@@ -1,28 +1,21 @@
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import styled from 'styled-components';
-import Layout from './components/layout/Layout';
-import TimerPage from './components/timer/TimerPage';
-import { ProjectsPage } from './components/projects/ProjectsPage';
+import Layout from '@/components/layout/Layout';
+import { ProjectsPage } from '@/components/projects/ProjectsPage';
+import TimerPage from '@/components/timer/TimerPage';
 
-const AppContainer = styled.div`
-  height: 100vh;
-  width: 100vw;
-`;
-
-function App() {
+const App: React.FC = () => {
   return (
     <Router>
-      <AppContainer>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<TimerPage />} />
-            <Route path="projects" element={<ProjectsPage />} />
-            <Route path="settings" element={<div>Settings Page</div>} />
-          </Route>
-        </Routes>
-      </AppContainer>
+      <Routes>
+        <Route path="/" element={<Layout />}>
+          <Route index element={<TimerPage />} />
+          <Route path="projects" element={<ProjectsPage />} />
+          <Route path="settings" element={<div>Settings Page</div>} />
+        </Route>
+      </Routes>
     </Router>
   );
-}
+};
 
 export default App;

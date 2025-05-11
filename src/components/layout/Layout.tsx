@@ -1,3 +1,4 @@
+import React from 'react';
 import styled from 'styled-components';
 import Sidebar from './Sidebar';
 import Header from './Header';
@@ -15,7 +16,7 @@ const ContentWrapper = styled.div`
   overflow: hidden;
 `;
 
-const Layout = () => {
+const Layout: React.FC = () => {
   return (
     <LayoutContainer>
       <Header />

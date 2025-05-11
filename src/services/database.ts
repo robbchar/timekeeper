@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import { app } from 'electron';
 import fs from 'fs';
+import type { DatabaseAPI } from '@/types/database';
 
 // Get the path to the user data directory
 const userDataPath = app.getPath('userData');
@@ -76,62 +77,8 @@ function initializeDatabase() {
 // Initialize the database
 initializeDatabase();
 
-// Define types for our database entities
-export interface Project {
-  id: number;
-  name: string;
-  description?: string;
-  color?: string;
-  created_at: string;
-}
-
-export interface Session {
-  id: number;
-  project_id: number;
-  start_time: string;
-  end_time?: string;
-  duration?: number;
-  notes?: string;
-}
-
-export interface Tag {
-  id: number;
-  name: string;
-  color?: string;
-}
-
-// Define the window interface to include our database API
-declare global {
-  interface Window {
-    database: {
-      createProject: (
-        name: string,
-        description?: string,
-        color?: string
-      ) => Promise<{ lastInsertRowid: number }>;
-      getProjects: () => Promise<Project[]>;
-      createSession: (
-        projectId: number,
-        startTime: string,
-        notes?: string
-      ) => Promise<{ lastInsertRowid: number }>;
-      endSession: (
-        sessionId: number,
-        endTime: string,
-        duration: number
-      ) => Promise<{ changes: number }>;
-      getSessions: (startDate?: string, endDate?: string) => Promise<Session[]>;
-      createTag: (name: string, color?: string) => Promise<{ lastInsertRowid: number }>;
-      getTags: () => Promise<Tag[]>;
-      getSetting: (key: string) => Promise<string | undefined>;
-      setSetting: (key: string, value: string) => Promise<{ changes: number }>;
-      reset: () => Promise<void>;
-    };
-  }
-}
-
 // Export database instance and helper functions
-export const database = {
+export const database: DatabaseAPI = {
   // Project operations
   createProject: async (name: string, description?: string, color?: string) => {
     return window.database.createProject(name, description, color);
@@ -139,6 +86,14 @@ export const database = {
 
   getProjects: async () => {
     return window.database.getProjects();
+  },
+
+  deleteProject: async (id: number) => {
+    return window.database.deleteProject(id);
+  },
+
+  updateProject: async (id: number, name: string) => {
+    return window.database.updateProject(id, name);
   },
 
   // Session operations
