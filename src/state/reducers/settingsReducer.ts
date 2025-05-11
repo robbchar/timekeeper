@@ -1,13 +1,26 @@
-import type { Settings, Action } from '@/types/state';
-import { ActionType } from '@/types/state';
+import { Settings, Action, ActionType } from '@/types/state';
 
-export const settingsReducer = (state: Settings, action: Action): Settings => {
+const initialState: Settings = {
+  timeFormat: '24h',
+  defaultProject: undefined,
+};
+
+export const settingsReducer = (state: Settings = initialState, action: Action): Settings => {
   switch (action.type) {
-    case ActionType.UPDATE_SETTINGS:
+    case ActionType.UPDATE_SETTINGS: {
+      if (
+        !action.payload ||
+        typeof action.payload === 'string' ||
+        typeof action.payload === 'boolean'
+      ) {
+        return state;
+      }
+      const updatedSettings = action.payload as Partial<Settings>;
       return {
         ...state,
-        ...action.payload,
+        ...updatedSettings,
       };
+    }
 
     default:
       return state;

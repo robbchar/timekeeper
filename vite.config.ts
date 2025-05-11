@@ -9,6 +9,13 @@ export default defineConfig({
     react(),
     electron({
       entry: 'electron/main.ts',
+      vite: {
+        build: {
+          rollupOptions: {
+            external: ['better-sqlite3'],
+          },
+        },
+      },
     }),
   ],
   base: process.env.ELECTRON ? './' : '/',

@@ -29,4 +29,7 @@ contextBridge.exposeInMainWorld('database', {
   getSetting: (key: string) => ipcRenderer.invoke('database:getSetting', key),
 
   setSetting: (key: string, value: string) => ipcRenderer.invoke('database:setSetting', key, value),
+
+  // Test helper
+  reset: () => ipcRenderer.invoke('database:reset'),
 });

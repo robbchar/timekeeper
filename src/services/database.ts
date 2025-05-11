@@ -125,6 +125,7 @@ declare global {
       getTags: () => Promise<Tag[]>;
       getSetting: (key: string) => Promise<string | undefined>;
       setSetting: (key: string, value: string) => Promise<{ changes: number }>;
+      reset: () => Promise<void>;
     };
   }
 }
@@ -169,5 +170,10 @@ export const database = {
 
   setSetting: async (key: string, value: string) => {
     return window.database.setSetting(key, value);
+  },
+
+  // Test helper
+  reset: async () => {
+    return window.database.reset();
   },
 };

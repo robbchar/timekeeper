@@ -14,11 +14,13 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,scss,md}\"",
     "start": "cross-env BROWSER=none npm run dev",
     "clean": "rimraf dist dist-electron release",
+    "electron:rebuild": "electron-rebuild -f -w better-sqlite3",
     "electron:build": "npm run clean && npm run build && electron-builder --win",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:db": "vitest -c vitest.database.config.ts",
-    "prepare": "husky"
+    "prepare": "husky",
+    "postinstall": "electron-builder install-app-deps"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
@@ -41,6 +43,7 @@
     "uuid": "^11.1.0"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.1",
     "@eslint/js": "^9.25.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
@@ -80,7 +83,17 @@
     },
     "files": [
       "dist/**/*",
-      "dist-electron/**/*"
+      "dist-electron/**/*",
+      "node_modules/better-sqlite3/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "node_modules/better-sqlite3/build/Release/",
+        "to": "node_modules/better-sqlite3/build/Release/",
+        "filter": [
+          "*.node"
+        ]
+      }
     ],
     "mac": {
       "category": "public.app-category.productivity"

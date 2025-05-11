@@ -186,4 +186,15 @@ export function setupDatabaseHandlers() {
     `);
     return stmt.run(key, value);
   });
+
+  // Test helper
+  ipcMain.handle('database:reset', () => {
+    db.exec(`
+      DELETE FROM session_tags;
+      DELETE FROM sessions;
+      DELETE FROM tags;
+      DELETE FROM projects;
+      DELETE FROM settings;
+    `);
+  });
 }
