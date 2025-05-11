@@ -1,33 +1,35 @@
-import type { AppState, Action } from '@/types/state';
-import { ActionType, Theme } from '@/types/state';
-import { projectReducer } from '@/state/reducers/projectReducer';
-import { sessionReducer } from '@/state/reducers/sessionReducer';
-import { tagReducer } from '@/state/reducers/tagReducer';
-import { settingsReducer } from '@/state/reducers/settingsReducer';
-import { uiReducer } from '@/state/reducers/uiReducer';
+import { AppState, Action, Theme } from '@/types/state';
+import { ActionType } from '@/types/state';
+import { projectReducer } from './projectReducer';
+import { sessionReducer, SessionAction } from './sessionReducer';
+import { tagReducer } from './tagReducer';
+import { settingsReducer } from './settingsReducer';
+import { uiReducer } from './uiReducer';
 
-export const initialState: AppState = {
+const initialState: AppState = {
   projects: [],
-  sessions: [],
+  sessions: {
+    currentSession: null,
+    sessions: [],
+    isLoading: false,
+    error: null,
+  },
   tags: [],
   settings: {
     timeFormat: '24h',
-    timerRounding: 5,
-    autoStartBreaks: false,
-    breakDuration: 5,
+    defaultProject: undefined,
   },
   ui: {
     theme: Theme.LIGHT,
-    currentProject: null,
+    currentProject: undefined,
     isTimerRunning: false,
     isLoading: false,
-    error: null,
+    error: undefined,
   },
 };
 
 export const rootReducer = (state: AppState = initialState, action: Action): AppState => {
   switch (action.type) {
-    // Project actions
     case ActionType.ADD_PROJECT:
     case ActionType.UPDATE_PROJECT:
     case ActionType.DELETE_PROJECT:
@@ -36,17 +38,20 @@ export const rootReducer = (state: AppState = initialState, action: Action): App
         projects: projectReducer(state.projects, action),
       };
 
-    // Session actions
+    case ActionType.CREATE_SESSION:
+    case ActionType.PAUSE_SESSION:
+    case ActionType.RESUME_SESSION:
+    case ActionType.END_SESSION:
+    case ActionType.UPDATE_SESSION_NOTES:
     case ActionType.START_SESSION:
     case ActionType.STOP_SESSION:
     case ActionType.UPDATE_SESSION:
     case ActionType.DELETE_SESSION:
       return {
         ...state,
-        sessions: sessionReducer(state.sessions, action),
+        sessions: sessionReducer(state.sessions, action as SessionAction),
       };
 
-    // Tag actions
     case ActionType.ADD_TAG:
     case ActionType.UPDATE_TAG:
     case ActionType.DELETE_TAG:
@@ -55,18 +60,17 @@ export const rootReducer = (state: AppState = initialState, action: Action): App
         tags: tagReducer(state.tags, action),
       };
 
-    // Settings actions
     case ActionType.UPDATE_SETTINGS:
       return {
         ...state,
         settings: settingsReducer(state.settings, action),
       };
 
-    // UI actions
     case ActionType.TOGGLE_THEME:
     case ActionType.SET_CURRENT_PROJECT:
     case ActionType.SET_LOADING:
     case ActionType.SET_ERROR:
+    case ActionType.CLEAR_ERROR:
       return {
         ...state,
         ui: uiReducer(state.ui, action),

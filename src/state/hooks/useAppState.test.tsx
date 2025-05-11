@@ -1,21 +1,32 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { AppProvider } from '@/state/context/AppContext';
+import { DatabaseProvider } from '@/contexts/DatabaseContext';
 import { useProjects, useSessions, useTags, useSettings, useUI } from './useAppState';
 import { Theme } from '@/types/state';
 import type { Project, Tag } from '@/types/state';
 import type { CreateSessionParams } from '@/types/session';
+import { setupMockDatabase } from '@/components/timer/__mocks__/setup';
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
-  <AppProvider>{children}</AppProvider>
+  <AppProvider>
+    <DatabaseProvider>{children}</DatabaseProvider>
+  </AppProvider>
 );
 
 describe('useProjects', () => {
+  beforeEach(() => {
+    setupMockDatabase();
+  });
+
   it('should add a project', () => {
     const { result } = renderHook(() => useProjects(), { wrapper });
     const mockProject: Project = {
       id: '1',
       name: 'Test Project',
+      description: 'Test Description',
+      totalTime: 0,
+      sessionCount: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -32,11 +43,12 @@ describe('useProjects', () => {
 describe('useSessions', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    setupMockDatabase();
   });
   afterEach(() => {
     vi.useRealTimers();
   });
-  it('should start and stop a session', () => {
+  it('should start and stop a session', async () => {
     const { result } = renderHook(() => useSessions(), { wrapper });
     const startTime = new Date('2024-01-01T10:00:00');
     vi.setSystemTime(startTime);
@@ -46,8 +58,8 @@ describe('useSessions', () => {
       notes: 'Test session',
     };
 
-    act(() => {
-      result.current.startSession(sessionParams);
+    await act(async () => {
+      await result.current.startSession(sessionParams);
     });
 
     expect(result.current.currentSession).toBeDefined();
@@ -58,8 +70,8 @@ describe('useSessions', () => {
     // Advance time by 1 hour
     vi.advanceTimersByTime(3600000);
 
-    act(() => {
-      result.current.stopSession();
+    await act(async () => {
+      await result.current.stopSession();
     });
 
     expect(result.current.currentSession).toBeNull();
@@ -71,6 +83,10 @@ describe('useSessions', () => {
 });
 
 describe('useTags', () => {
+  beforeEach(() => {
+    setupMockDatabase();
+  });
+
   it('should add a tag', () => {
     const { result } = renderHook(() => useTags(), { wrapper });
     const mockTag: Tag = {
@@ -90,6 +106,10 @@ describe('useTags', () => {
 });
 
 describe('useSettings', () => {
+  beforeEach(() => {
+    setupMockDatabase();
+  });
+
   it('should update settings', () => {
     const { result } = renderHook(() => useSettings(), { wrapper });
 
@@ -102,6 +122,10 @@ describe('useSettings', () => {
 });
 
 describe('useUI', () => {
+  beforeEach(() => {
+    setupMockDatabase();
+  });
+
   it('should toggle theme', () => {
     const { result } = renderHook(() => useUI(), { wrapper });
 

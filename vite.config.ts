@@ -9,9 +9,16 @@ export default defineConfig({
     react(),
     electron({
       entry: 'electron/main.ts',
+      vite: {
+        build: {
+          rollupOptions: {
+            external: ['better-sqlite3'],
+          },
+        },
+      },
     }),
   ],
-  base: './',
+  base: process.env.ELECTRON ? './' : '/',
   build: {
     outDir: 'dist',
     emptyOutDir: true,
@@ -25,5 +32,8 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
+  },
+  server: {
+    port: 5173,
   },
 });

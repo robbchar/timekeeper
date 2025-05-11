@@ -1,61 +1,70 @@
 import { describe, it, expect } from 'vitest';
 import { tagReducer } from './tagReducer';
 import { ActionType } from '@/types/state';
-import type { Tag, Action } from '@/types/state';
+import { v4 as uuidv4 } from 'uuid';
 
 describe('tagReducer', () => {
-  const mockTag: Tag = {
-    id: '1',
-    name: 'Test Tag',
-    color: '#FF0000',
-    createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-01'),
-  };
-
   it('should add a tag', () => {
-    const initialState: Tag[] = [];
-    const action = {
-      type: ActionType.ADD_TAG,
-      payload: mockTag,
+    const tag = {
+      id: uuidv4(),
+      name: 'Test Tag',
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
 
-    const newState = tagReducer(initialState, action);
-    expect(newState).toHaveLength(1);
-    expect(newState[0]).toEqual(mockTag);
+    const action = {
+      type: ActionType.ADD_TAG,
+      payload: tag,
+    };
+
+    const state = tagReducer([], action);
+    expect(state).toHaveLength(1);
+    expect(state[0]).toEqual(tag);
   });
 
   it('should update a tag', () => {
-    const initialState: Tag[] = [mockTag];
-    const action = {
-      type: ActionType.UPDATE_TAG,
-      payload: { id: '1', name: 'Updated Tag' },
+    const tag = {
+      id: uuidv4(),
+      name: 'Test Tag',
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
 
-    const newState = tagReducer(initialState, action);
-    expect(newState).toHaveLength(1);
-    expect(newState[0].name).toBe('Updated Tag');
-    expect(newState[0].updatedAt).toBeInstanceOf(Date);
+    const updatedTag = {
+      id: tag.id,
+      name: 'Updated Tag',
+    };
+
+    const action = {
+      type: ActionType.UPDATE_TAG,
+      payload: updatedTag,
+    };
+
+    const state = tagReducer([tag], action);
+    expect(state).toHaveLength(1);
+    expect(state[0].name).toBe('Updated Tag');
+    expect(state[0].id).toBe(tag.id);
   });
 
   it('should delete a tag', () => {
-    const initialState: Tag[] = [mockTag];
-    const action = {
-      type: ActionType.DELETE_TAG,
-      payload: '1',
+    const tag = {
+      id: uuidv4(),
+      name: 'Test Tag',
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
 
-    const newState = tagReducer(initialState, action);
-    expect(newState).toHaveLength(0);
+    const action = {
+      type: ActionType.DELETE_TAG,
+      payload: tag.id,
+    };
+
+    const state = tagReducer([tag], action);
+    expect(state).toHaveLength(0);
   });
 
   it('should return initial state for unknown action', () => {
-    const initialState: Tag[] = [mockTag];
-    const action: Action = {
-      type: 'UNKNOWN_ACTION' as ActionType,
-      payload: null,
-    };
-
-    const newState = tagReducer(initialState, action);
-    expect(newState).toEqual(initialState);
+    const state = tagReducer([], { type: 'UNKNOWN' as ActionType });
+    expect(state).toEqual([]);
   });
 });

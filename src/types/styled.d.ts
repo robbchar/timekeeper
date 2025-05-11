@@ -9,6 +9,8 @@ declare module 'styled-components' {
       successHover: string;
       error: string;
       errorHover: string;
+      warning: string;
+      warningHover: string;
       border: string;
       background: {
         primary: string;

@@ -1,6 +1,7 @@
-import React, { useState, useContext } from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
-import { AppContext } from '@/state/context/AppContext';
+import { useAppContext } from '@/state/context/AppContext';
+import { useSessions } from '@/state/hooks/useAppState';
 import { ActionType } from '@/types/state';
 import type { Project } from '@/types/state';
 
@@ -63,7 +64,7 @@ const Button = styled.button<{ variant: 'start' | 'stop' }>`
   font-size: 1rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s;
   flex: 1;
   background-color: ${({ theme, variant }) =>
     variant === 'start' ? theme.colors.success : theme.colors.error};
@@ -80,34 +81,66 @@ const Button = styled.button<{ variant: 'start' | 'stop' }>`
   }
 `;
 
+const ErrorMessage = styled.div`
+  color: ${({ theme }) => theme.colors.error};
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+`;
+
+const LoadingMessage = styled.div`
+  color: ${({ theme }) => theme.colors.text.secondary};
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+`;
+
 const SessionControls: React.FC = () => {
-  const { state, dispatch } = useContext(AppContext);
+  const { state, dispatch } = useAppContext();
+  const { startSession, stopSession } = useSessions();
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  if (!state || !dispatch) {
-    throw new Error('SessionControls must be used within an AppProvider');
-  }
+  const handleStartSession = async () => {
+    if (!selectedProjectId) return;
 
-  const handleStartSession = () => {
-    if (selectedProjectId) {
+    setIsLoading(true);
+    try {
+      await startSession({ projectId: selectedProjectId, notes });
+      setNotes('');
+    } catch {
       dispatch({
-        type: ActionType.CREATE_SESSION,
-        payload: { projectId: selectedProjectId, notes },
+        type: ActionType.SET_ERROR,
+        payload: 'Failed to start session. Please try again.',
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleStopSession = () => {
-    if (state.sessions.currentSession) {
-      dispatch({ type: ActionType.END_SESSION });
+  const handleStopSession = async () => {
+    if (!state.sessions.currentSession) return;
+
+    setIsLoading(true);
+    try {
+      await stopSession();
+    } catch {
+      dispatch({
+        type: ActionType.SET_ERROR,
+        payload: 'Failed to stop session. Please try again.',
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
     <Container>
       <Controls>
-        <Select value={selectedProjectId} onChange={e => setSelectedProjectId(e.target.value)}>
+        <Select
+          value={selectedProjectId}
+          onChange={e => setSelectedProjectId(e.target.value)}
+          disabled={!!state.sessions.currentSession || isLoading}
+        >
           <option value="">Select a project</option>
           {state.projects.map((project: Project) => (
             <option key={project.id} value={project.id}>
@@ -119,23 +152,26 @@ const SessionControls: React.FC = () => {
           value={notes}
           onChange={e => setNotes(e.target.value)}
           placeholder="Add notes..."
+          disabled={isLoading}
         />
         <ButtonContainer>
-          <Button
-            variant="start"
-            onClick={handleStartSession}
-            disabled={!selectedProjectId || !!state.sessions.currentSession}
-          >
-            Start Session
-          </Button>
-          <Button
-            variant="stop"
-            onClick={handleStopSession}
-            disabled={!state.sessions.currentSession}
-          >
-            Stop Session
-          </Button>
+          {!state.sessions.currentSession && (
+            <Button
+              variant="start"
+              onClick={handleStartSession}
+              disabled={!selectedProjectId || isLoading}
+            >
+              {isLoading ? 'Starting...' : 'Start Session'}
+            </Button>
+          )}
+          {state.sessions.currentSession && (
+            <Button variant="stop" onClick={handleStopSession} disabled={isLoading}>
+              {isLoading ? 'Stopping...' : 'Stop Session'}
+            </Button>
+          )}
         </ButtonContainer>
+        {state.ui.error && <ErrorMessage>{state.ui.error}</ErrorMessage>}
+        {isLoading && <LoadingMessage>Processing...</LoadingMessage>}
       </Controls>
     </Container>
   );

@@ -3,6 +3,7 @@ import { AppContext } from '@/state/context/AppContext';
 import type { Project, Tag, Settings } from '@/types/state';
 import type { CreateSessionParams } from '@/types/session';
 import { ActionType } from '@/types/state';
+import { useDatabase } from '@/contexts/DatabaseContext';
 
 export const useProjects = () => {
   const context = useContext(AppContext);
@@ -26,14 +27,41 @@ export const useSessions = () => {
   const context = useContext(AppContext);
   if (!context) throw new Error('useSessions must be used within an AppProvider');
   const { state, dispatch } = context;
+  const { createSession, endSession } = useDatabase();
+
   return {
     sessions: state.sessions.sessions,
     currentSession: state.sessions.currentSession,
-    startSession: (params: CreateSessionParams) => {
-      dispatch({ type: ActionType.CREATE_SESSION, payload: params });
+    startSession: async (params: CreateSessionParams) => {
+      try {
+        const startTime = new Date().toISOString();
+        await createSession(Number(params.projectId), startTime, params.notes);
+        dispatch({ type: ActionType.CREATE_SESSION, payload: params });
+      } catch (error) {
+        console.error('Error starting session:', error);
+        dispatch({
+          type: ActionType.SET_ERROR,
+          payload: 'Failed to start session. Please try again.',
+        });
+      }
     },
-    stopSession: () => {
-      dispatch({ type: ActionType.END_SESSION });
+    stopSession: async () => {
+      if (!state.sessions.currentSession) return;
+
+      try {
+        const endTime = new Date().toISOString();
+        const startTime = new Date(state.sessions.currentSession.startTime);
+        const duration = Math.floor((new Date(endTime).getTime() - startTime.getTime()) / 1000);
+
+        await endSession(Number(state.sessions.currentSession.id), endTime, duration);
+        dispatch({ type: ActionType.END_SESSION });
+      } catch (error) {
+        console.error('Error stopping session:', error);
+        dispatch({
+          type: ActionType.SET_ERROR,
+          payload: 'Failed to stop session. Please try again.',
+        });
+      }
     },
     pauseSession: () => {
       dispatch({ type: ActionType.PAUSE_SESSION });

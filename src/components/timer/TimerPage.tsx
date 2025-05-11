@@ -1,7 +1,9 @@
 import styled from 'styled-components';
 import SessionControls from '../SessionControls';
 import { useAppContext } from '@/state/context/AppContext';
-import type { Session } from '@/types/session';
+import { useDatabase } from '@/contexts/DatabaseContext';
+import type { Session, SessionStatus } from '@/types/session';
+import { useEffect, useState, useCallback } from 'react';
 
 const PageContainer = styled.div`
   display: flex;
@@ -60,24 +62,98 @@ const SessionDuration = styled.span`
 
 const TimerPage = () => {
   const { state } = useAppContext();
-  const { sessions } = state;
+  const { getSessionsForProject } = useDatabase();
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Use currentProject from UI state
+  const currentProjectId = state.ui.currentProject;
+
+  const fetchSessions = useCallback(async () => {
+    if (!currentProjectId) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const dbSessions = (await getSessionsForProject(
+        Number(currentProjectId)
+      )) as unknown as Array<{
+        id: string;
+        projectId?: string;
+        project_id?: string;
+        startTime?: string;
+        start_time?: string;
+        endTime?: string | null;
+        end_time?: string | null;
+        duration?: number;
+        notes?: string;
+        status?: string;
+        totalPausedTime?: number;
+        total_paused_time?: number;
+        createdAt?: string;
+        created_at?: string;
+        updatedAt?: string;
+        updated_at?: string;
+      }>;
+      const mappedSessions: Session[] = dbSessions.map(s => ({
+        id: String(s.id),
+        projectId: String(s.project_id ?? currentProjectId),
+        startTime: new Date(s.startTime ?? s.start_time ?? new Date().toISOString()),
+        endTime: (s.endTime ?? s.end_time) ? new Date(String(s.endTime ?? s.end_time)) : undefined,
+        duration: typeof s.duration === 'number' ? s.duration : 0,
+        notes: s.notes ?? '',
+        status: (s.status ?? 'completed') as SessionStatus,
+        totalPausedTime: s.totalPausedTime ?? s.total_paused_time ?? 0,
+        createdAt: new Date(s.createdAt ?? s.created_at ?? new Date().toISOString()),
+        updatedAt: new Date(s.updatedAt ?? s.updated_at ?? new Date().toISOString()),
+      }));
+      setSessions(mappedSessions);
+    } catch (error) {
+      console.error('Error fetching sessions', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentProjectId, getSessionsForProject]);
+
+  // Helper to format duration in seconds to HH:MM:SS
+  const formatDuration = (seconds: number) => {
+    const h = Math.floor(seconds / 3600)
+      .toString()
+      .padStart(2, '0');
+    const m = Math.floor((seconds % 3600) / 60)
+      .toString()
+      .padStart(2, '0');
+    const s = Math.floor(seconds % 60)
+      .toString()
+      .padStart(2, '0');
+    return `${h}:${m}:${s}`;
+  };
+
+  useEffect(() => {
+    fetchSessions();
+  }, [fetchSessions]);
 
   return (
     <PageContainer>
+      {/* TODO: Add onSessionChange to SessionControls when supported */}
       <SessionControls />
       <SessionList>
         <SessionListHeader>Recent Sessions</SessionListHeader>
-        {sessions.sessions.map((session: Session) => (
-          <SessionItem key={session.id}>
-            <SessionInfo>
-              <SessionProject>
-                {state.projects.find(p => p.id === session.projectId)?.name || 'Unknown Project'}
-              </SessionProject>
-              {session.notes && <SessionNotes>{session.notes}</SessionNotes>}
-            </SessionInfo>
-            <SessionDuration>{new Date(session.duration).toLocaleTimeString()}</SessionDuration>
-          </SessionItem>
-        ))}
+        {isLoading && <div>Loading...</div>}
+        {error && <div style={{ color: 'red' }}>{error}</div>}
+        {!isLoading &&
+          !error &&
+          sessions.map((session: Session) => (
+            <SessionItem key={session.id}>
+              <SessionInfo>
+                <SessionProject>
+                  {state.projects.find(p => p.id === session.projectId)?.name || 'Unknown Project'}
+                </SessionProject>
+                {session.notes && <SessionNotes>{session.notes}</SessionNotes>}
+              </SessionInfo>
+              <SessionDuration>{formatDuration(session.duration)}</SessionDuration>
+            </SessionItem>
+          ))}
       </SessionList>
     </PageContainer>
   );
