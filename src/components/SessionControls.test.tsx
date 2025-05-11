@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import SessionControls from './SessionControls';
 import { useAppContext } from '@/state/context/AppContext';
-import { useDatabase } from '@/contexts/DatabaseContext';
+import { useSessions } from '@/state/hooks/useAppState';
 import { ThemeProvider } from 'styled-components';
 import { theme } from '@/styles/theme';
 import { ActionType, Theme } from '@/types/state';
@@ -14,8 +14,8 @@ vi.mock('@/state/context/AppContext', () => ({
   useAppContext: vi.fn(),
 }));
 
-vi.mock('@/contexts/DatabaseContext', () => ({
-  useDatabase: vi.fn(),
+vi.mock('@/state/hooks/useAppState', () => ({
+  useSessions: vi.fn(),
 }));
 
 const mockProjects = [
@@ -64,17 +64,11 @@ const mockContextValue: AppContextType = {
   dispatch: vi.fn(),
 };
 
-const mockDatabaseValue = {
-  createProject: vi.fn(),
-  getProject: vi.fn(),
-  getAllProjects: vi.fn(),
-  createSession: vi.fn(),
-  endSession: vi.fn(),
-  getSessionsForProject: vi.fn(),
-  createTag: vi.fn(),
-  getAllTags: vi.fn(),
-  getSetting: vi.fn(),
-  setSetting: vi.fn(),
+const mockSessionsValue = {
+  startSession: vi.fn(),
+  stopSession: vi.fn(),
+  sessions: [],
+  currentSession: null,
 };
 
 const renderWithTheme = (component: React.ReactNode) => {
@@ -85,7 +79,7 @@ describe('SessionControls', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (useAppContext as ReturnType<typeof vi.fn>).mockReturnValue(mockContextValue);
-    (useDatabase as ReturnType<typeof vi.fn>).mockReturnValue(mockDatabaseValue);
+    (useSessions as ReturnType<typeof vi.fn>).mockReturnValue(mockSessionsValue);
   });
 
   it('renders project selection and controls', () => {
@@ -94,7 +88,6 @@ describe('SessionControls', () => {
     expect(screen.getByRole('combobox')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Add notes...')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Start Session' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Stop Session' })).toBeInTheDocument();
   });
 
   it('disables start button when no project is selected', () => {
@@ -105,9 +98,6 @@ describe('SessionControls', () => {
   });
 
   it('creates a new session when start button is clicked', async () => {
-    const mockSessionId = 123;
-    mockDatabaseValue.createSession.mockResolvedValue(mockSessionId);
-
     renderWithTheme(<SessionControls />);
 
     // Select a project
@@ -126,17 +116,9 @@ describe('SessionControls', () => {
     expect(screen.getByText('Starting...')).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(mockDatabaseValue.createSession).toHaveBeenCalledWith(
-        1,
-        expect.any(String),
-        'Test session'
-      );
-      expect(mockContextValue.dispatch).toHaveBeenCalledWith({
-        type: ActionType.CREATE_SESSION,
-        payload: {
-          projectId: '1',
-          notes: 'Test session',
-        },
+      expect(mockSessionsValue.startSession).toHaveBeenCalledWith({
+        projectId: '1',
+        notes: 'Test session',
       });
     });
 
@@ -145,7 +127,8 @@ describe('SessionControls', () => {
   });
 
   it('shows error message when session creation fails', async () => {
-    mockDatabaseValue.createSession.mockRejectedValue(new Error('Failed to create session'));
+    const error = new Error('Failed to create session');
+    mockSessionsValue.startSession.mockRejectedValue(error);
 
     renderWithTheme(<SessionControls />);
 
@@ -158,8 +141,28 @@ describe('SessionControls', () => {
     fireEvent.click(startButton);
 
     await waitFor(() => {
-      expect(screen.getByText('Failed to start session. Please try again.')).toBeInTheDocument();
+      expect(mockContextValue.dispatch).toHaveBeenCalledWith({
+        type: ActionType.SET_ERROR,
+        payload: 'Failed to start session. Please try again.',
+      });
     });
+
+    // Update context with error state
+    (useAppContext as ReturnType<typeof vi.fn>).mockReturnValue({
+      ...mockContextValue,
+      state: {
+        ...mockContextValue.state,
+        ui: {
+          ...mockContextValue.state.ui,
+          error: 'Failed to start session. Please try again.',
+        },
+      },
+    });
+
+    // Re-render to show error
+    renderWithTheme(<SessionControls />);
+
+    expect(screen.getByText('Failed to start session. Please try again.')).toBeInTheDocument();
   });
 
   it('ends current session when stop button is clicked', async () => {
@@ -169,7 +172,6 @@ describe('SessionControls', () => {
       startTime: new Date().toISOString(),
       duration: 0,
       status: 'active',
-      totalPausedTime: 0,
     };
 
     (useAppContext as ReturnType<typeof vi.fn>).mockReturnValue({
@@ -192,14 +194,7 @@ describe('SessionControls', () => {
     expect(screen.getByText('Stopping...')).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(mockDatabaseValue.endSession).toHaveBeenCalledWith(
-        123,
-        expect.any(String),
-        expect.any(Number)
-      );
-      expect(mockContextValue.dispatch).toHaveBeenCalledWith({
-        type: ActionType.END_SESSION,
-      });
+      expect(mockSessionsValue.stopSession).toHaveBeenCalled();
     });
   });
 
@@ -210,7 +205,6 @@ describe('SessionControls', () => {
       startTime: new Date().toISOString(),
       duration: 0,
       status: 'active',
-      totalPausedTime: 0,
     };
 
     (useAppContext as ReturnType<typeof vi.fn>).mockReturnValue({
@@ -224,7 +218,8 @@ describe('SessionControls', () => {
       },
     });
 
-    mockDatabaseValue.endSession.mockRejectedValue(new Error('Failed to end session'));
+    const error = new Error('Failed to end session');
+    mockSessionsValue.stopSession.mockRejectedValue(error);
 
     renderWithTheme(<SessionControls />);
 
@@ -232,8 +227,32 @@ describe('SessionControls', () => {
     fireEvent.click(stopButton);
 
     await waitFor(() => {
-      expect(screen.getByText('Failed to stop session. Please try again.')).toBeInTheDocument();
+      expect(mockContextValue.dispatch).toHaveBeenCalledWith({
+        type: ActionType.SET_ERROR,
+        payload: 'Failed to stop session. Please try again.',
+      });
     });
+
+    // Update context with error state
+    (useAppContext as ReturnType<typeof vi.fn>).mockReturnValue({
+      ...mockContextValue,
+      state: {
+        ...mockContextValue.state,
+        sessions: {
+          ...mockContextValue.state.sessions,
+          currentSession: mockCurrentSession,
+        },
+        ui: {
+          ...mockContextValue.state.ui,
+          error: 'Failed to stop session. Please try again.',
+        },
+      },
+    });
+
+    // Re-render to show error
+    renderWithTheme(<SessionControls />);
+
+    expect(screen.getByText('Failed to stop session. Please try again.')).toBeInTheDocument();
   });
 
   it('disables controls during loading state', async () => {
@@ -243,7 +262,6 @@ describe('SessionControls', () => {
       startTime: new Date().toISOString(),
       duration: 0,
       status: 'active',
-      totalPausedTime: 0,
     };
 
     (useAppContext as ReturnType<typeof vi.fn>).mockReturnValue({

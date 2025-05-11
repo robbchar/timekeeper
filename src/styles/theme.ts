@@ -8,6 +8,8 @@ export const theme: DefaultTheme = {
     successHover: '#16a34a',
     error: '#ef4444',
     errorHover: '#dc2626',
+    warning: '#f59e0b',
+    warningHover: '#d97706',
     border: '#e5e7eb',
     background: {
       primary: '#ffffff',
@@ -28,6 +30,8 @@ export const darkTheme: DefaultTheme = {
     successHover: '#16a34a',
     error: '#ef4444',
     errorHover: '#dc2626',
+    warning: '#f59e0b',
+    warningHover: '#d97706',
     border: '#374151',
     background: {
       primary: '#1f2937',

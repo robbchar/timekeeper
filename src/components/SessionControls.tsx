@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useAppContext } from '@/state/context/AppContext';
+import { useSessions } from '@/state/hooks/useAppState';
 import { ActionType } from '@/types/state';
 import type { Project } from '@/types/state';
-import { useDatabase } from '@/contexts/DatabaseContext';
 
 const Container = styled.div`
   padding: 1.5rem;
@@ -64,7 +64,7 @@ const Button = styled.button<{ variant: 'start' | 'stop' }>`
   font-size: 1rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s;
   flex: 1;
   background-color: ${({ theme, variant }) =>
     variant === 'start' ? theme.colors.success : theme.colors.error};
@@ -95,35 +95,23 @@ const LoadingMessage = styled.div`
 
 const SessionControls: React.FC = () => {
   const { state, dispatch } = useAppContext();
-  const { createSession, endSession } = useDatabase();
+  const { startSession, stopSession } = useSessions();
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
 
   const handleStartSession = async () => {
     if (!selectedProjectId) return;
 
     setIsLoading(true);
-    setError(null);
-
     try {
-      const startTime = new Date().toISOString();
-      await createSession(Number(selectedProjectId), startTime, notes);
-
-      dispatch({
-        type: ActionType.CREATE_SESSION,
-        payload: {
-          projectId: selectedProjectId,
-          notes,
-        },
-      });
-
-      // Clear form
+      await startSession({ projectId: selectedProjectId, notes });
       setNotes('');
-    } catch (err) {
-      setError('Failed to start session. Please try again.');
-      console.error('Error starting session:', err);
+    } catch {
+      dispatch({
+        type: ActionType.SET_ERROR,
+        payload: 'Failed to start session. Please try again.',
+      });
     } finally {
       setIsLoading(false);
     }
@@ -133,18 +121,13 @@ const SessionControls: React.FC = () => {
     if (!state.sessions.currentSession) return;
 
     setIsLoading(true);
-    setError(null);
-
     try {
-      const endTime = new Date().toISOString();
-      const startTime = new Date(state.sessions.currentSession.startTime);
-      const duration = Math.floor((new Date(endTime).getTime() - startTime.getTime()) / 1000);
-
-      await endSession(Number(state.sessions.currentSession.id), endTime, duration);
-      dispatch({ type: ActionType.END_SESSION });
-    } catch (err) {
-      setError('Failed to stop session. Please try again.');
-      console.error('Error stopping session:', err);
+      await stopSession();
+    } catch {
+      dispatch({
+        type: ActionType.SET_ERROR,
+        payload: 'Failed to stop session. Please try again.',
+      });
     } finally {
       setIsLoading(false);
     }
@@ -153,7 +136,11 @@ const SessionControls: React.FC = () => {
   return (
     <Container>
       <Controls>
-        <Select value={selectedProjectId} onChange={e => setSelectedProjectId(e.target.value)}>
+        <Select
+          value={selectedProjectId}
+          onChange={e => setSelectedProjectId(e.target.value)}
+          disabled={!!state.sessions.currentSession || isLoading}
+        >
           <option value="">Select a project</option>
           {state.projects.map((project: Project) => (
             <option key={project.id} value={project.id}>
@@ -168,22 +155,22 @@ const SessionControls: React.FC = () => {
           disabled={isLoading}
         />
         <ButtonContainer>
-          <Button
-            variant="start"
-            onClick={handleStartSession}
-            disabled={!selectedProjectId || !!state.sessions.currentSession || isLoading}
-          >
-            {isLoading ? 'Starting...' : 'Start Session'}
-          </Button>
-          <Button
-            variant="stop"
-            onClick={handleStopSession}
-            disabled={!state.sessions.currentSession || isLoading}
-          >
-            {isLoading ? 'Stopping...' : 'Stop Session'}
-          </Button>
+          {!state.sessions.currentSession && (
+            <Button
+              variant="start"
+              onClick={handleStartSession}
+              disabled={!selectedProjectId || isLoading}
+            >
+              {isLoading ? 'Starting...' : 'Start Session'}
+            </Button>
+          )}
+          {state.sessions.currentSession && (
+            <Button variant="stop" onClick={handleStopSession} disabled={isLoading}>
+              {isLoading ? 'Stopping...' : 'Stop Session'}
+            </Button>
+          )}
         </ButtonContainer>
-        {error && <ErrorMessage>{error}</ErrorMessage>}
+        {state.ui.error && <ErrorMessage>{state.ui.error}</ErrorMessage>}
         {isLoading && <LoadingMessage>Processing...</LoadingMessage>}
       </Controls>
     </Container>

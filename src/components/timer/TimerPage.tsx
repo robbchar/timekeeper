@@ -67,8 +67,8 @@ const TimerPage = () => {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Assume current project is selected in app context
-  const currentProjectId = state.projects[0]?.id; // TODO: Replace with actual selection logic
+  // Use currentProject from UI state
+  const currentProjectId = state.ui.currentProject;
 
   const fetchSessions = useCallback(async () => {
     if (!currentProjectId) return;
@@ -96,8 +96,8 @@ const TimerPage = () => {
         updated_at?: string;
       }>;
       const mappedSessions: Session[] = dbSessions.map(s => ({
-        id: s.id,
-        projectId: s.projectId ?? s.project_id ?? currentProjectId,
+        id: String(s.id),
+        projectId: String(s.project_id ?? currentProjectId),
         startTime: new Date(s.startTime ?? s.start_time ?? new Date().toISOString()),
         endTime: (s.endTime ?? s.end_time) ? new Date(String(s.endTime ?? s.end_time)) : undefined,
         duration: typeof s.duration === 'number' ? s.duration : 0,
@@ -108,10 +108,8 @@ const TimerPage = () => {
         updatedAt: new Date(s.updatedAt ?? s.updated_at ?? new Date().toISOString()),
       }));
       setSessions(mappedSessions);
-      // TODO: Sync with app context if/when reducer supports it
-      // dispatch({ type: 'SET_SESSIONS', payload: mappedSessions });
-    } catch {
-      setError('Failed to load sessions');
+    } catch (error) {
+      console.error('Error fetching sessions', error);
     } finally {
       setIsLoading(false);
     }

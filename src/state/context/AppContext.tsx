@@ -27,7 +27,8 @@ type AppAction =
   | { type: ActionType.DELETE_TAG; payload: string }
   | { type: ActionType.UPDATE_SETTINGS; payload: Partial<Settings> }
   | { type: ActionType.TOGGLE_THEME }
-  | { type: ActionType.SET_ERROR; payload: string | undefined };
+  | { type: ActionType.SET_ERROR; payload: string | undefined }
+  | { type: ActionType.SET_CURRENT_PROJECT; payload: string };
 
 const initialState: AppState = {
   projects: [],
