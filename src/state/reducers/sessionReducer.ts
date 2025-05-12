@@ -1,9 +1,8 @@
-import { v4 as uuidv4 } from 'uuid';
 import type { Session, SessionState } from '@/types/session';
 import { ActionType } from '@/types/state';
 
 export type SessionAction =
-  | { type: ActionType.CREATE_SESSION; payload: { projectId: string; notes?: string } }
+  | { type: ActionType.CREATE_SESSION; payload: { projectId: number; notes?: string } }
   | { type: ActionType.PAUSE_SESSION }
   | { type: ActionType.RESUME_SESSION }
   | { type: ActionType.END_SESSION }
@@ -32,7 +31,7 @@ export const sessionReducer = (
       }
 
       const newSession: Session = {
-        id: uuidv4(),
+        id: Date.now(), // Use timestamp as temporary ID until database assigns one
         projectId: action.payload.projectId,
         startTime: new Date(),
         duration: 0,

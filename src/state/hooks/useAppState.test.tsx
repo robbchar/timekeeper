@@ -22,7 +22,7 @@ describe('useProjects', () => {
   it('should add a project', () => {
     const { result } = renderHook(() => useProjects(), { wrapper });
     const mockProject: Project = {
-      id: '1',
+      id: 1,
       name: 'Test Project',
       description: 'Test Description',
       totalTime: 0,
@@ -54,7 +54,7 @@ describe('useSessions', () => {
     vi.setSystemTime(startTime);
 
     const sessionParams: CreateSessionParams = {
-      projectId: '1',
+      projectId: 1,
       notes: 'Test session',
     };
 
@@ -63,7 +63,7 @@ describe('useSessions', () => {
     });
 
     expect(result.current.currentSession).toBeDefined();
-    expect(result.current.currentSession?.projectId).toBe('1');
+    expect(result.current.currentSession?.projectId).toBe(1);
     expect(result.current.currentSession?.notes).toBe('Test session');
     expect(result.current.currentSession?.status).toBe('active');
 
@@ -90,7 +90,7 @@ describe('useTags', () => {
   it('should add a tag', () => {
     const { result } = renderHook(() => useTags(), { wrapper });
     const mockTag: Tag = {
-      id: '1',
+      id: 1,
       name: 'Test Tag',
       createdAt: new Date(),
       updatedAt: new Date(),

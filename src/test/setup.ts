@@ -1,10 +1,10 @@
 import '@testing-library/jest-dom';
-import { expect, afterEach, beforeEach, afterAll, vi } from 'vitest';
+import { expect, afterEach, afterAll, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import * as matchers from '@testing-library/jest-dom/matchers';
 import path from 'path';
 import fs from 'fs';
-import Database from 'better-sqlite3';
+import sqlite3 from 'sqlite3';
 
 // Extend Vitest's expect method with methods from react-testing-library
 expect.extend(matchers);
@@ -19,12 +19,7 @@ if (!fs.existsSync(testDataDir)) {
 // Mock electron app
 vi.mock('electron', () => ({
   app: {
-    getPath: (name: string) => {
-      if (name === 'userData') {
-        return testDataDir;
-      }
-      return '';
-    },
+    getPath: vi.fn(() => testDataDir),
   },
 }));
 
@@ -33,49 +28,95 @@ afterEach(() => {
   cleanup();
 });
 
-// Clean up test data before each test
-beforeEach(() => {
-  // Ensure test data directory exists
-  if (!fs.existsSync(testDataDir)) {
-    fs.mkdirSync(testDataDir, { recursive: true });
+// Initialize database tables
+function initializeDatabase(db: sqlite3.Database) {
+  return new Promise<void>((resolve, reject) => {
+    db.serialize(() => {
+      // Projects table
+      db.run(`
+        CREATE TABLE IF NOT EXISTS projects (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          description TEXT,
+          color TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      // Sessions table
+      db.run(`
+        CREATE TABLE IF NOT EXISTS sessions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          project_id INTEGER NOT NULL,
+          start_time DATETIME NOT NULL,
+          end_time DATETIME,
+          duration INTEGER,
+          notes TEXT,
+          FOREIGN KEY (project_id) REFERENCES projects(id)
+        )
+      `);
+
+      // Tags table
+      db.run(`
+        CREATE TABLE IF NOT EXISTS tags (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL UNIQUE,
+          color TEXT
+        )
+      `);
+
+      // Session tags junction table
+      db.run(`
+        CREATE TABLE IF NOT EXISTS session_tags (
+          session_id INTEGER NOT NULL,
+          tag_id INTEGER NOT NULL,
+          PRIMARY KEY (session_id, tag_id),
+          FOREIGN KEY (session_id) REFERENCES sessions(id),
+          FOREIGN KEY (tag_id) REFERENCES tags(id)
+        )
+      `);
+
+      // Settings table
+      db.run(
+        `
+        CREATE TABLE IF NOT EXISTS settings (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL
+        )
+      `,
+        err => {
+          if (err) reject(err);
+          else resolve();
+        }
+      );
+    });
+  });
+}
+
+// Set up test database
+beforeAll(async () => {
+  const dbPath = path.join(testDataDir, 'timekeeper.db');
+
+  // Remove existing database if it exists
+  if (fs.existsSync(dbPath)) {
+    fs.unlinkSync(dbPath);
   }
 
-  // Clean up database tables
-  const dbPath = path.join(testDataDir, 'timekeeper.db');
-  if (fs.existsSync(dbPath)) {
-    const db = new Database(dbPath);
-    db.exec(`
-      DELETE FROM session_tags;
-      DELETE FROM sessions;
-      DELETE FROM tags;
-      DELETE FROM projects;
-      DELETE FROM settings;
-    `);
-    db.close();
-  }
+  // Create new database and initialize tables
+  const db = new sqlite3.Database(dbPath);
+  await initializeDatabase(db);
+  db.close();
 });
 
-// Clean up test data after all tests
+// Clean up after tests
 afterAll(() => {
-  // Close any open database connections
+  // Remove test database
   const dbPath = path.join(testDataDir, 'timekeeper.db');
   if (fs.existsSync(dbPath)) {
-    try {
-      const db = new Database(dbPath);
-      db.close();
-    } catch {
-      // Ignore errors if database is already closed
-    }
+    fs.unlinkSync(dbPath);
   }
-
-  // Wait a bit to ensure all file handles are released
-  setTimeout(() => {
-    try {
-      if (fs.existsSync(testDataDir)) {
-        fs.rmSync(testDataDir, { recursive: true, force: true });
-      }
-    } catch (error) {
-      console.error('Error cleaning up test data directory:', error);
-    }
-  }, 100);
+  // Remove test data directory
+  if (fs.existsSync(testDataDir)) {
+    fs.rmdirSync(testDataDir);
+  }
 });

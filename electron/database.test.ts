@@ -1,5 +1,5 @@
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
-import Database from 'better-sqlite3';
+import Database from 'sqlite3';
 import fs from 'fs';
 import path from 'path';
 

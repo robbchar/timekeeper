@@ -39,7 +39,7 @@ export enum ActionType {
 }
 
 export interface Project {
-  id: string;
+  id: number;
   name: string;
   description: string;
   totalTime: number; // in milliseconds
@@ -49,18 +49,18 @@ export interface Project {
 }
 
 export interface Session {
-  id: string;
-  projectId: string;
+  id: number;
+  projectId: number;
   startTime: Date;
   endTime?: Date;
   notes?: string;
-  tags: string[];
+  tags: number[];
   createdAt: Date;
   updatedAt: Date;
 }
 
 export interface Tag {
-  id: string;
+  id: number;
   name: string;
   createdAt: Date;
   updatedAt: Date;
@@ -68,13 +68,13 @@ export interface Tag {
 
 export interface Settings {
   timeFormat: '12h' | '24h';
-  defaultProject: string | undefined;
+  defaultProject: number | undefined;
 }
 
 export interface UIState {
   theme: Theme;
   error: string | undefined;
-  currentProject: string | undefined;
+  currentProject: number | undefined;
   isTimerRunning: boolean;
   isLoading: boolean;
 }

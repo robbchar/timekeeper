@@ -16,7 +16,7 @@ declare global {
 // Create mock data without hoisting
 const createMockProjects = () => [
   {
-    id: '1',
+    id: 1,
     name: 'Project 1',
     description: '',
     totalTime: 0,
@@ -25,7 +25,7 @@ const createMockProjects = () => [
     updatedAt: new Date(),
   },
   {
-    id: '2',
+    id: 2,
     name: 'Project 2',
     description: '',
     totalTime: 0,
@@ -95,12 +95,12 @@ const createMockContextValue = () => ({
     tags: [],
     settings: {
       timeFormat: '24h',
-      defaultProject: '1',
+      defaultProject: 1,
     },
     ui: {
       theme: Theme.LIGHT,
       error: undefined,
-      currentProject: '1',
+      currentProject: 1,
       isTimerRunning: false,
       isLoading: false,
     },

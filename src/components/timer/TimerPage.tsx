@@ -69,18 +69,23 @@ const TimerPage = () => {
 
   // Use currentProject from UI state
   const currentProjectId = state.ui.currentProject;
+  console.log('TimerPage: currentProjectId:', currentProjectId);
 
   const fetchSessions = useCallback(async () => {
-    if (!currentProjectId) return;
+    if (!currentProjectId) {
+      console.log('TimerPage: No currentProjectId, skipping fetch');
+      return;
+    }
+    console.log('TimerPage: Fetching sessions for project:', currentProjectId);
     setIsLoading(true);
     setError(null);
     try {
       const dbSessions = (await getSessionsForProject(
         Number(currentProjectId)
       )) as unknown as Array<{
-        id: string;
-        projectId?: string;
-        project_id?: string;
+        id: number;
+        projectId?: number;
+        project_id?: number;
         startTime?: string;
         start_time?: string;
         endTime?: string | null;
@@ -95,9 +100,10 @@ const TimerPage = () => {
         updatedAt?: string;
         updated_at?: string;
       }>;
+      console.log('TimerPage: Received sessions from database:', dbSessions);
       const mappedSessions: Session[] = dbSessions.map(s => ({
-        id: String(s.id),
-        projectId: String(s.project_id ?? currentProjectId),
+        id: s.id,
+        projectId: s.project_id ?? Number(currentProjectId),
         startTime: new Date(s.startTime ?? s.start_time ?? new Date().toISOString()),
         endTime: (s.endTime ?? s.end_time) ? new Date(String(s.endTime ?? s.end_time)) : undefined,
         duration: typeof s.duration === 'number' ? s.duration : 0,
@@ -107,9 +113,11 @@ const TimerPage = () => {
         createdAt: new Date(s.createdAt ?? s.created_at ?? new Date().toISOString()),
         updatedAt: new Date(s.updatedAt ?? s.updated_at ?? new Date().toISOString()),
       }));
+      console.log('TimerPage: Mapped sessions:', mappedSessions);
       setSessions(mappedSessions);
     } catch (error) {
-      console.error('Error fetching sessions', error);
+      console.error('TimerPage: Error fetching sessions:', error);
+      setError('Failed to load sessions');
     } finally {
       setIsLoading(false);
     }

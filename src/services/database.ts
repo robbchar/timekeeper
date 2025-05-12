@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import sqlite3 from 'sqlite3';
 import path from 'path';
 import { app } from 'electron';
 import fs from 'fs';
@@ -14,15 +14,15 @@ if (!fs.existsSync(userDataPath)) {
 }
 
 // Initialize database
-const db = new Database(dbPath);
+const db = new sqlite3.Database(dbPath);
 
 // Enable foreign keys
-db.pragma('foreign_keys = ON');
+db.run('PRAGMA foreign_keys = ON');
 
 // Create tables if they don't exist
 function initializeDatabase() {
   // Projects table
-  db.exec(`
+  db.run(`
     CREATE TABLE IF NOT EXISTS projects (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -33,7 +33,7 @@ function initializeDatabase() {
   `);
 
   // Sessions table
-  db.exec(`
+  db.run(`
     CREATE TABLE IF NOT EXISTS sessions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       project_id INTEGER NOT NULL,
@@ -46,7 +46,7 @@ function initializeDatabase() {
   `);
 
   // Tags table
-  db.exec(`
+  db.run(`
     CREATE TABLE IF NOT EXISTS tags (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
@@ -55,7 +55,7 @@ function initializeDatabase() {
   `);
 
   // Session tags junction table
-  db.exec(`
+  db.run(`
     CREATE TABLE IF NOT EXISTS session_tags (
       session_id INTEGER NOT NULL,
       tag_id INTEGER NOT NULL,
@@ -66,7 +66,7 @@ function initializeDatabase() {
   `);
 
   // Settings table
-  db.exec(`
+  db.run(`
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
@@ -77,58 +77,133 @@ function initializeDatabase() {
 // Initialize the database
 initializeDatabase();
 
+// Helper function to promisify database operations
+function runAsync(
+  sql: string,
+  params: (string | number | null | undefined)[] = []
+): Promise<{ lastInsertRowid: number; changes: number }> {
+  return new Promise((resolve, reject) => {
+    db.run(sql, params, function (err) {
+      if (err) reject(err);
+      else resolve({ lastInsertRowid: this.lastID, changes: this.changes });
+    });
+  });
+}
+
+function getAsync<T>(
+  sql: string,
+  params: (string | number | null | undefined)[] = []
+): Promise<T | undefined> {
+  return new Promise((resolve, reject) => {
+    db.get(sql, params, (err, row) => {
+      if (err) reject(err);
+      else resolve(row as T);
+    });
+  });
+}
+
+function allAsync<T>(
+  sql: string,
+  params: (string | number | null | undefined)[] = []
+): Promise<T[]> {
+  return new Promise((resolve, reject) => {
+    db.all(sql, params, (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows as T[]);
+    });
+  });
+}
+
 // Export database instance and helper functions
 export const database: DatabaseAPI = {
   // Project operations
   createProject: async (name: string, description?: string, color?: string) => {
-    return window.database.createProject(name, description, color);
+    return runAsync('INSERT INTO projects (name, description, color) VALUES (?, ?, ?)', [
+      name,
+      description,
+      color,
+    ]);
   },
 
   getProjects: async () => {
-    return window.database.getProjects();
+    return allAsync('SELECT * FROM projects ORDER BY created_at DESC');
   },
 
   deleteProject: async (id: number) => {
-    return window.database.deleteProject(id);
+    return runAsync('DELETE FROM projects WHERE id = ?', [id]);
   },
 
   updateProject: async (id: number, name: string) => {
-    return window.database.updateProject(id, name);
+    return runAsync('UPDATE projects SET name = ? WHERE id = ?', [name, id]);
   },
 
   // Session operations
   createSession: async (projectId: number, startTime: string, notes?: string) => {
-    return window.database.createSession(projectId, startTime, notes);
+    return runAsync('INSERT INTO sessions (project_id, start_time, notes) VALUES (?, ?, ?)', [
+      projectId,
+      startTime,
+      notes,
+    ]);
   },
 
   endSession: async (sessionId: number, endTime: string, duration: number) => {
-    return window.database.endSession(sessionId, endTime, duration);
+    return runAsync('UPDATE sessions SET end_time = ?, duration = ? WHERE id = ?', [
+      endTime,
+      duration,
+      sessionId,
+    ]);
   },
 
   getSessions: async (startDate?: string, endDate?: string) => {
-    return window.database.getSessions(startDate, endDate);
+    let sql = 'SELECT * FROM sessions';
+    const params: string[] = [];
+
+    if (startDate || endDate) {
+      sql += ' WHERE';
+      if (startDate) {
+        sql += ' start_time >= ?';
+        params.push(startDate);
+      }
+      if (startDate && endDate) {
+        sql += ' AND';
+      }
+      if (endDate) {
+        sql += ' start_time <= ?';
+        params.push(endDate);
+      }
+    }
+
+    sql += ' ORDER BY start_time DESC';
+    return allAsync(sql, params);
   },
 
   // Tag operations
   createTag: async (name: string, color?: string) => {
-    return window.database.createTag(name, color);
+    return runAsync('INSERT INTO tags (name, color) VALUES (?, ?)', [name, color]);
   },
 
   getTags: async () => {
-    return window.database.getTags();
+    return allAsync('SELECT * FROM tags ORDER BY name');
   },
 
   // Settings operations
   getSetting: async (key: string) => {
-    return window.database.getSetting(key);
+    const result = await getAsync<{ value: string }>('SELECT value FROM settings WHERE key = ?', [
+      key,
+    ]);
+    return result?.value;
   },
 
   setSetting: async (key: string, value: string) => {
-    return window.database.setSetting(key, value);
+    return runAsync('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [key, value]);
   },
 
   // Test helper
   reset: async () => {
-    return window.database.reset();
+    await runAsync('DELETE FROM session_tags');
+    await runAsync('DELETE FROM sessions');
+    await runAsync('DELETE FROM tags');
+    await runAsync('DELETE FROM projects');
+    await runAsync('DELETE FROM settings');
   },
 };

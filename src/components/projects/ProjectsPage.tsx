@@ -344,7 +344,7 @@ export const ProjectsPage: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [expandedStats, setExpandedStats] = useState<Set<string>>(new Set());
+  const [expandedStats, setExpandedStats] = useState<Set<number>>(new Set());
 
   const handleAddSubmit = async (name: string) => {
     try {
@@ -359,7 +359,7 @@ export const ProjectsPage: React.FC = () => {
   const handleEditSubmit = async (name: string) => {
     if (!selectedProject) return;
     try {
-      await updateProject(parseInt(selectedProject.id), name);
+      await updateProject(selectedProject.id, name);
       await refreshProjects();
       setIsEditModalOpen(false);
     } catch (error) {
@@ -380,7 +380,7 @@ export const ProjectsPage: React.FC = () => {
   const handleDeleteConfirm = async () => {
     if (!selectedProject) return;
     try {
-      await deleteProject(parseInt(selectedProject.id));
+      await deleteProject(selectedProject.id);
       await refreshProjects();
       setIsDeleteModalOpen(false);
     } catch (error) {
@@ -388,7 +388,7 @@ export const ProjectsPage: React.FC = () => {
     }
   };
 
-  const toggleProjectStats = (projectId: string) => {
+  const toggleProjectStats = (projectId: number) => {
     setExpandedStats(prev => {
       const next = new Set(prev);
       if (next.has(projectId)) {
@@ -412,7 +412,7 @@ export const ProjectsPage: React.FC = () => {
 
       <ProjectList>
         {projects.map(project => (
-          <ProjectCard key={project.id}>
+          <ProjectCard key={project.id} data-testid={`project-card-${project.id}`}>
             <ProjectName>{project.name}</ProjectName>
             <ProjectDate>Created {new Date(project.createdAt).toLocaleDateString()}</ProjectDate>
             <ProjectActions>

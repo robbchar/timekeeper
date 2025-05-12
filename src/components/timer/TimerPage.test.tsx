@@ -8,6 +8,7 @@ import { theme } from '@/styles/theme';
 import { useAppContext } from '@/state/context/AppContext';
 import { DatabaseProvider } from '@/contexts/DatabaseContext';
 import { AppProvider } from '@/state/context/AppContext';
+import { ProjectsProvider } from '@/contexts/ProjectsContext';
 import {
   defaultProjects,
   defaultSessions,
@@ -15,11 +16,13 @@ import {
   setupMockDatabase,
 } from './__mocks__/setup';
 
-// Create a wrapper component that provides both contexts
+// Create a wrapper component that provides all contexts
 const BaseWrapper = ({ children }: { children: React.ReactNode }) => (
   <ThemeProvider theme={theme}>
     <AppProvider>
-      <DatabaseProvider>{children}</DatabaseProvider>
+      <DatabaseProvider>
+        <ProjectsProvider>{children}</ProjectsProvider>
+      </DatabaseProvider>
     </AppProvider>
   </ThemeProvider>
 );
@@ -28,6 +31,7 @@ const BaseWrapper = ({ children }: { children: React.ReactNode }) => (
 const ProjectWrapper = ({ children }: { children: React.ReactNode }) => {
   const { dispatch } = useAppContext();
   useEffect(() => {
+    console.log('ProjectWrapper: Adding project and setting current project');
     // Add the project
     dispatch({ type: ActionType.ADD_PROJECT, payload: defaultProjects[0] });
     // Set it as the current project
@@ -36,7 +40,7 @@ const ProjectWrapper = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-// Combined wrapper that provides both context and project
+// Combined wrapper that provides all context and project
 const TestWrapper = ({ children }: { children: React.ReactNode }) => (
   <BaseWrapper>
     <ProjectWrapper>{children}</ProjectWrapper>
@@ -46,16 +50,26 @@ const TestWrapper = ({ children }: { children: React.ReactNode }) => (
 describe('TimerPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Reset both database and IPC mocks to their default state
-    // setupMockDatabase();
-    // mockIpcRenderer.invoke.mockImplementation((channel: string, ...args: unknown[]) => {
-    //   switch (channel) {
-    //     case 'db:getSessionsForProject':
-    //       return Promise.resolve(defaultSessions);
-    //     default:
-    //       return Promise.resolve([]);
-    //   }
-    // });
+    console.log('Setting up test mocks');
+    // Set up default database mocks
+    const mockGetSessionsForProject = vi.fn().mockImplementation(async projectId => {
+      console.log('Mock getSessionsForProject called with projectId:', projectId);
+      return defaultSessions;
+    });
+
+    const mockGetAllProjects = vi.fn().mockImplementation(async () => {
+      console.log('Mock getAllProjects called');
+      return defaultProjects;
+    });
+
+    mockUseDatabase.mockReturnValue({
+      getSessionsForProject: mockGetSessionsForProject,
+      getAllProjects: mockGetAllProjects,
+      createProject: vi.fn().mockResolvedValue(1),
+      getProject: vi.fn().mockResolvedValue(defaultProjects[0]),
+      createSession: vi.fn().mockResolvedValue(1),
+      endSession: vi.fn().mockResolvedValue(undefined),
+    });
   });
 
   it('renders without crashing', () => {
@@ -228,10 +242,11 @@ describe('TimerPage', () => {
   });
 
   it('shows "Unknown Project" for sessions with missing project', async () => {
+    console.log('Starting "Unknown Project" test');
     const sessionsWithMissingProject = [
       {
-        id: 1, // Database uses number IDs
-        project_id: 999, // Database uses number IDs
+        id: 1,
+        project_id: 999,
         start_time: '2024-03-10T10:00:00Z',
         end_time: '2024-03-10T11:00:00Z',
         duration: 3600,
@@ -239,13 +254,22 @@ describe('TimerPage', () => {
       },
     ];
 
-    setupMockDatabase(sessionsWithMissingProject);
-
-    // Mock the useDatabase hook to return our test data
-    mockUseDatabase.mockReturnValue({
-      getSessionsForProject: vi.fn().mockResolvedValue(sessionsWithMissingProject),
+    // Update the mock for this specific test
+    const mockGetSessionsForProject = vi.fn().mockImplementation(async projectId => {
+      console.log('Mock getSessionsForProject called with projectId:', projectId);
+      return sessionsWithMissingProject;
     });
 
+    mockUseDatabase.mockReturnValue({
+      getSessionsForProject: mockGetSessionsForProject,
+      getAllProjects: vi.fn().mockResolvedValue(defaultProjects),
+      createProject: vi.fn().mockResolvedValue(1),
+      getProject: vi.fn().mockResolvedValue(null), // Return null for unknown project
+      createSession: vi.fn().mockResolvedValue(1),
+      endSession: vi.fn().mockResolvedValue(undefined),
+    });
+
+    // Render with TestWrapper to ensure project context is set
     render(<TimerPage />, { wrapper: TestWrapper });
 
     // First wait for loading to complete
