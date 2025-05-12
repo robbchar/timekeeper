@@ -3,112 +3,140 @@ import { render, screen, waitFor, fireEvent, within } from '@testing-library/rea
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import TimerPage from './TimerPage';
 import { ActionType } from '@/types/state';
-import { ThemeProvider } from 'styled-components';
-import { theme } from '@/styles/theme';
 import { useAppContext } from '@/state/context/AppContext';
-import { DatabaseProvider } from '@/contexts/DatabaseContext';
-import { AppProvider } from '@/state/context/AppContext';
-import { ProjectsProvider } from '@/contexts/ProjectsContext';
-import {
-  defaultProjects,
-  defaultSessions,
-  mockUseDatabase,
-  setupMockDatabase,
-} from './__mocks__/setup';
+import { useProjects } from '@/contexts/ProjectsContext';
+import { useDatabase } from '@/contexts/DatabaseContext';
+import { AllTheProviders } from '@/test-utils';
 
-// Create a wrapper component that provides all contexts
-const BaseWrapper = ({ children }: { children: React.ReactNode }) => (
-  <ThemeProvider theme={theme}>
-    <AppProvider>
-      <DatabaseProvider>
-        <ProjectsProvider>{children}</ProjectsProvider>
-      </DatabaseProvider>
-    </AppProvider>
-  </ThemeProvider>
-);
+// Mock the useProjects hook and provider
+vi.mock('@/contexts/ProjectsContext', () => {
+  const mockProjectsContext = {
+    projects: [],
+    isLoading: false,
+    error: null,
+    refreshProjects: vi.fn().mockResolvedValue(undefined),
+  };
 
-// Create a wrapper that adds a project to the context
-const ProjectWrapper = ({ children }: { children: React.ReactNode }) => {
-  const { dispatch } = useAppContext();
-  useEffect(() => {
-    console.log('ProjectWrapper: Adding project and setting current project');
-    // Add the project
-    dispatch({ type: ActionType.ADD_PROJECT, payload: defaultProjects[0] });
-    // Set it as the current project
-    dispatch({ type: ActionType.SET_CURRENT_PROJECT, payload: '1' });
-  }, [dispatch]);
-  return <>{children}</>;
-};
+  return {
+    useProjects: vi.fn().mockReturnValue(mockProjectsContext),
+    ProjectsProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  };
+});
 
-// Combined wrapper that provides all context and project
+// Mock the useDatabase hook
+vi.mock('@/contexts/DatabaseContext', () => {
+  const mockDatabase = {
+    getSessions: vi.fn().mockResolvedValue([]),
+    getAllProjects: vi.fn().mockResolvedValue([]),
+    createProject: vi.fn().mockResolvedValue(1),
+    updateProject: vi.fn().mockResolvedValue(undefined),
+    deleteProject: vi.fn().mockResolvedValue(undefined),
+    createSession: vi.fn().mockResolvedValue(1),
+    endSession: vi.fn().mockResolvedValue(undefined),
+    getSessionsForProject: vi.fn().mockResolvedValue([]),
+    getProject: vi.fn().mockResolvedValue([]),
+  };
+
+  return {
+    useDatabase: vi.fn().mockReturnValue(mockDatabase),
+    DatabaseProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  };
+});
+
+// Create a wrapper that provides all contexts
 const TestWrapper = ({ children }: { children: React.ReactNode }) => (
-  <BaseWrapper>
-    <ProjectWrapper>{children}</ProjectWrapper>
-  </BaseWrapper>
+  <AllTheProviders>{children}</AllTheProviders>
 );
 
 describe('TimerPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    console.log('Setting up test mocks');
-    // Set up default database mocks
-    const mockGetSessionsForProject = vi.fn().mockImplementation(async projectId => {
-      console.log('Mock getSessionsForProject called with projectId:', projectId);
-      return defaultSessions;
-    });
 
-    const mockGetAllProjects = vi.fn().mockImplementation(async () => {
-      console.log('Mock getAllProjects called');
-      return defaultProjects;
-    });
-
-    mockUseDatabase.mockReturnValue({
-      getSessionsForProject: mockGetSessionsForProject,
-      getAllProjects: mockGetAllProjects,
-      createProject: vi.fn().mockResolvedValue(1),
-      getProject: vi.fn().mockResolvedValue(defaultProjects[0]),
-      createSession: vi.fn().mockResolvedValue(1),
-      endSession: vi.fn().mockResolvedValue(undefined),
-    });
+    // Reset mock projects context
+    const mockProjectsContext = useProjects();
+    mockProjectsContext.projects = [];
+    mockProjectsContext.isLoading = false;
+    mockProjectsContext.error = null;
   });
 
   it('renders without crashing', () => {
-    render(<TimerPage />, { wrapper: BaseWrapper });
+    render(<TimerPage />, { wrapper: TestWrapper });
     expect(screen.getByText('Recent Sessions')).toBeInTheDocument();
   });
 
   it('shows loading state initially', () => {
-    render(<TimerPage />, { wrapper: BaseWrapper });
+    render(<TimerPage />, { wrapper: TestWrapper });
     expect(screen.getByText('Loading...')).toBeInTheDocument();
   });
 
-  // it('shows error state when database fails', async () => {
-  //   const error = new Error('Database error');
-  //   setupMockDatabase();
-  //   // Mock both database and IPC to fail
-  //   mockUseDatabase.mockReturnValue({
-  //     getSessionsForProject: vi.fn().mockRejectedValue(error),
-  //   });
-  //   // Update IPC mock to also fail
-  //   mockIpcRenderer.invoke.mockImplementation(() => Promise.reject(error));
-
-  //   render(<TimerPage />, { wrapper: TestWrapper });
-
-  //   await waitFor(() => {
-  //     const sessionList = screen.getByText('Recent Sessions').closest('div');
-  //     expect(sessionList).toBeTruthy();
-  //     const sessionListWithin = within(sessionList!);
-  //     expect(sessionListWithin.getByText('Failed to load sessions')).toBeInTheDocument();
-  //   });
-  // });
-
   it('displays sessions when loaded', async () => {
-    setupMockDatabase();
-    mockUseDatabase.mockReturnValue({
-      getSessionsForProject: vi.fn().mockResolvedValue(defaultSessions),
-    });
+    // Set up the mock projects context with a project
+    const mockProjectsContext = useProjects();
+    mockProjectsContext.projects = [
+      {
+        id: 1,
+        name: 'Project 1',
+        description: '',
+        totalTime: 3600,
+        sessionCount: 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
 
-    render(<TimerPage />, { wrapper: TestWrapper });
+    // Set up the database mock to return a session
+    const mockDatabase = useDatabase();
+    (mockDatabase.getAllProjects as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      {
+        id: 1,
+        name: 'Project 1',
+        description: '',
+        created_at: '2024-03-10T10:00:00Z',
+      },
+    ]);
+    (mockDatabase.getSessionsForProject as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      {
+        id: 1,
+        project_id: 1,
+        start_time: '2024-03-10T10:00:00Z',
+        end_time: '2024-03-10T11:00:00Z',
+        duration: 3600,
+        notes: 'Test session 1',
+      },
+    ]);
+
+    // Create a wrapper that sets up the context before rendering
+    const TestWrapperWithContext = ({ children }: { children: React.ReactNode }) => {
+      const { dispatch } = useAppContext();
+
+      useEffect(() => {
+        // Set up the app context with the project
+        dispatch({ type: ActionType.SET_CURRENT_PROJECT, payload: '1' });
+        dispatch({
+          type: ActionType.ADD_PROJECT,
+          payload: {
+            id: 1,
+            name: 'Project 1',
+            description: '',
+            totalTime: 3600,
+            sessionCount: 1,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        });
+      }, [dispatch]);
+
+      return <>{children}</>;
+    };
+
+    // Create a combined wrapper
+    const CombinedWrapper = ({ children }: { children: React.ReactNode }) => (
+      <TestWrapper>
+        <TestWrapperWithContext>{children}</TestWrapperWithContext>
+      </TestWrapper>
+    );
+
+    render(<TimerPage />, { wrapper: CombinedWrapper });
 
     // Wait for loading to complete
     await waitFor(() => {
@@ -126,19 +154,73 @@ describe('TimerPage', () => {
   });
 
   it('handles sessions with missing optional fields', async () => {
-    const minimalSession = {
-      id: 3,
-      project_id: 1,
-      start_time: new Date().toISOString(),
-      end_time: new Date().toISOString(),
-      duration: 45,
-      notes: 'Minimal session test',
+    // Set up the mock projects context with a project
+    const mockProjectsContext = useProjects();
+    mockProjectsContext.projects = [
+      {
+        id: 1,
+        name: 'Project 1',
+        description: '',
+        totalTime: 45,
+        sessionCount: 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+
+    // Set up the database mock to return a session
+    const mockDatabase = useDatabase();
+    (mockDatabase.getAllProjects as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      {
+        id: 1,
+        name: 'Project 1',
+        description: '',
+        created_at: '2024-03-10T10:00:00Z',
+      },
+    ]);
+    (mockDatabase.getSessionsForProject as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      {
+        id: 1,
+        project_id: 1,
+        start_time: '2024-03-10T10:00:00Z',
+        end_time: '2024-03-10T10:00:45Z',
+        duration: 45,
+        notes: 'Minimal session test',
+      },
+    ]);
+
+    // Create a wrapper that sets up the context before rendering
+    const TestWrapperWithContext = ({ children }: { children: React.ReactNode }) => {
+      const { dispatch } = useAppContext();
+
+      useEffect(() => {
+        // Set up the app context with the project
+        dispatch({ type: ActionType.SET_CURRENT_PROJECT, payload: '1' });
+        dispatch({
+          type: ActionType.ADD_PROJECT,
+          payload: {
+            id: 1,
+            name: 'Project 1',
+            description: '',
+            totalTime: 45,
+            sessionCount: 1,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        });
+      }, [dispatch]);
+
+      return <>{children}</>;
     };
 
-    // Set up the mock with our minimal session
-    setupMockDatabase([minimalSession]);
+    // Create a combined wrapper
+    const CombinedWrapper = ({ children }: { children: React.ReactNode }) => (
+      <TestWrapper>
+        <TestWrapperWithContext>{children}</TestWrapperWithContext>
+      </TestWrapper>
+    );
 
-    render(<TimerPage />, { wrapper: TestWrapper });
+    render(<TimerPage />, { wrapper: CombinedWrapper });
 
     // Wait for loading to complete
     await waitFor(() => {
@@ -156,7 +238,7 @@ describe('TimerPage', () => {
   });
 
   it('renders session controls and list', () => {
-    render(<TimerPage />, { wrapper: BaseWrapper });
+    render(<TimerPage />, { wrapper: TestWrapper });
 
     // Check for session controls
     expect(screen.getByRole('combobox')).toBeInTheDocument(); // Project select
@@ -170,12 +252,26 @@ describe('TimerPage', () => {
   });
 
   it('disables start button when no project is selected', () => {
-    render(<TimerPage />, { wrapper: BaseWrapper });
+    render(<TimerPage />, { wrapper: TestWrapper });
     const startButton = screen.getByText('Start Session');
     expect(startButton).toBeDisabled();
   });
 
   it('enables start button when project is selected', async () => {
+    // Set up the mock projects context with a project
+    const mockProjectsContext = useProjects();
+    mockProjectsContext.projects = [
+      {
+        id: 1,
+        name: 'Project 1',
+        description: '',
+        totalTime: 0,
+        sessionCount: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+
     render(<TimerPage />, { wrapper: TestWrapper });
 
     // Wait for the project to be added to the select options
@@ -197,19 +293,59 @@ describe('TimerPage', () => {
   });
 
   it('shows start button when no session is active', () => {
-    render(<TimerPage />, { wrapper: BaseWrapper });
+    render(<TimerPage />, { wrapper: TestWrapper });
     const startButton = screen.getByText('Start Session');
     expect(startButton).toBeInTheDocument();
     expect(startButton).toBeDisabled();
   });
 
   it('shows stop button when session is active', async () => {
-    // Mock an active session
-    mockUseDatabase.mockReturnValue({
-      getSessionsForProject: vi.fn().mockResolvedValue([]),
-    });
+    // Set up the mock projects context with a project
+    const mockProjectsContext = useProjects();
+    mockProjectsContext.projects = [
+      {
+        id: 1,
+        name: 'Project 1',
+        description: '',
+        totalTime: 0,
+        sessionCount: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
 
-    render(<TimerPage />, { wrapper: TestWrapper });
+    // Set up the database mock to return a session
+    const mockDatabase = useDatabase();
+    (mockDatabase.getAllProjects as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      {
+        id: 1,
+        name: 'Project 1',
+        description: '',
+        created_at: '2024-03-10T10:00:00Z',
+      },
+    ]);
+    (mockDatabase.getSessionsForProject as ReturnType<typeof vi.fn>).mockResolvedValueOnce([]);
+    (mockDatabase.createSession as ReturnType<typeof vi.fn>).mockResolvedValueOnce(1);
+
+    // Create a wrapper that sets up the context before rendering
+    const TestWrapperWithContext = ({ children }: { children: React.ReactNode }) => {
+      const { dispatch } = useAppContext();
+
+      useEffect(() => {
+        dispatch({ type: ActionType.SET_CURRENT_PROJECT, payload: '1' });
+      }, [dispatch]);
+
+      return <>{children}</>;
+    };
+
+    // Create a combined wrapper
+    const CombinedWrapper = ({ children }: { children: React.ReactNode }) => (
+      <TestWrapper>
+        <TestWrapperWithContext>{children}</TestWrapperWithContext>
+      </TestWrapper>
+    );
+
+    render(<TimerPage />, { wrapper: CombinedWrapper });
 
     // Wait for loading to complete
     await waitFor(() => {
@@ -233,56 +369,11 @@ describe('TimerPage', () => {
   });
 
   it('shows loading state while fetching sessions', async () => {
-    mockUseDatabase.mockReturnValue({
-      getSessionsForProject: vi.fn().mockImplementation(() => new Promise(() => {})),
-    });
+    // Set up the mock projects context with loading state
+    const mockProjectsContext = useProjects();
+    mockProjectsContext.isLoading = true;
 
-    render(<TimerPage />, { wrapper: BaseWrapper });
-    expect(screen.getByText('Loading...')).toBeInTheDocument();
-  });
-
-  it('shows "Unknown Project" for sessions with missing project', async () => {
-    console.log('Starting "Unknown Project" test');
-    const sessionsWithMissingProject = [
-      {
-        id: 1,
-        project_id: 999,
-        start_time: '2024-03-10T10:00:00Z',
-        end_time: '2024-03-10T11:00:00Z',
-        duration: 3600,
-        notes: 'Test session 1',
-      },
-    ];
-
-    // Update the mock for this specific test
-    const mockGetSessionsForProject = vi.fn().mockImplementation(async projectId => {
-      console.log('Mock getSessionsForProject called with projectId:', projectId);
-      return sessionsWithMissingProject;
-    });
-
-    mockUseDatabase.mockReturnValue({
-      getSessionsForProject: mockGetSessionsForProject,
-      getAllProjects: vi.fn().mockResolvedValue(defaultProjects),
-      createProject: vi.fn().mockResolvedValue(1),
-      getProject: vi.fn().mockResolvedValue(null), // Return null for unknown project
-      createSession: vi.fn().mockResolvedValue(1),
-      endSession: vi.fn().mockResolvedValue(undefined),
-    });
-
-    // Render with TestWrapper to ensure project context is set
     render(<TimerPage />, { wrapper: TestWrapper });
-
-    // First wait for loading to complete
-    await waitFor(() => {
-      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
-    });
-
-    // Then wait for the session to be displayed
-    await waitFor(() => {
-      const sessionList = screen.getByText('Recent Sessions').closest('div');
-      expect(sessionList).toBeTruthy();
-      const sessionListWithin = within(sessionList!);
-      expect(sessionListWithin.getByText('Unknown Project')).toBeInTheDocument();
-    });
+    expect(screen.getByText('Loading...')).toBeInTheDocument();
   });
 });

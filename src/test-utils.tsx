@@ -70,4 +70,4 @@ const getAppContext = (): AppContextType => {
 };
 
 export * from '@testing-library/react';
-export { customRender as render, getAppContext };
+export { customRender as render, getAppContext, AllTheProviders };

@@ -69,14 +69,14 @@ const TimerPage = () => {
 
   // Use currentProject from UI state
   const currentProjectId = state.ui.currentProject;
-  console.log('TimerPage: currentProjectId:', currentProjectId);
+  // console.log('TimerPage: currentProjectId:', currentProjectId);
 
   const fetchSessions = useCallback(async () => {
     if (!currentProjectId) {
       console.log('TimerPage: No currentProjectId, skipping fetch');
       return;
     }
-    console.log('TimerPage: Fetching sessions for project:', currentProjectId);
+    // console.log('TimerPage: Fetching sessions for project:', currentProjectId);
     setIsLoading(true);
     setError(null);
     try {
@@ -100,6 +100,7 @@ const TimerPage = () => {
         updatedAt?: string;
         updated_at?: string;
       }>;
+      console.log('currentProjectId:', currentProjectId);
       console.log('TimerPage: Received sessions from database:', dbSessions);
       const mappedSessions: Session[] = dbSessions.map(s => ({
         id: s.id,
@@ -113,7 +114,7 @@ const TimerPage = () => {
         createdAt: new Date(s.createdAt ?? s.created_at ?? new Date().toISOString()),
         updatedAt: new Date(s.updatedAt ?? s.updated_at ?? new Date().toISOString()),
       }));
-      console.log('TimerPage: Mapped sessions:', mappedSessions);
+      // console.log('TimerPage: Mapped sessions:', mappedSessions);
       setSessions(mappedSessions);
     } catch (error) {
       console.error('TimerPage: Error fetching sessions:', error);
@@ -140,7 +141,7 @@ const TimerPage = () => {
   useEffect(() => {
     fetchSessions();
   }, [fetchSessions]);
-
+  // console.log('state.projects', state.projects);
   return (
     <PageContainer>
       {/* TODO: Add onSessionChange to SessionControls when supported */}
