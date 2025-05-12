@@ -11,7 +11,7 @@ import { vi, beforeEach } from 'vitest';
 import type { DatabaseAPI } from '@/types/database';
 
 // Mock window.database
-const mockDatabase: DatabaseAPI = {
+export const mockDatabase: DatabaseAPI = {
   createProject: vi.fn().mockResolvedValue(1),
   getProjects: vi.fn().mockResolvedValue([]),
   updateProject: vi.fn().mockResolvedValue(undefined),
@@ -70,4 +70,4 @@ const getAppContext = (): AppContextType => {
 };
 
 export * from '@testing-library/react';
-export { customRender as render, getAppContext, mockDatabase };
+export { customRender as render, getAppContext };

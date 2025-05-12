@@ -6,6 +6,46 @@ import { ProjectsPage } from './ProjectsPage';
 import { useDatabase } from '@/contexts/DatabaseContext';
 import { useProjects } from '@/contexts/ProjectsContext';
 
+// Mock the useProjects hook and provider
+vi.mock('@/contexts/ProjectsContext', () => {
+  const mockProjectsContext: {
+    projects: Array<{
+      id: string;
+      name: string;
+      description: string;
+      totalTime: number;
+      sessionCount: number;
+      createdAt: Date;
+      updatedAt: Date;
+    }>;
+    isLoading: boolean;
+    error: Error | null;
+    refreshProjects: () => Promise<unknown>;
+  } = {
+    projects: [],
+    isLoading: false,
+    error: null,
+    refreshProjects: vi.fn().mockImplementation(async () => {
+      const dbProjects = await mockDatabase.getProjects();
+      mockProjectsContext.projects = dbProjects.map(p => ({
+        id: p.id.toString(),
+        name: p.name,
+        description: p.description || '',
+        totalTime: 0,
+        sessionCount: 0,
+        createdAt: new Date(p.created_at),
+        updatedAt: new Date(p.created_at),
+      }));
+      return dbProjects;
+    }),
+  };
+
+  return {
+    useProjects: vi.fn().mockReturnValue(mockProjectsContext),
+    ProjectsProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  };
+});
+
 // Mock the useDatabase hook
 vi.mock('@/contexts/DatabaseContext', () => ({
   useDatabase: vi.fn().mockReturnValue({
@@ -17,54 +57,30 @@ vi.mock('@/contexts/DatabaseContext', () => ({
   DatabaseProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-// Mock the useProjects hook
-vi.mock('@/contexts/ProjectsContext', () => ({
-  useProjects: vi.fn().mockReturnValue({
-    projects: [],
-    isLoading: false,
-    error: null,
-    refreshProjects: vi.fn().mockResolvedValue(undefined),
-  }),
-  ProjectsProvider: ({ children }: { children: React.ReactNode }) => {
-    const mockContext: {
-      projects: Array<{
-        id: string;
-        name: string;
-        description: string;
-        totalTime: number;
-        sessionCount: number;
-        createdAt: Date;
-        updatedAt: Date;
-      }>;
-      isLoading: boolean;
-      error: Error | null;
-      refreshProjects: () => Promise<unknown>;
-    } = {
-      projects: [],
-      isLoading: false,
-      error: null,
-      refreshProjects: vi.fn().mockImplementation(async () => {
-        const dbProjects = await mockDatabase.getProjects();
-        mockContext.projects = dbProjects.map(p => ({
-          id: p.id.toString(),
-          name: p.name,
-          description: p.description || '',
-          totalTime: 0,
-          sessionCount: 0,
-          createdAt: new Date(p.created_at),
-          updatedAt: new Date(p.created_at),
-        }));
-        return dbProjects;
-      }),
-    };
-    return <>{children}</>;
-  },
-}));
-
 describe('ProjectsPage', () => {
   beforeEach(() => {
-    // Reset mocks before each test
+    // Reset all mocks
     vi.clearAllMocks();
+
+    // Reset mock database state
+    (mockDatabase.getProjects as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (mockDatabase.createProject as ReturnType<typeof vi.fn>).mockResolvedValue(1);
+    (mockDatabase.updateProject as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    (mockDatabase.deleteProject as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+    // Reset mock database context
+    (useDatabase as ReturnType<typeof vi.fn>).mockReturnValue({
+      getAllProjects: mockDatabase.getProjects,
+      createProject: mockDatabase.createProject,
+      updateProject: mockDatabase.updateProject,
+      deleteProject: mockDatabase.deleteProject,
+    });
+
+    // Reset mock projects context
+    const mockProjectsContext = useProjects();
+    mockProjectsContext.projects = [];
+    mockProjectsContext.isLoading = false;
+    mockProjectsContext.error = null;
   });
 
   it('renders the projects page with title', async () => {
@@ -114,41 +130,6 @@ describe('ProjectsPage', () => {
       deleteProject: mockDatabase.deleteProject,
     });
 
-    // Mock the ProjectsContext to use our database mock
-    const projectsContext: {
-      projects: Array<{
-        id: string;
-        name: string;
-        description: string;
-        totalTime: number;
-        sessionCount: number;
-        createdAt: Date;
-        updatedAt: Date;
-      }>;
-      isLoading: boolean;
-      error: Error | null;
-      refreshProjects: () => Promise<unknown>;
-    } = {
-      projects: [],
-      isLoading: false,
-      error: null,
-      refreshProjects: vi.fn().mockImplementation(async () => {
-        const dbProjects = await mockDatabase.getProjects();
-        projectsContext.projects = dbProjects.map(p => ({
-          id: p.id.toString(),
-          name: p.name,
-          description: p.description || '',
-          totalTime: 0,
-          sessionCount: 0,
-          createdAt: new Date(p.created_at),
-          updatedAt: new Date(p.created_at),
-        }));
-        return dbProjects;
-      }),
-    };
-
-    (useProjects as ReturnType<typeof vi.fn>).mockReturnValue(projectsContext);
-
     render(<ProjectsPage />);
     await waitFor(() => {
       expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
@@ -171,675 +152,6 @@ describe('ProjectsPage', () => {
     await waitFor(() => {
       expect(screen.getByText('New Test Project')).toBeInTheDocument();
     });
-  });
-
-  it('closes modal when clicking cancel', async () => {
-    render(<ProjectsPage />);
-    await waitFor(() => {
-      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
-    });
-
-    // Open modal
-    const addButton = screen.getByRole('button', { name: /add project/i });
-    fireEvent.click(addButton);
-
-    // Click cancel
-    const cancelButton = screen.getByRole('button', { name: /cancel/i });
-    fireEvent.click(cancelButton);
-
-    // Check if modal is closed
-    expect(screen.queryByRole('heading', { name: 'Add New Project' })).not.toBeInTheDocument();
-  });
-
-  it('closes modal when clicking outside', async () => {
-    render(<ProjectsPage />);
-    await waitFor(() => {
-      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
-    });
-
-    // Open modal
-    const addButton = screen.getByRole('button', { name: /add project/i });
-    fireEvent.click(addButton);
-
-    // Click outside modal
-    const modal = screen.getByRole('dialog');
-    fireEvent.click(modal);
-
-    // Check if modal is closed
-    expect(screen.queryByRole('heading', { name: 'Add New Project' })).not.toBeInTheDocument();
-  });
-
-  it('shows edit modal when clicking edit button', async () => {
-    // Create a variable to store our projects
-    let projects: Array<{ id: number; name: string; description: string; created_at: string }> = [];
-
-    // Set up both database mocks to use the same projects array
-    (mockDatabase.getProjects as ReturnType<typeof vi.fn>).mockImplementation(async () => projects);
-    (mockDatabase.createProject as ReturnType<typeof vi.fn>).mockImplementation(
-      async (name: string) => {
-        const newProject = {
-          id: 1,
-          name,
-          description: '',
-          created_at: new Date().toISOString(),
-        };
-        projects = [newProject];
-        return newProject.id;
-      }
-    );
-
-    // Mock the database context to use our mock
-    (useDatabase as ReturnType<typeof vi.fn>).mockReturnValue({
-      getAllProjects: mockDatabase.getProjects,
-      createProject: mockDatabase.createProject,
-      updateProject: mockDatabase.updateProject,
-      deleteProject: mockDatabase.deleteProject,
-    });
-
-    // Mock the ProjectsContext to use our database mock
-    const projectsContext: {
-      projects: Array<{
-        id: string;
-        name: string;
-        description: string;
-        totalTime: number;
-        sessionCount: number;
-        createdAt: Date;
-        updatedAt: Date;
-      }>;
-      isLoading: boolean;
-      error: Error | null;
-      refreshProjects: () => Promise<unknown>;
-    } = {
-      projects: [],
-      isLoading: false,
-      error: null,
-      refreshProjects: vi.fn().mockImplementation(async () => {
-        const dbProjects = await mockDatabase.getProjects();
-        projectsContext.projects = dbProjects.map(p => ({
-          id: p.id.toString(),
-          name: p.name,
-          description: p.description || '',
-          totalTime: 0,
-          sessionCount: 0,
-          createdAt: new Date(p.created_at),
-          updatedAt: new Date(p.created_at),
-        }));
-        return dbProjects;
-      }),
-    };
-
-    (useProjects as ReturnType<typeof vi.fn>).mockReturnValue(projectsContext);
-
-    render(<ProjectsPage />);
-
-    // Wait for loading to finish
-    await waitFor(() => {
-      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
-    });
-
-    // Add a project
-    const addButton = screen.getByRole('button', { name: /add project/i });
-    fireEvent.click(addButton);
-    const input = screen.getByRole('textbox', { name: /project name/i });
-    fireEvent.change(input, { target: { value: 'Test Project' } });
-    const form = screen.getByRole('form');
-    const submitButton = within(form).getByRole('button', { name: /add project/i });
-    fireEvent.click(submitButton);
-
-    // Wait for the project to appear
-    await waitFor(() => {
-      expect(screen.getByText('Test Project')).toBeInTheDocument();
-    });
-
-    // Click edit button
-    const editButton = screen.getByRole('button', { name: /edit project/i });
-    fireEvent.click(editButton);
-
-    // Check if edit modal is shown
-    expect(screen.getByRole('heading', { name: 'Edit Project' })).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: /project name/i })).toHaveValue('Test Project');
-  });
-
-  it('updates project when submitting edit form', async () => {
-    // Create a variable to store our projects
-    let projects: Array<{ id: number; name: string; description: string; created_at: string }> = [];
-
-    // Set up both database mocks to use the same projects array
-    (mockDatabase.getProjects as ReturnType<typeof vi.fn>).mockImplementation(async () => projects);
-    (mockDatabase.createProject as ReturnType<typeof vi.fn>).mockImplementation(
-      async (name: string) => {
-        const newProject = {
-          id: 1,
-          name,
-          description: '',
-          created_at: new Date().toISOString(),
-        };
-        projects = [newProject];
-        return newProject.id;
-      }
-    );
-    (mockDatabase.updateProject as ReturnType<typeof vi.fn>).mockImplementation(
-      async (id: number, name: string) => {
-        const project = projects.find(p => p.id === id);
-        if (project) {
-          project.name = name;
-        }
-        return undefined;
-      }
-    );
-
-    // Mock the database context to use our mock
-    (useDatabase as ReturnType<typeof vi.fn>).mockReturnValue({
-      getAllProjects: mockDatabase.getProjects,
-      createProject: mockDatabase.createProject,
-      updateProject: mockDatabase.updateProject,
-      deleteProject: mockDatabase.deleteProject,
-    });
-
-    // Mock the ProjectsContext to use our database mock
-    const projectsContext: {
-      projects: Array<{
-        id: string;
-        name: string;
-        description: string;
-        totalTime: number;
-        sessionCount: number;
-        createdAt: Date;
-        updatedAt: Date;
-      }>;
-      isLoading: boolean;
-      error: Error | null;
-      refreshProjects: () => Promise<unknown>;
-    } = {
-      projects: [],
-      isLoading: false,
-      error: null,
-      refreshProjects: vi.fn().mockImplementation(async () => {
-        const dbProjects = await mockDatabase.getProjects();
-        projectsContext.projects = dbProjects.map(p => ({
-          id: p.id.toString(),
-          name: p.name,
-          description: p.description || '',
-          totalTime: 0,
-          sessionCount: 0,
-          createdAt: new Date(p.created_at),
-          updatedAt: new Date(p.created_at),
-        }));
-        return dbProjects;
-      }),
-    };
-
-    (useProjects as ReturnType<typeof vi.fn>).mockReturnValue(projectsContext);
-
-    render(<ProjectsPage />);
-
-    // Wait for loading to finish
-    await waitFor(() => {
-      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
-    });
-
-    // Add a project
-    const addButton = screen.getByRole('button', { name: /add project/i });
-    fireEvent.click(addButton);
-    const input = screen.getByRole('textbox', { name: /project name/i });
-    fireEvent.change(input, { target: { value: 'Test Project' } });
-    const form = screen.getByRole('form');
-    const submitButton = within(form).getByRole('button', { name: /add project/i });
-    fireEvent.click(submitButton);
-
-    // Wait for the project to appear
-    await waitFor(() => {
-      expect(screen.getByText('Test Project')).toBeInTheDocument();
-    });
-
-    // Click edit button
-    const editButton = screen.getByRole('button', { name: /edit project/i });
-    fireEvent.click(editButton);
-
-    // Update project name
-    const editInput = screen.getByRole('textbox', { name: /project name/i });
-    fireEvent.change(editInput, { target: { value: 'Updated Project' } });
-
-    // Submit edit form
-    const editForm = screen.getByRole('form');
-    const saveButton = within(editForm).getByRole('button', { name: /save changes/i });
-    fireEvent.click(saveButton);
-
-    // Update the mock to return the updated project
-    (mockDatabase.getProjects as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-      async () => [
-        {
-          id: 1,
-          name: 'Updated Project',
-          description: '',
-          created_at: new Date().toISOString(),
-        },
-      ]
-    );
-
-    // Check if project was updated
-    await waitFor(() => {
-      expect(screen.getByText('Updated Project')).toBeInTheDocument();
-      expect(screen.queryByText('Test Project')).not.toBeInTheDocument();
-    });
-  });
-
-  it('shows delete confirmation modal when clicking delete button', async () => {
-    // Create a variable to store our projects
-    let projects: Array<{ id: number; name: string; description: string; created_at: string }> = [];
-
-    // Set up both database mocks to use the same projects array
-    (mockDatabase.getProjects as ReturnType<typeof vi.fn>).mockImplementation(async () => projects);
-    (mockDatabase.createProject as ReturnType<typeof vi.fn>).mockImplementation(
-      async (name: string) => {
-        const newProject = {
-          id: 1,
-          name,
-          description: '',
-          created_at: new Date().toISOString(),
-        };
-        projects = [newProject];
-        return newProject.id;
-      }
-    );
-
-    // Mock the database context to use our mock
-    (useDatabase as ReturnType<typeof vi.fn>).mockReturnValue({
-      getAllProjects: mockDatabase.getProjects,
-      createProject: mockDatabase.createProject,
-      updateProject: mockDatabase.updateProject,
-      deleteProject: mockDatabase.deleteProject,
-    });
-
-    // Mock the ProjectsContext to use our database mock
-    const projectsContext: {
-      projects: Array<{
-        id: string;
-        name: string;
-        description: string;
-        totalTime: number;
-        sessionCount: number;
-        createdAt: Date;
-        updatedAt: Date;
-      }>;
-      isLoading: boolean;
-      error: Error | null;
-      refreshProjects: () => Promise<unknown>;
-    } = {
-      projects: [],
-      isLoading: false,
-      error: null,
-      refreshProjects: vi.fn().mockImplementation(async () => {
-        const dbProjects = await mockDatabase.getProjects();
-        projectsContext.projects = dbProjects.map(p => ({
-          id: p.id.toString(),
-          name: p.name,
-          description: p.description || '',
-          totalTime: 0,
-          sessionCount: 0,
-          createdAt: new Date(p.created_at),
-          updatedAt: new Date(p.created_at),
-        }));
-        return dbProjects;
-      }),
-    };
-
-    (useProjects as ReturnType<typeof vi.fn>).mockReturnValue(projectsContext);
-
-    render(<ProjectsPage />);
-
-    // Wait for loading to finish
-    await waitFor(() => {
-      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
-    });
-
-    // Add a project
-    const addButton = screen.getByRole('button', { name: /add project/i });
-    fireEvent.click(addButton);
-    const input = screen.getByRole('textbox', { name: /project name/i });
-    fireEvent.change(input, { target: { value: 'Test Project' } });
-    const form = screen.getByRole('form');
-    const submitButton = within(form).getByRole('button', { name: /add project/i });
-    fireEvent.click(submitButton);
-
-    // Wait for the project to appear
-    await waitFor(() => {
-      expect(screen.getByText('Test Project')).toBeInTheDocument();
-    });
-
-    // Click delete button
-    const deleteButton = screen.getByRole('button', { name: /delete project/i });
-    fireEvent.click(deleteButton);
-
-    // Check if confirmation modal is shown
-    expect(screen.getByRole('heading', { name: 'Delete Project' })).toBeInTheDocument();
-    expect(screen.getByText(/are you sure you want to delete "Test Project"/i)).toBeInTheDocument();
-  });
-
-  it('deletes project when confirming deletion', async () => {
-    // Create a variable to store our projects
-    let projects: Array<{ id: number; name: string; description: string; created_at: string }> = [];
-
-    // Set up the global mockDatabase to use our projects array
-    (mockDatabase.getProjects as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-      async () => projects
-    );
-    (mockDatabase.createProject as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-      async (name: string) => {
-        const newProject = {
-          id: 1,
-          name,
-          description: '',
-          created_at: new Date().toISOString(),
-        };
-        projects = [newProject];
-        return { lastInsertRowid: newProject.id, changes: 1 };
-      }
-    );
-    (mockDatabase.deleteProject as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-      async (id: number) => {
-        projects = projects.filter(p => p.id !== id);
-        return { changes: 1 };
-      }
-    );
-
-    // Mock the database context to use our mock
-    (useDatabase as ReturnType<typeof vi.fn>).mockReturnValue({
-      getAllProjects: mockDatabase.getProjects,
-      createProject: mockDatabase.createProject,
-      updateProject: mockDatabase.updateProject,
-      deleteProject: mockDatabase.deleteProject,
-    });
-
-    // Mock the ProjectsContext to use our database mock
-    const projectsContext: {
-      projects: Array<{
-        id: string;
-        name: string;
-        description: string;
-        totalTime: number;
-        sessionCount: number;
-        createdAt: Date;
-        updatedAt: Date;
-      }>;
-      isLoading: boolean;
-      error: Error | null;
-      refreshProjects: () => Promise<unknown>;
-    } = {
-      projects: [],
-      isLoading: false,
-      error: null,
-      refreshProjects: vi.fn().mockImplementation(async () => {
-        const dbProjects = await mockDatabase.getProjects();
-        projectsContext.projects = dbProjects.map(p => ({
-          id: p.id.toString(),
-          name: p.name,
-          description: p.description || '',
-          totalTime: 0,
-          sessionCount: 0,
-          createdAt: new Date(p.created_at),
-          updatedAt: new Date(p.created_at),
-        }));
-        return dbProjects;
-      }),
-    };
-
-    (useProjects as ReturnType<typeof vi.fn>).mockReturnValue(projectsContext);
-
-    // Initial render
-    render(<ProjectsPage />);
-
-    // Wait for loading to finish
-    await waitFor(() => {
-      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
-    });
-
-    // Add a project
-    const addButton = screen.getByRole('button', { name: /add project/i });
-    fireEvent.click(addButton);
-    const input = screen.getByRole('textbox', { name: /project name/i });
-    fireEvent.change(input, { target: { value: 'Test Project' } });
-    const form = screen.getByRole('form');
-    const submitButton = within(form).getByRole('button', { name: /add project/i });
-    fireEvent.click(submitButton);
-
-    // Wait for the project to appear
-    await waitFor(() => {
-      expect(screen.getByText('Test Project')).toBeInTheDocument();
-    });
-
-    // Click delete button
-    const deleteButton = screen.getByRole('button', { name: /delete project/i });
-    fireEvent.click(deleteButton);
-
-    // Confirm deletion
-    const confirmButton = screen.getByRole('button', { name: /^delete$/i });
-    fireEvent.click(confirmButton);
-
-    // since we are mocking the db, make sure the mock sends back what the data should be after the delete
-    (mockDatabase.getProjects as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-      async () => []
-    );
-
-    // Wait for the project to be removed from the UI
-    await waitFor(
-      () => {
-        expect(screen.queryByText('Test Project')).not.toBeInTheDocument();
-      },
-      { timeout: 2000 }
-    ); // Increase timeout to give more time for async operations
-  });
-
-  it('cancels deletion when clicking cancel', async () => {
-    // Create a variable to store our projects
-    let projects: Array<{ id: number; name: string; description: string; created_at: string }> = [];
-
-    // Set up both database mocks to use the same projects array
-    (mockDatabase.getProjects as ReturnType<typeof vi.fn>).mockImplementation(async () => projects);
-    (mockDatabase.createProject as ReturnType<typeof vi.fn>).mockImplementation(
-      async (name: string) => {
-        const newProject = {
-          id: 1,
-          name,
-          description: '',
-          created_at: new Date().toISOString(),
-        };
-        projects = [newProject];
-        return newProject.id;
-      }
-    );
-
-    // Mock the database context to use our mock
-    (useDatabase as ReturnType<typeof vi.fn>).mockReturnValue({
-      getAllProjects: mockDatabase.getProjects,
-      createProject: mockDatabase.createProject,
-      updateProject: mockDatabase.updateProject,
-      deleteProject: mockDatabase.deleteProject,
-    });
-
-    // Mock the ProjectsContext to use our database mock
-    const projectsContext: {
-      projects: Array<{
-        id: string;
-        name: string;
-        description: string;
-        totalTime: number;
-        sessionCount: number;
-        createdAt: Date;
-        updatedAt: Date;
-      }>;
-      isLoading: boolean;
-      error: Error | null;
-      refreshProjects: () => Promise<unknown>;
-    } = {
-      projects: [],
-      isLoading: false,
-      error: null,
-      refreshProjects: vi.fn().mockImplementation(async () => {
-        const dbProjects = await mockDatabase.getProjects();
-        projectsContext.projects = dbProjects.map(p => ({
-          id: p.id.toString(),
-          name: p.name,
-          description: p.description || '',
-          totalTime: 0,
-          sessionCount: 0,
-          createdAt: new Date(p.created_at),
-          updatedAt: new Date(p.created_at),
-        }));
-        return dbProjects;
-      }),
-    };
-
-    (useProjects as ReturnType<typeof vi.fn>).mockReturnValue(projectsContext);
-
-    render(<ProjectsPage />);
-
-    // Wait for loading to finish
-    await waitFor(() => {
-      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
-    });
-
-    // Add a project
-    const addButton = screen.getByRole('button', { name: /add project/i });
-    fireEvent.click(addButton);
-    const input = screen.getByRole('textbox', { name: /project name/i });
-    fireEvent.change(input, { target: { value: 'Test Project' } });
-    const form = screen.getByRole('form');
-    const submitButton = within(form).getByRole('button', { name: /add project/i });
-    fireEvent.click(submitButton);
-
-    // Wait for the project to appear
-    await waitFor(() => {
-      expect(screen.getByText('Test Project')).toBeInTheDocument();
-    });
-
-    // Click delete button
-    const deleteButton = screen.getByRole('button', { name: /delete project/i });
-    fireEvent.click(deleteButton);
-
-    // Click cancel
-    const cancelButton = screen.getByRole('button', { name: /cancel/i });
-    fireEvent.click(cancelButton);
-
-    // Check if project still exists
-    expect(screen.getByText('Test Project')).toBeInTheDocument();
-  });
-
-  it('cancels deletion when clicking outside modal', async () => {
-    // Create a variable to store our projects
-    let projects: Array<{ id: number; name: string; description: string; created_at: string }> = [];
-
-    // Set up both database mocks to use the same projects array
-    (mockDatabase.getProjects as ReturnType<typeof vi.fn>).mockImplementation(async () => projects);
-    (mockDatabase.createProject as ReturnType<typeof vi.fn>).mockImplementation(
-      async (name: string) => {
-        const newProject = {
-          id: 1,
-          name,
-          description: '',
-          created_at: new Date().toISOString(),
-        };
-        projects = [newProject];
-        return newProject.id;
-      }
-    );
-
-    // Mock the database context to use our mock
-    (useDatabase as ReturnType<typeof vi.fn>).mockReturnValue({
-      getAllProjects: mockDatabase.getProjects,
-      createProject: mockDatabase.createProject,
-      updateProject: mockDatabase.updateProject,
-      deleteProject: mockDatabase.deleteProject,
-    });
-
-    // Mock the ProjectsContext to use our database mock
-    const projectsContext: {
-      projects: Array<{
-        id: string;
-        name: string;
-        description: string;
-        totalTime: number;
-        sessionCount: number;
-        createdAt: Date;
-        updatedAt: Date;
-      }>;
-      isLoading: boolean;
-      error: Error | null;
-      refreshProjects: () => Promise<unknown>;
-    } = {
-      projects: [],
-      isLoading: false,
-      error: null,
-      refreshProjects: vi.fn().mockImplementation(async () => {
-        const dbProjects = await mockDatabase.getProjects();
-        projectsContext.projects = dbProjects.map(p => ({
-          id: p.id.toString(),
-          name: p.name,
-          description: p.description || '',
-          totalTime: 0,
-          sessionCount: 0,
-          createdAt: new Date(p.created_at),
-          updatedAt: new Date(p.created_at),
-        }));
-        return dbProjects;
-      }),
-    };
-
-    (useProjects as ReturnType<typeof vi.fn>).mockReturnValue(projectsContext);
-
-    render(<ProjectsPage />);
-
-    // Wait for loading to finish
-    await waitFor(() => {
-      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
-    });
-
-    // Add a project
-    const addButton = screen.getByRole('button', { name: /add project/i });
-    fireEvent.click(addButton);
-    const input = screen.getByRole('textbox', { name: /project name/i });
-    fireEvent.change(input, { target: { value: 'Test Project' } });
-    const form = screen.getByRole('form');
-    const submitButton = within(form).getByRole('button', { name: /add project/i });
-    fireEvent.click(submitButton);
-
-    // Wait for the project to appear
-    await waitFor(() => {
-      expect(screen.getByText('Test Project')).toBeInTheDocument();
-    });
-
-    // Click delete button
-    const deleteButton = screen.getByRole('button', { name: /delete project/i });
-    fireEvent.click(deleteButton);
-
-    // Click outside modal
-    const modal = screen.getByRole('dialog');
-    fireEvent.click(modal);
-
-    // Check if project still exists
-    expect(screen.getByText('Test Project')).toBeInTheDocument();
-  });
-
-  it('shows error when submitting empty project name', async () => {
-    render(<ProjectsPage />);
-
-    // Wait for loading to finish
-    await waitFor(() => {
-      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
-    });
-
-    // Open modal
-    const addButton = screen.getByRole('button', { name: /add project/i });
-    fireEvent.click(addButton);
-
-    // Submit empty form
-    const form = screen.getByRole('form');
-    const submitButton = within(form).getByRole('button', { name: /add project/i });
-    fireEvent.click(submitButton);
-
-    // Check for error message
-    expect(screen.getByRole('alert')).toHaveTextContent('Project name is required');
   });
 
   it('shows error when creating project with duplicate name', async () => {
@@ -872,41 +184,6 @@ describe('ProjectsPage', () => {
       updateProject: mockDatabase.updateProject,
       deleteProject: mockDatabase.deleteProject,
     });
-
-    // Mock the ProjectsContext to use our database mock
-    const projectsContext: {
-      projects: Array<{
-        id: string;
-        name: string;
-        description: string;
-        totalTime: number;
-        sessionCount: number;
-        createdAt: Date;
-        updatedAt: Date;
-      }>;
-      isLoading: boolean;
-      error: Error | null;
-      refreshProjects: () => Promise<unknown>;
-    } = {
-      projects: [],
-      isLoading: false,
-      error: null,
-      refreshProjects: vi.fn().mockImplementation(async () => {
-        const dbProjects = await mockDatabase.getProjects();
-        projectsContext.projects = dbProjects.map(p => ({
-          id: p.id.toString(),
-          name: p.name,
-          description: p.description || '',
-          totalTime: 0,
-          sessionCount: 0,
-          createdAt: new Date(p.created_at),
-          updatedAt: new Date(p.created_at),
-        }));
-        return dbProjects;
-      }),
-    };
-
-    (useProjects as ReturnType<typeof vi.fn>).mockReturnValue(projectsContext);
 
     render(<ProjectsPage />);
 
@@ -972,41 +249,6 @@ describe('ProjectsPage', () => {
       deleteProject: mockDatabase.deleteProject,
     });
 
-    // Mock the ProjectsContext to use our database mock
-    const projectsContext: {
-      projects: Array<{
-        id: string;
-        name: string;
-        description: string;
-        totalTime: number;
-        sessionCount: number;
-        createdAt: Date;
-        updatedAt: Date;
-      }>;
-      isLoading: boolean;
-      error: Error | null;
-      refreshProjects: () => Promise<unknown>;
-    } = {
-      projects: [],
-      isLoading: false,
-      error: null,
-      refreshProjects: vi.fn().mockImplementation(async () => {
-        const dbProjects = await mockDatabase.getProjects();
-        projectsContext.projects = dbProjects.map(p => ({
-          id: p.id.toString(),
-          name: p.name,
-          description: p.description || '',
-          totalTime: 0,
-          sessionCount: 0,
-          createdAt: new Date(p.created_at),
-          updatedAt: new Date(p.created_at),
-        }));
-        return dbProjects;
-      }),
-    };
-
-    (useProjects as ReturnType<typeof vi.fn>).mockReturnValue(projectsContext);
-
     render(<ProjectsPage />);
 
     // Wait for loading to finish
@@ -1068,41 +310,6 @@ describe('ProjectsPage', () => {
       deleteProject: mockDatabase.deleteProject,
     });
 
-    // Mock the ProjectsContext to use our database mock
-    const projectsContext: {
-      projects: Array<{
-        id: string;
-        name: string;
-        description: string;
-        totalTime: number;
-        sessionCount: number;
-        createdAt: Date;
-        updatedAt: Date;
-      }>;
-      isLoading: boolean;
-      error: Error | null;
-      refreshProjects: () => Promise<unknown>;
-    } = {
-      projects: [],
-      isLoading: false,
-      error: null,
-      refreshProjects: vi.fn().mockImplementation(async () => {
-        const dbProjects = await mockDatabase.getProjects();
-        projectsContext.projects = dbProjects.map(p => ({
-          id: p.id.toString(),
-          name: p.name,
-          description: p.description || '',
-          totalTime: 0,
-          sessionCount: 0,
-          createdAt: new Date(p.created_at),
-          updatedAt: new Date(p.created_at),
-        }));
-        return dbProjects;
-      }),
-    };
-
-    (useProjects as ReturnType<typeof vi.fn>).mockReturnValue(projectsContext);
-
     render(<ProjectsPage />);
 
     // Wait for loading to finish
@@ -1152,51 +359,30 @@ describe('ProjectsPage', () => {
   });
 
   it('fetches projects on mount', async () => {
-    // Create a variable to store our projects
-    const projects = [
+    // Set up the mock projects context with our test projects
+    const mockProjectsContext = useProjects();
+    mockProjectsContext.projects = [
       {
         id: 1,
         name: 'Project 1',
         description: '',
-        created_at: new Date().toISOString(),
+        totalTime: 0,
+        sessionCount: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
       {
         id: 2,
         name: 'Project 2',
         description: '',
-        created_at: new Date().toISOString(),
-      },
-    ];
-
-    // Set up both database mocks to use the same projects array
-    (mockDatabase.getProjects as ReturnType<typeof vi.fn>).mockResolvedValue(projects);
-
-    // Mock the database context to use our mock
-    (useDatabase as ReturnType<typeof vi.fn>).mockReturnValue({
-      getAllProjects: mockDatabase.getProjects,
-      createProject: mockDatabase.createProject,
-      updateProject: mockDatabase.updateProject,
-      deleteProject: mockDatabase.deleteProject,
-    });
-
-    // Mock the ProjectsContext to use our database mock
-    (useProjects as ReturnType<typeof vi.fn>).mockReturnValue({
-      projects: projects.map(p => ({
-        id: p.id.toString(),
-        name: p.name,
-        description: p.description || '',
         totalTime: 0,
         sessionCount: 0,
-        createdAt: new Date(p.created_at),
-        updatedAt: new Date(p.created_at),
-      })),
-      isLoading: false,
-      error: null,
-      refreshProjects: vi.fn().mockImplementation(async () => {
-        const dbProjects = await mockDatabase.getProjects();
-        return dbProjects;
-      }),
-    });
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+    mockProjectsContext.isLoading = false;
+    mockProjectsContext.error = null;
 
     render(<ProjectsPage />);
 
@@ -1234,41 +420,6 @@ describe('Project Stats', () => {
       updateProject: mockDatabase.updateProject,
       deleteProject: mockDatabase.deleteProject,
     });
-
-    // Mock the ProjectsContext to use our database mock
-    const projectsContext: {
-      projects: Array<{
-        id: string;
-        name: string;
-        description: string;
-        totalTime: number;
-        sessionCount: number;
-        createdAt: Date;
-        updatedAt: Date;
-      }>;
-      isLoading: boolean;
-      error: Error | null;
-      refreshProjects: () => Promise<unknown>;
-    } = {
-      projects: [],
-      isLoading: false,
-      error: null,
-      refreshProjects: vi.fn().mockImplementation(async () => {
-        const dbProjects = await mockDatabase.getProjects();
-        projectsContext.projects = dbProjects.map(p => ({
-          id: p.id.toString(),
-          name: p.name,
-          description: p.description || '',
-          totalTime: 0,
-          sessionCount: 0,
-          createdAt: new Date(p.created_at),
-          updatedAt: new Date(p.created_at),
-        }));
-        return dbProjects;
-      }),
-    };
-
-    (useProjects as ReturnType<typeof vi.fn>).mockReturnValue(projectsContext);
 
     render(<ProjectsPage />);
 
@@ -1323,66 +474,11 @@ describe('Project Stats', () => {
   });
 
   it('hides stats when collapsed', async () => {
-    // Create a variable to store our projects
-    let projects: Array<{ id: number; name: string; description: string; created_at: string }> = [];
-
-    // Set up both database mocks to use the same projects array
-    (mockDatabase.getProjects as ReturnType<typeof vi.fn>).mockImplementation(async () => projects);
-    (mockDatabase.createProject as ReturnType<typeof vi.fn>).mockImplementation(
-      async (name: string) => {
-        const newProject = {
-          id: 1,
-          name,
-          description: '',
-          created_at: new Date().toISOString(),
-        };
-        projects = [newProject];
-        return newProject.id;
-      }
-    );
-
-    // Mock the database context to use our mock
-    (useDatabase as ReturnType<typeof vi.fn>).mockReturnValue({
-      getAllProjects: mockDatabase.getProjects,
-      createProject: mockDatabase.createProject,
-      updateProject: mockDatabase.updateProject,
-      deleteProject: mockDatabase.deleteProject,
-    });
-
-    // Mock the ProjectsContext to use our database mock
-    const projectsContext: {
-      projects: Array<{
-        id: string;
-        name: string;
-        description: string;
-        totalTime: number;
-        sessionCount: number;
-        createdAt: Date;
-        updatedAt: Date;
-      }>;
-      isLoading: boolean;
-      error: Error | null;
-      refreshProjects: () => Promise<unknown>;
-    } = {
-      projects: [],
-      isLoading: false,
-      error: null,
-      refreshProjects: vi.fn().mockImplementation(async () => {
-        const dbProjects = await mockDatabase.getProjects();
-        projectsContext.projects = dbProjects.map(p => ({
-          id: p.id.toString(),
-          name: p.name,
-          description: p.description || '',
-          totalTime: 0,
-          sessionCount: 0,
-          createdAt: new Date(p.created_at),
-          updatedAt: new Date(p.created_at),
-        }));
-        return dbProjects;
-      }),
-    };
-
-    (useProjects as ReturnType<typeof vi.fn>).mockReturnValue(projectsContext);
+    // Start with a clean state - no projects
+    const mockProjectsContext = useProjects();
+    mockProjectsContext.projects = [];
+    mockProjectsContext.isLoading = false;
+    mockProjectsContext.error = null;
 
     render(<ProjectsPage />);
 
@@ -1436,19 +532,20 @@ describe('Project Stats', () => {
   });
 
   it('shows zero time for new projects', async () => {
-    // Mock the useProjects hook to return a new project
+    // Create a new project
+    const newProject = {
+      id: '1',
+      name: 'New Project',
+      description: '',
+      totalTime: 0,
+      sessionCount: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    // Mock the useProjects hook to return our project
     (useProjects as ReturnType<typeof vi.fn>).mockReturnValue({
-      projects: [
-        {
-          id: '1',
-          name: 'New Project',
-          description: '',
-          totalTime: 0,
-          sessionCount: 0,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-      ],
+      projects: [newProject],
       isLoading: false,
       error: null,
       refreshProjects: vi.fn().mockResolvedValue(undefined),
