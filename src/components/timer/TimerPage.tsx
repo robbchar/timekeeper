@@ -3,7 +3,7 @@ import SessionControls from '../SessionControls';
 import { useAppContext } from '@/state/context/AppContext';
 import { useDatabase } from '@/contexts/DatabaseContext';
 import type { Session, SessionStatus } from '@/types/session';
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 
 const PageContainer = styled.div`
   display: flex;
@@ -73,7 +73,7 @@ const TimerPage = () => {
 
   const fetchSessions = useCallback(async () => {
     if (!currentProjectId) {
-      console.log('TimerPage: No currentProjectId, skipping fetch');
+      // console.log('TimerPage: No currentProjectId, skipping fetch');
       return;
     }
     // console.log('TimerPage: Fetching sessions for project:', currentProjectId);
@@ -100,11 +100,10 @@ const TimerPage = () => {
         updatedAt?: string;
         updated_at?: string;
       }>;
-      console.log('currentProjectId:', currentProjectId);
-      console.log('TimerPage: Received sessions from database:', dbSessions);
+      // console.log('TimerPage: Received sessions from database:', dbSessions);
       const mappedSessions: Session[] = dbSessions.map(s => ({
         id: s.id,
-        projectId: s.project_id ?? Number(currentProjectId),
+        projectId: String(s.project_id ?? Number(currentProjectId)),
         startTime: new Date(s.startTime ?? s.start_time ?? new Date().toISOString()),
         endTime: (s.endTime ?? s.end_time) ? new Date(String(s.endTime ?? s.end_time)) : undefined,
         duration: typeof s.duration === 'number' ? s.duration : 0,
@@ -116,8 +115,8 @@ const TimerPage = () => {
       }));
       // console.log('TimerPage: Mapped sessions:', mappedSessions);
       setSessions(mappedSessions);
-    } catch (error) {
-      console.error('TimerPage: Error fetching sessions:', error);
+    } catch {
+      // console.error('TimerPage: Error fetching sessions:', error);
       setError('Failed to load sessions');
     } finally {
       setIsLoading(false);
@@ -156,7 +155,8 @@ const TimerPage = () => {
             <SessionItem key={session.id}>
               <SessionInfo>
                 <SessionProject>
-                  {state.projects.find(p => p.id === session.projectId)?.name || 'Unknown Project'}
+                  {state.projects.find(p => p.id === Number(session.projectId))?.name ||
+                    'Unknown Project'}
                 </SessionProject>
                 {session.notes && <SessionNotes>{session.notes}</SessionNotes>}
               </SessionInfo>

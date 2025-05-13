@@ -123,7 +123,20 @@ const setupMockDatabase = (sessions = defaultSessions) => {
       .mockResolvedValue({ id: 1, name: 'Project 1', created_at: new Date().toISOString() }),
     getAllProjects: vi.fn().mockResolvedValue(defaultProjects),
     // Sessions
-    createSession: vi.fn().mockResolvedValue(1),
+    createSession: vi
+      .fn()
+      .mockImplementation((projectId: number, startTime: string, notes?: string) => {
+        const newSession = {
+          id: Date.now(),
+          project_id: projectId,
+          start_time: startTime,
+          end_time: '',
+          duration: 0,
+          notes: notes || '',
+        };
+        currentSessions = [...currentSessions, newSession];
+        return Promise.resolve({ lastInsertRowid: newSession.id, changes: 1 });
+      }),
     endSession: vi.fn().mockResolvedValue(undefined),
     getSessionsForProject: vi.fn().mockResolvedValue(sessions),
     // Tags

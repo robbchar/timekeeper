@@ -23,7 +23,7 @@ vi.mock('@/contexts/ProjectsContext', () => {
   };
 });
 
-// Mock the useDatabase hook
+// Mock the useDatabase hook and provider
 vi.mock('@/contexts/DatabaseContext', () => {
   const mockDatabase = {
     getSessions: vi.fn().mockResolvedValue([]),

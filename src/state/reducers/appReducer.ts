@@ -27,7 +27,7 @@ export const appReducer = (state: AppState, action: Action): AppState => {
       if (newSessions.sessions.length > state.sessions.sessions.length) {
         const completedSession = newSessions.sessions[newSessions.sessions.length - 1];
         const updatedProjects = state.projects.map(project => {
-          if (project.id === completedSession.projectId) {
+          if (project.id === Number(completedSession.projectId)) {
             return {
               ...project,
               totalTime: project.totalTime + completedSession.duration,
@@ -111,7 +111,7 @@ export const appReducer = (state: AppState, action: Action): AppState => {
         ...state,
         ui: {
           ...state.ui,
-          currentProject: action.payload as string,
+          currentProject: Number(action.payload as string),
         },
       };
 

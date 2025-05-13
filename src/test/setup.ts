@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { expect, afterEach, afterAll, vi } from 'vitest';
+import { expect, afterEach, afterAll, beforeAll, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import * as matchers from '@testing-library/jest-dom/matchers';
 import path from 'path';
@@ -93,14 +93,36 @@ function initializeDatabase(db: sqlite3.Database) {
   });
 }
 
+// Helper function to safely delete a file
+async function safeDeleteFile(filePath: string) {
+  try {
+    if (fs.existsSync(filePath)) {
+      // Wait for any pending operations to complete
+      await new Promise(resolve => setTimeout(resolve, 100));
+      fs.unlinkSync(filePath);
+    }
+  } catch (error) {
+    console.error(`Error deleting file ${filePath}:`, error);
+  }
+}
+
+// Helper function to safely remove a directory
+async function safeRemoveDirectory(dirPath: string) {
+  try {
+    if (fs.existsSync(dirPath)) {
+      // Wait for any pending operations to complete
+      await new Promise(resolve => setTimeout(resolve, 100));
+      fs.rmSync(dirPath, { recursive: true, force: true });
+    }
+  } catch (error) {
+    console.error(`Error removing directory ${dirPath}:`, error);
+  }
+}
+
 // Set up test database
 beforeAll(async () => {
   const dbPath = path.join(testDataDir, 'timekeeper.db');
-
-  // Remove existing database if it exists
-  if (fs.existsSync(dbPath)) {
-    fs.unlinkSync(dbPath);
-  }
+  await safeDeleteFile(dbPath);
 
   // Create new database and initialize tables
   const db = new sqlite3.Database(dbPath);
@@ -109,14 +131,13 @@ beforeAll(async () => {
 });
 
 // Clean up after tests
-afterAll(() => {
+afterAll(async () => {
   // Remove test database
   const dbPath = path.join(testDataDir, 'timekeeper.db');
-  if (fs.existsSync(dbPath)) {
-    fs.unlinkSync(dbPath);
-  }
-  // Remove test data directory
-  if (fs.existsSync(testDataDir)) {
-    fs.rmdirSync(testDataDir);
-  }
+
+  // Wait for any pending operations to complete
+  await new Promise(resolve => setTimeout(resolve, 500));
+
+  await safeDeleteFile(dbPath);
+  await safeRemoveDirectory(testDataDir);
 });

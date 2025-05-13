@@ -22,7 +22,7 @@ export const uiReducer = (state: UIState = initialState, action: Action): UIStat
       }
       return {
         ...state,
-        currentProject: action.payload,
+        currentProject: action.payload ? Number(action.payload) : undefined,
       };
 
     case ActionType.SET_LOADING:

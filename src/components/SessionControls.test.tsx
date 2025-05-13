@@ -8,6 +8,7 @@ import { ThemeProvider } from 'styled-components';
 import { theme } from '@/styles/theme';
 import { ActionType, Theme } from '@/types/state';
 import type { AppContextType } from '@/state/context/AppContext';
+import { ProjectsProvider } from '@/contexts/ProjectsContext';
 
 // Mock the hooks
 vi.mock('@/state/context/AppContext', () => ({
@@ -18,9 +19,20 @@ vi.mock('@/state/hooks/useAppState', () => ({
   useSessions: vi.fn(),
 }));
 
+// Mock the ProjectsContext
+vi.mock('@/contexts/ProjectsContext', () => ({
+  useProjects: () => ({
+    projects: mockProjects,
+    isLoading: false,
+    error: null,
+    refreshProjects: vi.fn().mockResolvedValue(undefined),
+  }),
+  ProjectsProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
 const mockProjects = [
   {
-    id: '1',
+    id: 1,
     name: 'Project 1',
     description: '',
     totalTime: 0,
@@ -29,7 +41,7 @@ const mockProjects = [
     updatedAt: new Date(),
   },
   {
-    id: '2',
+    id: 2,
     name: 'Project 2',
     description: '',
     totalTime: 0,
@@ -72,7 +84,11 @@ const mockSessionsValue = {
 };
 
 const renderWithTheme = (component: React.ReactNode) => {
-  return render(<ThemeProvider theme={theme}>{component}</ThemeProvider>);
+  return render(
+    <ThemeProvider theme={theme}>
+      <ProjectsProvider>{component}</ProjectsProvider>
+    </ThemeProvider>
+  );
 };
 
 describe('SessionControls', () => {

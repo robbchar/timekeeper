@@ -17,7 +17,7 @@ type AppAction =
   | { type: ActionType.ADD_PROJECT; payload: Project }
   | { type: ActionType.UPDATE_PROJECT; payload: Project }
   | { type: ActionType.DELETE_PROJECT; payload: string }
-  | { type: ActionType.CREATE_SESSION; payload: { projectId: string; notes?: string } }
+  | { type: ActionType.CREATE_SESSION; payload: { projectId: number; notes?: string } }
   | { type: ActionType.PAUSE_SESSION }
   | { type: ActionType.RESUME_SESSION }
   | { type: ActionType.END_SESSION }

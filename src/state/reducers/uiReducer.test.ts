@@ -23,11 +23,11 @@ describe('uiReducer', () => {
   it('should set current project', () => {
     const action = {
       type: ActionType.SET_CURRENT_PROJECT,
-      payload: 'project-1',
+      payload: '1',
     };
 
     const state = uiReducer(initialState, action);
-    expect(state.currentProject).toBe('project-1');
+    expect(state.currentProject).toBe(1);
   });
 
   it('should set loading state', () => {

@@ -36,7 +36,13 @@ export const useSessions = () => {
       try {
         const startTime = new Date().toISOString();
         await createSession(Number(params.projectId), startTime, params.notes);
-        dispatch({ type: ActionType.CREATE_SESSION, payload: params });
+        dispatch({
+          type: ActionType.CREATE_SESSION,
+          payload: {
+            projectId: Number(params.projectId),
+            notes: params.notes,
+          },
+        });
       } catch (error) {
         console.error('Error starting session:', error);
         dispatch({

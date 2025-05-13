@@ -5,7 +5,7 @@ import type { Project, Action } from '@/types/state';
 
 describe('projectReducer', () => {
   const mockProject: Project = {
-    id: '1',
+    id: 1,
     name: 'Test Project',
     description: 'Test Description',
     totalTime: 3600000, // 1 hour
@@ -19,9 +19,13 @@ describe('projectReducer', () => {
     const action = {
       type: ActionType.ADD_PROJECT,
       payload: {
-        id: '1',
+        id: 1,
         name: 'Test Project',
         description: 'Test Description',
+        totalTime: 0,
+        sessionCount: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       } as Project,
     };
 
@@ -38,11 +42,13 @@ describe('projectReducer', () => {
     const action = {
       type: ActionType.UPDATE_PROJECT,
       payload: {
-        id: '1',
+        id: 1,
         name: 'Updated Project',
         description: 'Updated Description',
         totalTime: 7200000, // 2 hours
         sessionCount: 3,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       } as Project,
     };
 

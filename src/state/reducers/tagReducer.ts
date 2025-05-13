@@ -30,7 +30,7 @@ export const tagReducer = (state: Tag[] = [], action: Action): Tag[] => {
 
     case ActionType.DELETE_TAG: {
       if (typeof action.payload !== 'string') return state;
-      return state.filter(tag => tag.id !== action.payload);
+      return state.filter(tag => tag.id !== Number(action.payload));
     }
 
     default:

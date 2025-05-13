@@ -1,12 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { tagReducer } from './tagReducer';
 import { ActionType } from '@/types/state';
-import { v4 as uuidv4 } from 'uuid';
 
 describe('tagReducer', () => {
   it('should add a tag', () => {
     const tag = {
-      id: uuidv4(),
+      id: 1,
       name: 'Test Tag',
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -24,7 +23,7 @@ describe('tagReducer', () => {
 
   it('should update a tag', () => {
     const tag = {
-      id: uuidv4(),
+      id: 1,
       name: 'Test Tag',
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -48,7 +47,7 @@ describe('tagReducer', () => {
 
   it('should delete a tag', () => {
     const tag = {
-      id: uuidv4(),
+      id: 1,
       name: 'Test Tag',
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -56,7 +55,7 @@ describe('tagReducer', () => {
 
     const action = {
       type: ActionType.DELETE_TAG,
-      payload: tag.id,
+      payload: String(tag.id),
     };
 
     const state = tagReducer([tag], action);

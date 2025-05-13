@@ -1,3 +1,4 @@
+import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { AppProvider } from '@/state/context/AppContext';
@@ -7,6 +8,17 @@ import { Theme } from '@/types/state';
 import type { Project, Tag } from '@/types/state';
 import type { CreateSessionParams } from '@/types/session';
 import { setupMockDatabase } from '@/components/timer/__mocks__/setup';
+import { mockDatabase } from '@/test-utils';
+
+// Mock the database context
+vi.mock('@/contexts/DatabaseContext', () => ({
+  useDatabase: () => ({
+    createSession: mockDatabase.createSession,
+    endSession: mockDatabase.endSession,
+    getSessionsForProject: mockDatabase.getSessions,
+  }),
+  DatabaseProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
 
 const wrapper = ({ children }: { children: React.ReactNode }) => (
   <AppProvider>
@@ -54,7 +66,7 @@ describe('useSessions', () => {
     vi.setSystemTime(startTime);
 
     const sessionParams: CreateSessionParams = {
-      projectId: 1,
+      projectId: '1',
       notes: 'Test session',
     };
 
@@ -62,7 +74,7 @@ describe('useSessions', () => {
       await result.current.startSession(sessionParams);
     });
 
-    expect(result.current.currentSession).toBeDefined();
+    expect(result.current.currentSession).toBeTruthy();
     expect(result.current.currentSession?.projectId).toBe(1);
     expect(result.current.currentSession?.notes).toBe('Test session');
     expect(result.current.currentSession?.status).toBe('active');

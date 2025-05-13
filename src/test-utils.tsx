@@ -16,7 +16,9 @@ export const mockDatabase: DatabaseAPI = {
   getProjects: vi.fn().mockResolvedValue([]),
   updateProject: vi.fn().mockResolvedValue(undefined),
   deleteProject: vi.fn().mockResolvedValue(undefined),
-  createSession: vi.fn().mockResolvedValue(1),
+  createSession: vi.fn().mockImplementation(() => {
+    return Promise.resolve({ lastInsertRowid: 1, changes: 1 });
+  }),
   endSession: vi.fn().mockResolvedValue(undefined),
   getSessions: vi.fn().mockResolvedValue([]),
   createTag: vi.fn().mockResolvedValue(1),
@@ -46,6 +48,7 @@ beforeEach(() => {
   window.database = mockDatabase;
 });
 
+// Create a wrapper that provides all contexts
 const AllTheProviders = ({ children }: { children: React.ReactNode }) => {
   return (
     <AppProvider>
@@ -58,6 +61,7 @@ const AllTheProviders = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
+// Custom render function that uses our providers
 const customRender = (ui: React.ReactElement, options = {}) =>
   render(ui, { wrapper: AllTheProviders, ...options });
 

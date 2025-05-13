@@ -29,7 +29,7 @@ export const ProjectsProvider: React.FC<{ children: ReactNode }> = ({ children }
       }
 
       const mappedProjects: Project[] = fetchedProjects.map(project => ({
-        id: project.id.toString(),
+        id: project.id,
         name: project.name,
         description: project.description || '',
         totalTime: 0,
