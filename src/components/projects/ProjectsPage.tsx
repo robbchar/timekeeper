@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useDatabase } from '@/contexts/DatabaseContext';
 import { useProjects } from '@/contexts/ProjectsContext';
-import type { Project } from '@/types/state';
+import type { Project } from '@/types/project';
 import { formatDuration } from '@/utils/time';
 
 const PageContainer = styled.div`
@@ -39,7 +39,6 @@ const AddButton = styled.button`
 
 const ProjectList = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 1.5rem;
 `;
 
