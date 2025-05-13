@@ -1,8 +1,8 @@
 import { app, BrowserWindow } from 'electron';
 import path from 'path';
-import { setupDatabaseHandlers } from './database';
+import { setupDatabaseHandlers, initializeDatabase } from './database';
 
-function createWindow() {
+async function createWindow() {
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -24,17 +24,26 @@ function createWindow() {
   }
 }
 
-app.whenReady().then(() => {
-  // Set up database handlers
-  setupDatabaseHandlers();
+app.whenReady().then(async () => {
+  try {
+    // Initialize database first
+    await initializeDatabase();
 
-  createWindow();
+    // Set up database handlers
+    setupDatabaseHandlers();
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
-  });
+    // Create window after database is ready
+    await createWindow();
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow();
+      }
+    });
+  } catch (error) {
+    console.error('Failed to initialize application:', error);
+    app.quit();
+  }
 });
 
 app.on('window-all-closed', () => {
