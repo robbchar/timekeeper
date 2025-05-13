@@ -1,17 +1,10 @@
 import React, { createContext, useReducer, useContext } from 'react';
 import type { ReactNode } from 'react';
-import type { SessionState } from '@/types/session';
-import type { Project, Tag, Settings, UIState } from '@/types/state';
+import type { Project } from '@/types/project';
+import type { Tag } from '@/types/tag';
+import type { Settings, AppState } from '@/types/state';
 import { Theme, ActionType } from '@/types/state';
 import { appReducer } from '@/state/reducers/appReducer';
-
-interface AppState {
-  projects: Project[];
-  sessions: SessionState;
-  tags: Tag[];
-  settings: Settings;
-  ui: UIState;
-}
 
 type AppAction =
   | { type: ActionType.ADD_PROJECT; payload: Project }

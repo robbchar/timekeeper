@@ -3,6 +3,9 @@ import path from 'path';
 import { app } from 'electron';
 import fs from 'fs';
 import { ipcMain } from 'electron';
+import type { Project } from '../src/types/project';
+import type { SessionDatabase } from '../src/types/session';
+import type { TagDatabase, TagDatabaseResponse } from '../src/types/tag';
 
 // Get the path to the user data directory
 const userDataPath = app.getPath('userData');
@@ -84,30 +87,6 @@ export function initializeDatabase(): Promise<void> {
       });
     });
   });
-}
-
-// Define types for our database entities
-interface Project {
-  id: number;
-  name: string;
-  description?: string;
-  color?: string;
-  created_at: string;
-}
-
-interface Session {
-  id: number;
-  project_id: number;
-  start_time: string;
-  end_time?: string;
-  duration?: number;
-  notes?: string;
-}
-
-interface Tag {
-  id: number;
-  name: string;
-  color?: string;
 }
 
 // Set up IPC handlers
@@ -207,7 +186,7 @@ export function setupDatabaseHandlers() {
   );
 
   ipcMain.handle('database:getSessions', (_, startDate?: string, endDate?: string) => {
-    return new Promise<Session[]>((resolve, reject) => {
+    return new Promise<SessionDatabase[]>((resolve, reject) => {
       let query = 'SELECT * FROM sessions';
       const params: string[] = [];
 
@@ -219,26 +198,26 @@ export function setupDatabaseHandlers() {
       query += ' ORDER BY start_time DESC';
       db.all(query, params, (err, rows) => {
         if (err) reject(err);
-        else resolve(rows as Session[]);
+        else resolve(rows as SessionDatabase[]);
       });
     });
   });
 
   // Tag operations
   ipcMain.handle('database:createTag', (_, name: string, color?: string) => {
-    return new Promise((resolve, reject) => {
+    return new Promise<TagDatabaseResponse>((resolve, reject) => {
       db.run('INSERT INTO tags (name, color) VALUES (?, ?)', [name, color], function (err) {
         if (err) reject(err);
-        else resolve(this.lastID);
+        else resolve({ lastInsertRowid: this.lastID, changes: this.changes });
       });
     });
   });
 
   ipcMain.handle('database:getTags', () => {
-    return new Promise<Tag[]>((resolve, reject) => {
+    return new Promise<TagDatabase[]>((resolve, reject) => {
       db.all('SELECT * FROM tags ORDER BY name', (err, rows) => {
         if (err) reject(err);
-        else resolve(rows as Tag[]);
+        else resolve(rows as TagDatabase[]);
       });
     });
   });

@@ -1,4 +1,6 @@
-import type { SessionState } from './session';
+import type { SessionState, Session } from './session';
+import type { Project } from './project';
+import type { Tag } from './tag';
 
 export enum Theme {
   LIGHT = 'light',
@@ -36,34 +38,6 @@ export enum ActionType {
   SET_LOADING = 'SET_LOADING',
   SET_ERROR = 'SET_ERROR',
   CLEAR_ERROR = 'CLEAR_ERROR',
-}
-
-export interface Project {
-  id: number;
-  name: string;
-  description: string;
-  totalTime: number; // in milliseconds
-  sessionCount: number;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface Session {
-  id: number;
-  projectId: number;
-  startTime: Date;
-  endTime?: Date;
-  notes?: string;
-  tags: number[];
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface Tag {
-  id: number;
-  name: string;
-  createdAt: Date;
-  updatedAt: Date;
 }
 
 export interface Settings {
