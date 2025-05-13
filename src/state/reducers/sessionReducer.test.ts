@@ -42,7 +42,7 @@ describe('sessionReducer', () => {
     const stateWithActiveSession: SessionState = {
       ...initialState,
       currentSession: {
-        id: 'session-1',
+        id: 1,
         projectId: 'project-1',
         startTime: new Date(),
         duration: 0,
@@ -68,7 +68,7 @@ describe('sessionReducer', () => {
     const stateWithActiveSession: SessionState = {
       ...initialState,
       currentSession: {
-        id: 'session-1',
+        id: 1,
         projectId: 'project-1',
         startTime: new Date(),
         duration: 0,
@@ -97,7 +97,7 @@ describe('sessionReducer', () => {
     const stateWithPausedSession: SessionState = {
       ...initialState,
       currentSession: {
-        id: 'session-1',
+        id: 1,
         projectId: 'project-1',
         startTime,
         duration: 0,
@@ -127,7 +127,7 @@ describe('sessionReducer', () => {
     const stateWithActiveSession: SessionState = {
       ...initialState,
       currentSession: {
-        id: 'session-1',
+        id: 1,
         projectId: 'project-1',
         startTime,
         duration: 0,
@@ -155,7 +155,7 @@ describe('sessionReducer', () => {
     const stateWithActiveSession: SessionState = {
       ...initialState,
       currentSession: {
-        id: 'session-1',
+        id: 1,
         projectId: 'project-1',
         startTime: new Date(),
         duration: 0,
