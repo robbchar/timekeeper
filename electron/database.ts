@@ -5,7 +5,8 @@ import fs from 'fs';
 import { ipcMain } from 'electron';
 import type { Project } from '../src/types/project';
 import type { SessionDatabase } from '../src/types/session';
-import type { TagDatabase, TagDatabaseResponse } from '../src/types/tag';
+import type { TagDatabase } from '../src/types/tag';
+import type { TagDatabaseResponse } from '../src/types/database-response';
 
 // Get the path to the user data directory
 const userDataPath = app.getPath('userData');

@@ -4,7 +4,7 @@ import { useAppContext } from '@/state/context/AppContext';
 import { useSessions } from '@/state/hooks/useAppState';
 import { useProjects } from '@/contexts/ProjectsContext';
 import { ActionType } from '@/types/state';
-import type { Project } from '@/types/state';
+import type { Project } from '@/types/project';
 
 const Container = styled.div`
   padding: 1.5rem;
@@ -98,7 +98,7 @@ const SessionControls: React.FC = () => {
   const { state, dispatch } = useAppContext();
   const { startSession, stopSession } = useSessions();
   const { projects, isLoading: projectsLoading } = useProjects();
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+  const [selectedProjectId, setSelectedProjectId] = useState<number>();
   const [notes, setNotes] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
@@ -140,7 +140,7 @@ const SessionControls: React.FC = () => {
       <Controls>
         <Select
           value={selectedProjectId}
-          onChange={e => setSelectedProjectId(e.target.value)}
+          onChange={e => setSelectedProjectId(Number(e.target.value))}
           disabled={!!state.sessions.currentSession || isLoading || projectsLoading}
         >
           <option value="">Select a project</option>
