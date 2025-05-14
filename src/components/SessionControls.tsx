@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import styled from 'styled-components';
 import { useAppContext } from '@/state/context/AppContext';
 import { useSessions } from '@/state/hooks/useAppState';
@@ -140,10 +140,13 @@ const SessionControls: React.FC = () => {
   const [selectedProjectId, setSelectedProjectId] = useState<number>();
   const [notes, setNotes] = useState<string>('');
   const [isTiming, setIsTiming] = useState<boolean>(false);
+  const [elapsedTime, setElapsedTime] = useState<number>(0);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [isSessionsLoading, setIsSessionsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const { getSessionsForProject } = useDatabase();
+  const timerRef = useRef<number | undefined>(undefined);
+  const startTimeRef = useRef<number | undefined>(undefined);
 
   const fetchSessions = useCallback(async () => {
     if (!selectedProjectId) {
@@ -203,13 +206,46 @@ const SessionControls: React.FC = () => {
     fetchSessions();
   }, [fetchSessions]);
 
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        window.clearInterval(timerRef.current);
+      }
+    };
+  }, []);
+
+  // Handle window unload
+  useEffect(() => {
+    const handleBeforeUnload = async () => {
+      if (state.sessions.currentSession) {
+        // Stop the timer if it's running
+        if (isTiming) {
+          handleStopTimer();
+        }
+
+        // Try to stop the session
+        try {
+          await stopSession();
+        } catch (error) {
+          console.error('Failed to stop session on window unload:', error);
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [state.sessions.currentSession, isTiming, stopSession]);
+
   const handleStartSession = async () => {
     if (!selectedProjectId) return;
 
     setIsSessionsLoading(true);
     try {
       await startSession({ projectId: selectedProjectId, notes });
-      setNotes('');
+      setElapsedTime(0);
     } catch {
       dispatch({
         type: ActionType.SET_ERROR,
@@ -225,7 +261,12 @@ const SessionControls: React.FC = () => {
 
     setIsSessionsLoading(true);
     try {
+      if (isTiming) {
+        handleStopTimer();
+      }
       await stopSession();
+      setNotes('');
+      setElapsedTime(0);
       fetchSessions();
     } catch {
       dispatch({
@@ -239,11 +280,22 @@ const SessionControls: React.FC = () => {
 
   const handleStartTimer = () => {
     setIsTiming(true);
+    startTimeRef.current = Date.now() - elapsedTime;
+    timerRef.current = window.setInterval(() => {
+      if (startTimeRef.current) {
+        setElapsedTime(Date.now() - startTimeRef.current);
+      }
+    }, 1000);
   };
 
   const handleStopTimer = () => {
     setIsTiming(false);
+    if (timerRef.current) {
+      window.clearInterval(timerRef.current);
+    }
   };
+
+  const isSessionActive = !!state.sessions.currentSession;
 
   return (
     <Container>
@@ -251,7 +303,7 @@ const SessionControls: React.FC = () => {
         <Select
           value={selectedProjectId}
           onChange={e => setSelectedProjectId(Number(e.target.value))}
-          disabled={!!state.sessions.currentSession || projectsLoading}
+          disabled={isSessionActive || projectsLoading}
         >
           <option value="">Select a project</option>
           {!projectsLoading &&
@@ -265,27 +317,30 @@ const SessionControls: React.FC = () => {
           value={notes}
           onChange={e => setNotes(e.target.value)}
           placeholder="Add notes..."
-          disabled={!projectsLoading || !selectedProjectId}
+          disabled={isSessionActive || !selectedProjectId}
         />
-        <ButtonContainer>
-          {!state.sessions.currentSession && (
+        {!isSessionActive && (
+          <ButtonContainer>
             <Button
               variant="start"
               onClick={handleStartSession}
-              disabled={
-                projectsLoading || selectedProjectId === undefined || selectedProjectId === 0
-              }
+              disabled={projectsLoading || !selectedProjectId}
             >
               Start Session
             </Button>
-          )}
-          {state.sessions.currentSession && (
-            <Button variant="stop" onClick={handleStopSession}>
-              Stop Session
-            </Button>
-          )}
-        </ButtonContainer>
-        {!isTiming && selectedProjectId && (
+          </ButtonContainer>
+        )}
+        {isSessionActive && (
+          <TimerControls
+            isSessionActive={isSessionActive}
+            isTimingActive={isTiming}
+            elapsedTime={elapsedTime}
+            onStartTimer={handleStartTimer}
+            onStopTimer={handleStopTimer}
+            onStopSession={handleStopSession}
+          />
+        )}
+        {!isSessionActive && !isTiming && !!selectedProjectId && (
           <SessionList>
             <SessionListHeader>Recent Sessions</SessionListHeader>
             {isSessionsLoading && <div>Sessions Loading...</div>}
@@ -301,9 +356,6 @@ const SessionControls: React.FC = () => {
                 </SessionItem>
               ))}
           </SessionList>
-        )}
-        {isTiming && (
-          <TimerControls isRunning={isTiming} onStart={handleStartTimer} onStop={handleStopTimer} />
         )}
         {state.ui.error && <ErrorMessage>{state.ui.error}</ErrorMessage>}
       </Controls>
