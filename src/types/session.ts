@@ -43,9 +43,43 @@ export interface UpdateSessionParams {
   notes?: string;
 }
 
+// Session action types
+export interface CreateSessionAction {
+  type: ActionType.CREATE_SESSION;
+  payload: { sessionId: number; projectId: number; notes?: string };
+}
+
+export interface EndSessionAction {
+  type: ActionType.END_SESSION;
+}
+
+export interface UpdateSessionNotesAction {
+  type: ActionType.UPDATE_SESSION_NOTES;
+  payload: { notes: string };
+}
+
+export interface PauseSessionAction {
+  type: ActionType.PAUSE_SESSION;
+}
+
+export interface ResumeSessionAction {
+  type: ActionType.RESUME_SESSION;
+}
+
+export interface SetErrorAction {
+  type: ActionType.SET_ERROR;
+  payload: string;
+}
+
+export interface ClearErrorAction {
+  type: ActionType.CLEAR_ERROR;
+}
+
 export type SessionAction =
-  | { type: ActionType.CREATE_SESSION; payload: { projectId: number; notes?: string } }
-  | { type: ActionType.END_SESSION }
-  | { type: ActionType.UPDATE_SESSION_NOTES; payload: { notes: string } }
-  | { type: ActionType.SET_ERROR; payload: string }
-  | { type: ActionType.CLEAR_ERROR };
+  | CreateSessionAction
+  | EndSessionAction
+  | UpdateSessionNotesAction
+  | PauseSessionAction
+  | ResumeSessionAction
+  | SetErrorAction
+  | ClearErrorAction;

@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useAppContext } from '@/state/context/AppContext';
 import { useSessions } from '@/state/hooks/useAppState';
 import { useProjects } from '@/contexts/ProjectsContext';
 import { ActionType } from '@/types/state';
 import type { Project } from '@/types/project';
+import type { Session, SessionStatus } from '@/types/session';
+import { formatDuration } from '@/utils/time';
+import TimerControls from './timer/TimerControls';
+import { useDatabase } from '@/contexts/DatabaseContext';
 
 const Container = styled.div`
   padding: 1.5rem;
@@ -88,9 +92,44 @@ const ErrorMessage = styled.div`
   font-size: 0.875rem;
 `;
 
-const LoadingMessage = styled.div`
+const SessionList = styled.div`
+  background-color: ${({ theme }) => theme.colors.background.secondary};
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+`;
+
+const SessionListHeader = styled.h2`
+  color: ${({ theme }) => theme.colors.text.primary};
+  margin-bottom: 1rem;
+  font-size: 1.25rem;
+`;
+
+const SessionItem = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+
+  &:last-child {
+    border-bottom: none;
+  }
+`;
+
+const SessionInfo = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+`;
+
+const SessionNotes = styled.span`
   color: ${({ theme }) => theme.colors.text.secondary};
-  margin-top: 0.5rem;
+  font-size: 0.875rem;
+`;
+
+const SessionDuration = styled.span`
+  color: ${({ theme }) => theme.colors.text.secondary};
   font-size: 0.875rem;
 `;
 
@@ -100,12 +139,74 @@ const SessionControls: React.FC = () => {
   const { projects, isLoading: projectsLoading } = useProjects();
   const [selectedProjectId, setSelectedProjectId] = useState<number>();
   const [notes, setNotes] = useState<string>('');
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isTiming, setIsTiming] = useState<boolean>(false);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [isSessionsLoading, setIsSessionsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const { getSessionsForProject } = useDatabase();
+
+  const fetchSessions = useCallback(async () => {
+    if (!selectedProjectId) {
+      console.log('SessionControls No currentProjectId, skipping fetch');
+      return;
+    }
+    console.log('SessionControls Fetching sessions for project:', selectedProjectId);
+    setIsSessionsLoading(true);
+    setError(null);
+    try {
+      const dbSessions = (await getSessionsForProject(
+        Number(selectedProjectId)
+      )) as unknown as Array<{
+        id: number;
+        projectId?: number;
+        project_id?: number;
+        startTime?: string;
+        start_time?: string;
+        endTime?: string | null;
+        end_time?: string | null;
+        duration?: number;
+        notes?: string;
+        status?: string;
+        totalPausedTime?: number;
+        total_paused_time?: number;
+        createdAt?: string;
+        created_at?: string;
+        updatedAt?: string;
+        updated_at?: string;
+      }>;
+      console.log('SessionControls Received sessions from database:', dbSessions);
+      const mappedSessions: Session[] = dbSessions.map(s => ({
+        id: s.id,
+        projectId: Number(s.project_id ?? selectedProjectId),
+        startTime: new Date(s.startTime ?? s.start_time ?? new Date().toISOString()),
+        endTime: (s.endTime ?? s.end_time) ? new Date(String(s.endTime ?? s.end_time)) : undefined,
+        duration: typeof s.duration === 'number' ? s.duration : 0,
+        notes: s.notes ?? '',
+        status: (s.status ?? 'completed') as SessionStatus,
+        totalPausedTime: s.totalPausedTime ?? s.total_paused_time ?? 0,
+        createdAt: new Date(s.createdAt ?? s.created_at ?? new Date().toISOString()),
+        updatedAt: new Date(s.updatedAt ?? s.updated_at ?? new Date().toISOString()),
+        tags: [], // Initialize with empty array since we don't have tag data yet
+      }));
+      console.log('SessionControls Mapped sessions:', mappedSessions);
+      setSessions(mappedSessions);
+    } catch {
+      console.log('SessionControls Error fetching sessions:', error);
+      setError('Failed to load sessions');
+    } finally {
+      console.log('SessionControls Finished fetching sessions');
+      setIsSessionsLoading(false);
+    }
+  }, [selectedProjectId, getSessionsForProject]);
+
+  useEffect(() => {
+    fetchSessions();
+  }, [fetchSessions]);
 
   const handleStartSession = async () => {
     if (!selectedProjectId) return;
 
-    setIsLoading(true);
+    setIsSessionsLoading(true);
     try {
       await startSession({ projectId: selectedProjectId, notes });
       setNotes('');
@@ -115,24 +216,33 @@ const SessionControls: React.FC = () => {
         payload: 'Failed to start session. Please try again.',
       });
     } finally {
-      setIsLoading(false);
+      setIsSessionsLoading(false);
     }
   };
 
   const handleStopSession = async () => {
     if (!state.sessions.currentSession) return;
 
-    setIsLoading(true);
+    setIsSessionsLoading(true);
     try {
       await stopSession();
+      fetchSessions();
     } catch {
       dispatch({
         type: ActionType.SET_ERROR,
         payload: 'Failed to stop session. Please try again.',
       });
     } finally {
-      setIsLoading(false);
+      setIsSessionsLoading(false);
     }
+  };
+
+  const handleStartTimer = () => {
+    setIsTiming(true);
+  };
+
+  const handleStopTimer = () => {
+    setIsTiming(false);
   };
 
   return (
@@ -141,7 +251,7 @@ const SessionControls: React.FC = () => {
         <Select
           value={selectedProjectId}
           onChange={e => setSelectedProjectId(Number(e.target.value))}
-          disabled={!!state.sessions.currentSession || isLoading || projectsLoading}
+          disabled={!!state.sessions.currentSession || projectsLoading}
         >
           <option value="">Select a project</option>
           {!projectsLoading &&
@@ -155,26 +265,47 @@ const SessionControls: React.FC = () => {
           value={notes}
           onChange={e => setNotes(e.target.value)}
           placeholder="Add notes..."
-          disabled={isLoading}
+          disabled={!projectsLoading || !selectedProjectId}
         />
         <ButtonContainer>
           {!state.sessions.currentSession && (
             <Button
               variant="start"
               onClick={handleStartSession}
-              disabled={!selectedProjectId || isLoading || projectsLoading}
+              disabled={
+                projectsLoading || selectedProjectId === undefined || selectedProjectId === 0
+              }
             >
-              {isLoading ? 'Starting...' : 'Start Session'}
+              Start Session
             </Button>
           )}
           {state.sessions.currentSession && (
-            <Button variant="stop" onClick={handleStopSession} disabled={isLoading}>
-              {isLoading ? 'Stopping...' : 'Stop Session'}
+            <Button variant="stop" onClick={handleStopSession}>
+              Stop Session
             </Button>
           )}
         </ButtonContainer>
+        {!isTiming && selectedProjectId && (
+          <SessionList>
+            <SessionListHeader>Recent Sessions</SessionListHeader>
+            {isSessionsLoading && <div>Sessions Loading...</div>}
+            {error && <div style={{ color: 'red' }}>{error}</div>}
+            {!isSessionsLoading &&
+              !error &&
+              sessions.map((session: Session) => (
+                <SessionItem key={session.id}>
+                  <SessionInfo>
+                    <SessionNotes>{session.notes || 'No notes'}</SessionNotes>
+                  </SessionInfo>
+                  <SessionDuration>{formatDuration(session.duration)}</SessionDuration>
+                </SessionItem>
+              ))}
+          </SessionList>
+        )}
+        {isTiming && (
+          <TimerControls isRunning={isTiming} onStart={handleStartTimer} onStop={handleStopTimer} />
+        )}
         {state.ui.error && <ErrorMessage>{state.ui.error}</ErrorMessage>}
-        {(isLoading || projectsLoading) && <LoadingMessage>Processing...</LoadingMessage>}
       </Controls>
     </Container>
   );

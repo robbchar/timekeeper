@@ -35,10 +35,11 @@ export const useSessions = () => {
     startSession: async (params: CreateSessionParams) => {
       try {
         const startTime = new Date().toISOString();
-        await createSession(Number(params.projectId), startTime, params.notes);
+        const itemId = await createSession(Number(params.projectId), startTime, params.notes);
         dispatch({
           type: ActionType.CREATE_SESSION,
           payload: {
+            sessionId: itemId,
             projectId: Number(params.projectId),
             notes: params.notes,
           },
