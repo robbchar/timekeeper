@@ -1,5 +1,6 @@
 import React from 'react';
 import styled from 'styled-components';
+import { Button } from '@heroui/react';
 
 interface TimerControlsProps {
   isSessionActive: boolean;
@@ -7,7 +8,7 @@ interface TimerControlsProps {
   elapsedTime: number;
   onStartTimer: () => void;
   onStopTimer: () => void;
-  onStopSession: () => void;
+  onStopSession: (totalDuration?: number) => void;
 }
 
 const ControlsContainer = styled.div`
@@ -18,64 +19,12 @@ const ControlsContainer = styled.div`
   margin: 2rem 0;
 `;
 
-const CircularButton = styled.button<{ isTimingActive: boolean }>`
-  width: 280px;
-  height: 280px;
-  border-radius: 50%;
-  border: none;
-  background-color: ${({ isTimingActive, theme }) =>
-    isTimingActive ? theme.colors.error : theme.colors.success};
-  color: white;
-  font-size: 1.5rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-
-  &:hover {
-    transform: scale(1.05);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    background-color: ${({ isTimingActive, theme }) =>
-      isTimingActive ? theme.colors.errorHover : theme.colors.successHover};
-  }
-
-  &:active {
-    transform: scale(0.95);
-  }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none;
-  }
-`;
-
 const TimerDisplay = styled.div`
   font-size: 2.5rem;
   font-weight: 300;
   font-family: 'Roboto Mono', monospace;
   color: ${({ theme }) => theme.colors.text.primary};
   margin-top: 1rem;
-`;
-
-const StopSessionButton = styled.button`
-  padding: 0.75rem 1.5rem;
-  border: none;
-  border-radius: 4px;
-  background-color: ${({ theme }) => theme.colors.error};
-  color: white;
-  font-size: 1rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 0.2s;
-
-  &:hover {
-    background-color: ${({ theme }) => theme.colors.errorHover};
-  }
 `;
 
 const formatTime = (milliseconds: number): string => {
@@ -103,18 +52,29 @@ const TimerControls: React.FC<TimerControlsProps> = ({
     }
   };
 
+  const buttonColor = isTimingActive
+    ? 'bg-red-500 hover:bg-red-600'
+    : 'bg-green-500 hover:bg-green-600';
+
   return (
     <ControlsContainer>
-      <CircularButton
-        isTimingActive={isTimingActive}
-        onClick={handleTimerClick}
-        disabled={!isSessionActive}
+      <Button
+        radius="full"
+        className={`w-[280px] h-[280px] ${buttonColor} text-white border-0`}
+        onPress={handleTimerClick}
+        isDisabled={!isSessionActive}
       >
         {isTimingActive ? 'Stop Timing' : 'Start Timing'}
-      </CircularButton>
+      </Button>
       <TimerDisplay>{formatTime(elapsedTime)}</TimerDisplay>
       {isSessionActive && (
-        <StopSessionButton onClick={onStopSession}>Stop Session</StopSessionButton>
+        <Button
+          className="bg-red-500"
+          radius="full"
+          onPress={() => onStopSession(Math.floor(elapsedTime / 1000))}
+        >
+          Stop Session
+        </Button>
       )}
     </ControlsContainer>
   );

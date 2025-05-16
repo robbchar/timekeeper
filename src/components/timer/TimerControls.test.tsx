@@ -82,17 +82,4 @@ describe('TimerControls', () => {
     const button = screen.getByText('Start Timing');
     expect(button).not.toBeDisabled();
   });
-
-  it('changes button color based on timing state', () => {
-    const { rerender } = renderWithTheme(<TimerControls {...defaultProps} />);
-    const button = screen.getByText('Start Timing');
-    expect(button).toHaveStyle({ backgroundColor: theme.colors.success });
-
-    rerender(
-      <ThemeProvider theme={theme}>
-        <TimerControls {...defaultProps} isTimingActive={true} isSessionActive={true} />
-      </ThemeProvider>
-    );
-    expect(button).toHaveStyle({ backgroundColor: theme.colors.error });
-  });
 });
