@@ -27,7 +27,7 @@ const TimerPage = () => {
       console.log('SessionControls No currentProjectId, skipping fetch');
       return;
     }
-    console.log('SessionControls Fetching sessions for project:', selectedProjectId);
+
     setIsSessionsLoading(true);
     setError(null);
     try {
@@ -51,7 +51,6 @@ const TimerPage = () => {
         updatedAt?: string;
         updated_at?: string;
       }>;
-      console.log('SessionControls Received sessions from database:', dbSessions);
       const mappedSessions: Session[] = dbSessions.map(s => ({
         id: s.id,
         projectId: Number(s.project_id ?? selectedProjectId),
@@ -85,6 +84,10 @@ const TimerPage = () => {
     fetchSessions();
   };
 
+  const sessionCompleted = () => {
+    fetchSessions();
+  };
+
   return (
     <PageContainer>
       {error && <div style={{ color: 'red' }}>{error}</div>}
@@ -93,6 +96,7 @@ const TimerPage = () => {
           projects={projects}
           sessions={sessions}
           projectSelected={projectSelected}
+          sessionCompleted={sessionCompleted}
           selectedProjectId={selectedProjectId}
           isSessionsLoading={isSessionsLoading}
           isProjectsLoading={projectsLoading}

@@ -75,6 +75,7 @@ const SessionControls: React.FC<{
   selectedProjectId: number;
   isProjectsLoading: boolean;
   isSessionsLoading: boolean;
+  sessionCompleted: () => void;
 }> = ({
   projects,
   sessions,
@@ -82,6 +83,7 @@ const SessionControls: React.FC<{
   selectedProjectId,
   isProjectsLoading,
   isSessionsLoading,
+  sessionCompleted,
 }) => {
   const { state, dispatch } = useAppContext();
   const { startSession, stopSession } = useSessions();
@@ -150,6 +152,7 @@ const SessionControls: React.FC<{
       await stopSession(totalDuration);
       setNotes('');
       setElapsedTime(0);
+      sessionCompleted();
     } catch {
       dispatch({
         type: ActionType.SET_ERROR,
@@ -213,7 +216,7 @@ const SessionControls: React.FC<{
             <ButtonContainer>
               <Button
                 onPress={handleStartSession}
-                isDisabled={selectedProjectId === -1}
+                isDisabled={selectedProjectId < 0}
                 color="primary"
               >
                 Start Session
@@ -230,7 +233,7 @@ const SessionControls: React.FC<{
               onStopSession={handleStopSession}
             />
           )}
-          {!isSessionsLoading && !isSessionActive && !isTiming && selectedProjectId !== -1 && (
+          {!isSessionsLoading && !isSessionActive && !isTiming && selectedProjectId > 0 && (
             <SessionList>
               <SessionListHeader>Recent Sessions</SessionListHeader>
               {sessions.map((session: Session) => (
