@@ -4,6 +4,7 @@ import { useDatabase } from '@/contexts/DatabaseContext';
 import { useProjects } from '@/contexts/ProjectsContext';
 import type { Project } from '@/types/project';
 import { formatDuration } from '@/utils/time';
+import { Button } from '@heroui/react';
 
 const PageContainer = styled.div`
   padding: 2rem;
@@ -22,19 +23,6 @@ const Title = styled.h1`
   color: ${({ theme }) => theme.colors.text.primary};
   font-size: 1.875rem;
   font-weight: 600;
-`;
-
-const AddButton = styled.button`
-  background: ${({ theme }) => theme.colors.primary};
-  color: white;
-  padding: 0.75rem 1.5rem;
-  border-radius: 0.375rem;
-  font-weight: 500;
-  transition: background-color 0.2s;
-
-  &:hover {
-    background: ${({ theme }) => theme.colors.primaryHover};
-  }
 `;
 
 const ProjectList = styled.div`
@@ -73,30 +61,6 @@ const ProjectActions = styled.div`
   display: flex;
   gap: 0.5rem;
   margin-top: 1rem;
-`;
-
-const IconButton = styled.button`
-  background: transparent;
-  border: none;
-  color: ${({ theme }) => theme.colors.text.secondary};
-  padding: 0.5rem;
-  cursor: pointer;
-  border-radius: 0.25rem;
-  transition: all 0.2s;
-  font-size: 1.25rem;
-
-  &:hover {
-    background: ${({ theme }) => theme.colors.background.primary};
-    color: ${({ theme }) => theme.colors.text.primary};
-  }
-`;
-
-const DeleteButton = styled(IconButton)`
-  color: ${({ theme }) => theme.colors.error};
-
-  &:hover {
-    color: ${({ theme }) => theme.colors.errorHover};
-  }
 `;
 
 const Modal = styled.div`
@@ -142,31 +106,6 @@ const ButtonGroup = styled.div`
   gap: 1rem;
   justify-content: flex-end;
   margin-top: 1rem;
-`;
-
-const Button = styled.button<{ variant?: 'primary' | 'secondary' }>`
-  padding: 0.75rem 1.5rem;
-  border-radius: 0.375rem;
-  font-weight: 500;
-  transition: all 0.2s;
-
-  ${({ variant, theme }) =>
-    variant === 'primary'
-      ? `
-    background: ${theme.colors.primary};
-    color: white;
-    &:hover {
-      background: ${theme.colors.primaryHover};
-    }
-  `
-      : `
-    background: transparent;
-    color: ${theme.colors.text.primary};
-    border: 1px solid ${theme.colors.border};
-    &:hover {
-      background: ${theme.colors.background.secondary};
-    }
-  `}
 `;
 
 const ModalTitle = styled.h2`
@@ -249,10 +188,10 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
         <ModalTitle>{title}</ModalTitle>
         <p>{message}</p>
         <ButtonGroup>
-          <Button type="button" onClick={onClose}>
+          <Button color="primary" onPress={onClose}>
             Cancel
           </Button>
-          <Button type="button" variant="primary" onClick={onConfirm}>
+          <Button color="primary" onPress={onConfirm}>
             Delete
           </Button>
         </ButtonGroup>
@@ -323,10 +262,10 @@ const ProjectModal: React.FC<ModalProps> = ({
             </ErrorMessage>
           )}
           <ButtonGroup>
-            <Button type="button" onClick={onClose}>
+            <Button type="button" onPress={onClose} color="primary">
               Cancel
             </Button>
-            <Button type="submit" variant="primary">
+            <Button type="submit" color="primary">
               {title === 'Add New Project' ? 'Add Project' : 'Save Changes'}
             </Button>
           </ButtonGroup>
@@ -406,7 +345,9 @@ export const ProjectsPage: React.FC = () => {
     <PageContainer>
       <Header>
         <Title>Projects</Title>
-        <AddButton onClick={() => setIsAddModalOpen(true)}>Add Project</AddButton>
+        <Button onPress={() => setIsAddModalOpen(true)} color="primary">
+          Add Project
+        </Button>
       </Header>
 
       <ProjectList>
@@ -415,20 +356,24 @@ export const ProjectsPage: React.FC = () => {
             <ProjectName>{project.name}</ProjectName>
             <ProjectDate>Created {new Date(project.createdAt).toLocaleDateString()}</ProjectDate>
             <ProjectActions>
-              <IconButton
-                onClick={() => handleEditClick(project)}
-                title="Edit Project"
+              <Button
+                className="bg-transparent"
+                isIconOnly
                 aria-label="Edit Project"
+                onPress={() => handleEditClick(project)}
+                title="Edit Project"
               >
                 ✏️
-              </IconButton>
-              <DeleteButton
-                onClick={() => handleDeleteClick(project)}
+              </Button>
+              <Button
+                className="bg-transparent"
+                isIconOnly
+                onPress={() => handleDeleteClick(project)}
                 title="Delete Project"
                 aria-label="Delete Project"
               >
                 🗑️
-              </DeleteButton>
+              </Button>
             </ProjectActions>
             <StatsSection>
               <StatsToggle onClick={() => toggleProjectStats(project.id)}>
