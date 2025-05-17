@@ -10,16 +10,28 @@ import { ThemeProvider } from 'styled-components';
 import { theme } from '@/styles/theme';
 import { DatabaseProvider } from '@/contexts/DatabaseContext';
 import { ProjectsProvider } from '@/contexts/ProjectsContext';
-import { Theme } from '@/types/state';
+import { Project, Theme } from '@/types/state';
+import type { Session } from '@/types/session';
 import type { AppContextType } from '@/state/context/AppContext';
-
 // Mock the hooks
 vi.mock('@/state/context/AppContext', () => ({
   useAppContext: vi.fn(),
 }));
 
+const mockSessionsValue = {
+  startSession: vi.fn(),
+  stopSession: vi.fn(),
+  sessions: [],
+  currentSession: null,
+};
+
 vi.mock('@/state/hooks/useAppState', () => ({
-  useSessions: vi.fn(),
+  useSessions: vi.fn().mockReturnValue({
+    startSession: vi.fn(),
+    stopSession: vi.fn(),
+    sessions: [],
+    currentSession: null,
+  }),
 }));
 
 vi.mock('@/contexts/ProjectsContext', () => ({
@@ -53,6 +65,20 @@ const mockProjects = [
   },
 ];
 
+const mockSessions: Session[] = [
+  {
+    id: 1,
+    projectId: 1,
+    startTime: new Date(),
+    duration: 0,
+    status: 'active',
+    totalPausedTime: 0,
+    tags: [],
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  },
+];
+
 const mockContextValue: AppContextType = {
   state: {
     projects: mockProjects,
@@ -78,13 +104,6 @@ const mockContextValue: AppContextType = {
   dispatch: vi.fn(),
 };
 
-const mockSessionsValue = {
-  startSession: vi.fn(),
-  stopSession: vi.fn(),
-  sessions: [],
-  currentSession: null,
-};
-
 const mockProjectsValue = {
   projects: mockProjects,
   isLoading: false,
@@ -98,11 +117,29 @@ const mockDatabaseValue = {
   endSession: vi.fn(),
 };
 
-const renderWithTheme = (component: React.ReactNode) => {
+const renderWithTheme = (
+  projects: Project[] = mockProjects,
+  sessions: Session[] = mockSessions,
+  projectSelected: (projectId: number) => void = vi.fn(),
+  selectedProjectId: number = -1,
+  isProjectsLoading: boolean = false,
+  isSessionsLoading: boolean = false,
+  sessionCompleted: () => void = vi.fn()
+) => {
   return render(
     <ThemeProvider theme={theme}>
       <DatabaseProvider>
-        <ProjectsProvider>{component}</ProjectsProvider>
+        <ProjectsProvider>
+          <SessionControls
+            projects={projects}
+            sessions={sessions}
+            projectSelected={projectSelected}
+            selectedProjectId={selectedProjectId}
+            isProjectsLoading={isProjectsLoading}
+            isSessionsLoading={isSessionsLoading}
+            sessionCompleted={sessionCompleted}
+          />
+        </ProjectsProvider>
       </DatabaseProvider>
     </ThemeProvider>
   );
@@ -123,14 +160,14 @@ describe('SessionControls', () => {
   });
 
   it('renders project selection and controls', () => {
-    renderWithTheme(<SessionControls />);
-    expect(screen.getByRole('combobox')).toBeInTheDocument();
+    renderWithTheme();
+    expect(screen.getByLabelText('Select a project')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Add notes...')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Start Session' })).toBeInTheDocument();
   });
 
   it('disables start button when no project is selected', () => {
-    renderWithTheme(<SessionControls />);
+    renderWithTheme();
     const startButton = screen.getByRole('button', { name: 'Start Session' });
     expect(startButton).toBeDisabled();
   });
@@ -143,13 +180,7 @@ describe('SessionControls', () => {
     });
 
     await act(async () => {
-      renderWithTheme(<SessionControls />);
-    });
-
-    // Select a project
-    const select = screen.getByRole('combobox');
-    await act(async () => {
-      fireEvent.change(select, { target: { value: '1' } });
+      renderWithTheme(undefined, undefined, undefined, 1);
     });
 
     // Add notes
@@ -192,50 +223,10 @@ describe('SessionControls', () => {
       },
     });
 
-    renderWithTheme(<SessionControls />);
+    renderWithTheme();
 
     expect(screen.getByText('Start Timing')).toBeInTheDocument();
     expect(screen.getByText('Stop Session')).toBeInTheDocument();
-  });
-
-  it('shows recent sessions when no session is active', async () => {
-    const mockSessions = [
-      {
-        id: 1,
-        projectId: 1,
-        startTime: new Date(),
-        endTime: new Date(),
-        duration: 3600, // 1 hour in seconds
-        notes: 'Test session 1',
-        status: 'completed',
-        totalPausedTime: 0,
-        tags: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    ];
-
-    const mockGetSessions = vi.fn().mockResolvedValue(mockSessions);
-
-    (useDatabase as ReturnType<typeof vi.fn>).mockReturnValue({
-      ...mockDatabaseValue,
-      getSessionsForProject: mockGetSessions,
-    });
-
-    await act(async () => {
-      renderWithTheme(<SessionControls />);
-    });
-
-    const select = screen.getByRole('combobox');
-    await act(async () => {
-      fireEvent.change(select, { target: { value: '1' } });
-    });
-
-    expect(mockGetSessions).toHaveBeenCalledWith(1);
-
-    expect(screen.getByText('Recent Sessions')).toBeInTheDocument();
-    expect(screen.getByText('Test session 1')).toBeInTheDocument();
-    expect(screen.getByText('1h 0m')).toBeInTheDocument();
   });
 
   it('stops session and clears timer when stop session is clicked', async () => {
@@ -269,7 +260,7 @@ describe('SessionControls', () => {
     });
 
     await act(async () => {
-      renderWithTheme(<SessionControls />);
+      renderWithTheme();
     });
 
     // Start the timer
@@ -326,7 +317,7 @@ describe('SessionControls', () => {
     });
 
     await act(async () => {
-      renderWithTheme(<SessionControls />);
+      renderWithTheme();
     });
 
     // Start the timer

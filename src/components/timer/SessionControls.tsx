@@ -5,9 +5,9 @@ import { useSessions } from '@/state/hooks/useAppState';
 import { ActionType } from '@/types/state';
 import type { Project } from '@/types/project';
 import type { Session } from '@/types/session';
-import { formatDuration } from '@/utils/time';
 import TimerControls from './TimerControls';
 import { Textarea, Select, SelectItem, Button } from '@heroui/react';
+import RecentSessions from './RecentSessions';
 
 const Container = styled.div`
   padding: 1.5rem;
@@ -25,47 +25,6 @@ const Controls = styled.div`
 const ButtonContainer = styled.div`
   display: flex;
   gap: 1rem;
-`;
-
-const SessionList = styled.div`
-  background-color: ${({ theme }) => theme.colors.background.secondary};
-  border-radius: 8px;
-  padding: 1.5rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-`;
-
-const SessionListHeader = styled.h2`
-  color: ${({ theme }) => theme.colors.text.primary};
-  margin-bottom: 1rem;
-  font-size: 1.25rem;
-`;
-
-const SessionItem = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem;
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-
-  &:last-child {
-    border-bottom: none;
-  }
-`;
-
-const SessionInfo = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-`;
-
-const SessionNotes = styled.span`
-  color: ${({ theme }) => theme.colors.text.secondary};
-  font-size: 0.875rem;
-`;
-
-const SessionDuration = styled.span`
-  color: ${({ theme }) => theme.colors.text.secondary};
-  font-size: 0.875rem;
 `;
 
 const SessionControls: React.FC<{
@@ -234,17 +193,7 @@ const SessionControls: React.FC<{
             />
           )}
           {!isSessionsLoading && !isSessionActive && !isTiming && selectedProjectId > 0 && (
-            <SessionList>
-              <SessionListHeader>Recent Sessions</SessionListHeader>
-              {sessions.map((session: Session) => (
-                <SessionItem key={session.id}>
-                  <SessionInfo>
-                    <SessionNotes>{session.notes || 'No notes'}</SessionNotes>
-                  </SessionInfo>
-                  <SessionDuration>{formatDuration(session.duration)}</SessionDuration>
-                </SessionItem>
-              ))}
-            </SessionList>
+            <RecentSessions sessions={sessions} />
           )}
         </Controls>
       )}

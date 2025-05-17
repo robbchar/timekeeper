@@ -89,7 +89,7 @@ const TimerPage = () => {
   };
 
   return (
-    <PageContainer>
+    <PageContainer data-testid="timer-page">
       {error && <div style={{ color: 'red' }}>{error}</div>}
       {!projectsLoading && !isSessionsLoading && !error && (
         <SessionControls

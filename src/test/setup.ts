@@ -32,6 +32,13 @@ afterEach(() => {
 function initializeDatabase(db: sqlite3.Database) {
   return new Promise<void>((resolve, reject) => {
     db.serialize(() => {
+      db.run('PRAGMA foreign_keys = ON', err => {
+        if (err) {
+          reject(err);
+          return;
+        }
+      });
+
       // Projects table
       db.run(`
         CREATE TABLE IF NOT EXISTS projects (
@@ -121,6 +128,11 @@ async function safeRemoveDirectory(dirPath: string) {
 
 // Set up test database
 beforeAll(async () => {
+  // Ensure directory exists
+  if (!fs.existsSync(testDataDir)) {
+    fs.mkdirSync(testDataDir, { recursive: true });
+  }
+
   const dbPath = path.join(testDataDir, 'timekeeper.db');
   await safeDeleteFile(dbPath);
 
@@ -132,6 +144,7 @@ beforeAll(async () => {
 
 // Clean up after tests
 afterAll(async () => {
+  cleanup();
   // Remove test database
   const dbPath = path.join(testDataDir, 'timekeeper.db');
 
