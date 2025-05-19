@@ -375,7 +375,7 @@ export const ProjectsPage: React.FC = () => {
                 🗑️
               </Button>
             </ProjectActions>
-            <StatsSection>
+            <StatsSection data-testid={`stats-section-${project.id}`}>
               <StatsToggle onClick={() => toggleProjectStats(project.id)}>
                 {expandedStats.has(project.id) ? '▼' : '▶'} Project Stats
               </StatsToggle>

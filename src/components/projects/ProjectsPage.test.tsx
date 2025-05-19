@@ -551,28 +551,26 @@ describe('Project Stats', () => {
       refreshProjects: vi.fn().mockResolvedValue(undefined),
     });
 
-    render(<ProjectsPage />);
+    const { debug } = render(<ProjectsPage />);
 
     // Wait for the new project to appear
+    const newProjectTitle = screen.getByText('New Project');
     await waitFor(() => {
-      expect(screen.getByText('New Project')).toBeInTheDocument();
+      expect(newProjectTitle).toBeInTheDocument();
     });
 
     // Expand stats
-    const newProjectCard = screen.getByText('New Project').closest('.sc-jMpmlX');
-    if (!newProjectCard) {
-      throw new Error('New Project card not found');
-    }
-    const toggleButton = within(newProjectCard as HTMLElement).getByText(/project stats/i);
+    expect(newProjectTitle).toBeInTheDocument();
+    const toggleButton = within(newProjectTitle.parentElement as HTMLElement).getByText(
+      /▶ project stats/i
+    );
     fireEvent.click(toggleButton);
-
+    debug();
     // Check if zero stats are displayed
-    const statsSection = within(newProjectCard as HTMLElement)
+    const statsSection = within(newProjectTitle.parentElement as HTMLElement)
       .getByText('Total Time:')
-      .closest('.sc-hLyRwt');
-    if (!statsSection) {
-      throw new Error('Stats section not found');
-    }
+      .closest('[data-testid="stats-section-1"]');
+    expect(statsSection).toBeInTheDocument();
 
     expect(within(statsSection as HTMLElement).getByText('Total Time:')).toBeInTheDocument();
     expect(within(statsSection as HTMLElement).getByText('0s')).toBeInTheDocument();
