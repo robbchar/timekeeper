@@ -1,58 +1,81 @@
 import React from 'react';
 import styled from 'styled-components';
+import { Button } from '@heroui/react';
 
 interface TimerControlsProps {
-  isRunning: boolean;
-  onStart: () => void;
-  onStop: () => void;
+  isSessionActive: boolean;
+  isTimingActive: boolean;
+  elapsedTime: number;
+  onStartTimer: () => void;
+  onStopTimer: () => void;
+  onStopSession: (totalDuration?: number) => void;
 }
 
 const ControlsContainer = styled.div`
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
   margin: 2rem 0;
 `;
 
-const CircularButton = styled.button<{ isRunning: boolean }>`
-  width: 280px;
-  height: 280px;
-  border-radius: 50%;
-  border: none;
-  background-color: ${({ isRunning }) => (isRunning ? '#dc3545' : '#28a745')};
-  color: white;
-  font-size: 1.2rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-
-  &:hover {
-    transform: scale(1.05);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  }
-
-  &:active {
-    transform: scale(0.95);
-  }
+const TimerDisplay = styled.div`
+  font-size: 2.5rem;
+  font-weight: 300;
+  font-family: 'Roboto Mono', monospace;
+  color: ${({ theme }) => theme.colors.text.primary};
+  margin-top: 1rem;
 `;
 
-const TimerControls = ({ isRunning, onStart, onStop }: TimerControlsProps) => {
-  const handleClick = () => {
-    if (isRunning) {
-      onStop();
+const formatTime = (milliseconds: number): string => {
+  const totalSeconds = Math.floor(milliseconds / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return [hours, minutes, seconds].map(num => num.toString().padStart(2, '0')).join(':');
+};
+
+const TimerControls: React.FC<TimerControlsProps> = ({
+  isSessionActive,
+  isTimingActive,
+  elapsedTime,
+  onStartTimer,
+  onStopTimer,
+  onStopSession,
+}) => {
+  const handleTimerClick = () => {
+    if (isTimingActive) {
+      onStopTimer();
     } else {
-      onStart();
+      onStartTimer();
     }
   };
 
+  const buttonColor = isTimingActive
+    ? 'bg-red-500 hover:bg-red-600'
+    : 'bg-green-500 hover:bg-green-600';
+
   return (
     <ControlsContainer>
-      <CircularButton isRunning={isRunning} onClick={handleClick}>
-        {isRunning ? 'Pause' : 'Start'}
-      </CircularButton>
+      <Button
+        radius="full"
+        className={`w-[280px] h-[280px] ${buttonColor} text-white border-0`}
+        onPress={handleTimerClick}
+        isDisabled={!isSessionActive}
+      >
+        {isTimingActive ? 'Stop Timing' : 'Start Timing'}
+      </Button>
+      <TimerDisplay>{formatTime(elapsedTime)}</TimerDisplay>
+      {isSessionActive && (
+        <Button
+          className="bg-red-500"
+          radius="full"
+          onPress={() => onStopSession(Math.floor(elapsedTime / 1000))}
+        >
+          Stop Session
+        </Button>
+      )}
     </ControlsContainer>
   );
 };

@@ -1,9 +1,9 @@
 import styled from 'styled-components';
-import SessionControls from '../SessionControls';
-import { useAppContext } from '@/state/context/AppContext';
-import { useDatabase } from '@/contexts/DatabaseContext';
-import type { Session, SessionStatus } from '@/types/session';
+import SessionControls from './SessionControls';
 import React, { useEffect, useState, useCallback } from 'react';
+import { useDatabase } from '@/contexts/DatabaseContext';
+import { useProjects } from '@/contexts/ProjectsContext';
+import type { Session, SessionStatus } from '@/types/session';
 
 const PageContainer = styled.div`
   display: flex;
@@ -14,74 +14,25 @@ const PageContainer = styled.div`
   margin: 0 auto;
 `;
 
-const SessionList = styled.div`
-  background-color: ${({ theme }) => theme.colors.background.secondary};
-  border-radius: 8px;
-  padding: 1.5rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-`;
-
-const SessionListHeader = styled.h2`
-  color: ${({ theme }) => theme.colors.text.primary};
-  margin-bottom: 1rem;
-  font-size: 1.25rem;
-`;
-
-const SessionItem = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1rem;
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-
-  &:last-child {
-    border-bottom: none;
-  }
-`;
-
-const SessionInfo = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-`;
-
-const SessionProject = styled.span`
-  font-weight: 500;
-  color: ${({ theme }) => theme.colors.text.primary};
-`;
-
-const SessionNotes = styled.span`
-  color: ${({ theme }) => theme.colors.text.secondary};
-  font-size: 0.875rem;
-`;
-
-const SessionDuration = styled.span`
-  color: ${({ theme }) => theme.colors.text.secondary};
-  font-size: 0.875rem;
-`;
-
 const TimerPage = () => {
-  const { state } = useAppContext();
+  const [selectedProjectId, setSelectedProjectId] = useState<number>(-1);
+  const [isSessionsLoading, setIsSessionsLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
   const { getSessionsForProject } = useDatabase();
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Use currentProject from UI state
-  const currentProjectId = state.ui.currentProject;
-  // console.log('TimerPage: currentProjectId:', currentProjectId);
+  const { projects, isLoading: projectsLoading } = useProjects();
 
   const fetchSessions = useCallback(async () => {
-    if (!currentProjectId) {
-      // console.log('TimerPage: No currentProjectId, skipping fetch');
+    if (!selectedProjectId) {
+      console.log('SessionControls No currentProjectId, skipping fetch');
       return;
     }
-    // console.log('TimerPage: Fetching sessions for project:', currentProjectId);
-    setIsLoading(true);
+
+    setIsSessionsLoading(true);
     setError(null);
     try {
       const dbSessions = (await getSessionsForProject(
-        Number(currentProjectId)
+        Number(selectedProjectId)
       )) as unknown as Array<{
         id: number;
         projectId?: number;
@@ -100,10 +51,9 @@ const TimerPage = () => {
         updatedAt?: string;
         updated_at?: string;
       }>;
-      // console.log('TimerPage: Received sessions from database:', dbSessions);
       const mappedSessions: Session[] = dbSessions.map(s => ({
         id: s.id,
-        projectId: String(s.project_id ?? Number(currentProjectId)),
+        projectId: Number(s.project_id ?? selectedProjectId),
         startTime: new Date(s.startTime ?? s.start_time ?? new Date().toISOString()),
         endTime: (s.endTime ?? s.end_time) ? new Date(String(s.endTime ?? s.end_time)) : undefined,
         duration: typeof s.duration === 'number' ? s.duration : 0,
@@ -112,58 +62,46 @@ const TimerPage = () => {
         totalPausedTime: s.totalPausedTime ?? s.total_paused_time ?? 0,
         createdAt: new Date(s.createdAt ?? s.created_at ?? new Date().toISOString()),
         updatedAt: new Date(s.updatedAt ?? s.updated_at ?? new Date().toISOString()),
+        tags: [], // Initialize with empty array since we don't have tag data yet
       }));
-      // console.log('TimerPage: Mapped sessions:', mappedSessions);
+      console.log('SessionControls Mapped sessions:', mappedSessions);
       setSessions(mappedSessions);
     } catch {
-      // console.error('TimerPage: Error fetching sessions:', error);
+      console.log('SessionControls Error fetching sessions:', error);
       setError('Failed to load sessions');
     } finally {
-      setIsLoading(false);
+      console.log('SessionControls Finished fetching sessions');
+      setIsSessionsLoading(false);
     }
-  }, [currentProjectId, getSessionsForProject]);
-
-  // Helper to format duration in seconds to HH:MM:SS
-  const formatDuration = (seconds: number) => {
-    const h = Math.floor(seconds / 3600)
-      .toString()
-      .padStart(2, '0');
-    const m = Math.floor((seconds % 3600) / 60)
-      .toString()
-      .padStart(2, '0');
-    const s = Math.floor(seconds % 60)
-      .toString()
-      .padStart(2, '0');
-    return `${h}:${m}:${s}`;
-  };
+  }, [selectedProjectId, getSessionsForProject]);
 
   useEffect(() => {
     fetchSessions();
   }, [fetchSessions]);
-  // console.log('state.projects', state.projects);
+
+  const projectSelected = (projectId: number) => {
+    setSelectedProjectId(projectId);
+    fetchSessions();
+  };
+
+  const sessionCompleted = () => {
+    fetchSessions();
+  };
+
   return (
-    <PageContainer>
-      {/* TODO: Add onSessionChange to SessionControls when supported */}
-      <SessionControls />
-      <SessionList>
-        <SessionListHeader>Recent Sessions</SessionListHeader>
-        {isLoading && <div>Loading...</div>}
-        {error && <div style={{ color: 'red' }}>{error}</div>}
-        {!isLoading &&
-          !error &&
-          sessions.map((session: Session) => (
-            <SessionItem key={session.id}>
-              <SessionInfo>
-                <SessionProject>
-                  {state.projects.find(p => p.id === Number(session.projectId))?.name ||
-                    'Unknown Project'}
-                </SessionProject>
-                {session.notes && <SessionNotes>{session.notes}</SessionNotes>}
-              </SessionInfo>
-              <SessionDuration>{formatDuration(session.duration)}</SessionDuration>
-            </SessionItem>
-          ))}
-      </SessionList>
+    <PageContainer data-testid="timer-page">
+      {error && <div style={{ color: 'red' }}>{error}</div>}
+      {!projectsLoading && !isSessionsLoading && !error && (
+        <SessionControls
+          projects={projects}
+          sessions={sessions}
+          projectSelected={projectSelected}
+          sessionCompleted={sessionCompleted}
+          selectedProjectId={selectedProjectId}
+          isSessionsLoading={isSessionsLoading}
+          isProjectsLoading={projectsLoading}
+        />
+      )}
     </PageContainer>
   );
 };

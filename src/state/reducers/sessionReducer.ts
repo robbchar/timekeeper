@@ -1,14 +1,5 @@
-import type { Session, SessionState } from '@/types/session';
+import type { Session, SessionState, SessionAction } from '@/types/session';
 import { ActionType } from '@/types/state';
-
-export type SessionAction =
-  | { type: ActionType.CREATE_SESSION; payload: { projectId: string; notes?: string } }
-  | { type: ActionType.PAUSE_SESSION }
-  | { type: ActionType.RESUME_SESSION }
-  | { type: ActionType.END_SESSION }
-  | { type: ActionType.UPDATE_SESSION_NOTES; payload: { notes: string } }
-  | { type: ActionType.SET_ERROR; payload: string }
-  | { type: ActionType.CLEAR_ERROR };
 
 const initialState: SessionState = {
   currentSession: null,
@@ -31,13 +22,16 @@ export const sessionReducer = (
       }
 
       const newSession: Session = {
-        id: Date.now(), // Use timestamp as temporary ID until database assigns one
+        id: action.payload.sessionId,
         projectId: action.payload.projectId,
         startTime: new Date(),
         duration: 0,
         notes: action.payload.notes,
         status: 'active',
         totalPausedTime: 0,
+        tags: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
       };
 
       return {

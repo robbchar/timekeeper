@@ -2,6 +2,9 @@ import type { SessionState, Session } from './session';
 import type { Project } from './project';
 import type { Tag } from './tag';
 
+export type { Project } from './project';
+export type { Tag } from './tag';
+
 export enum Theme {
   LIGHT = 'light',
   DARK = 'dark',

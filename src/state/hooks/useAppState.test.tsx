@@ -66,7 +66,7 @@ describe('useSessions', () => {
     vi.setSystemTime(startTime);
 
     const sessionParams: CreateSessionParams = {
-      projectId: '1',
+      projectId: 1,
       notes: 'Test session',
     };
 

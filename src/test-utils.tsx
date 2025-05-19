@@ -9,6 +9,7 @@ import { DatabaseProvider } from './contexts/DatabaseContext';
 import { ProjectsProvider } from './contexts/ProjectsContext';
 import { vi, beforeEach } from 'vitest';
 import type { DatabaseAPI } from '@/types/database';
+import { HeroUIProvider } from '@heroui/react';
 
 // Mock window.database
 export const mockDatabase: DatabaseAPI = {
@@ -51,13 +52,15 @@ beforeEach(() => {
 // Create a wrapper that provides all contexts
 const AllTheProviders = ({ children }: { children: React.ReactNode }) => {
   return (
-    <AppProvider>
-      <DatabaseProvider>
-        <ProjectsProvider>
-          <ThemeProvider theme={theme}>{children}</ThemeProvider>
-        </ProjectsProvider>
-      </DatabaseProvider>
-    </AppProvider>
+    <HeroUIProvider>
+      <AppProvider>
+        <DatabaseProvider>
+          <ProjectsProvider>
+            <ThemeProvider theme={theme}>{children}</ThemeProvider>
+          </ProjectsProvider>
+        </DatabaseProvider>
+      </AppProvider>
+    </HeroUIProvider>
   );
 };
 

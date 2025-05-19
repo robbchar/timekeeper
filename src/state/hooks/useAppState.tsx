@@ -35,10 +35,11 @@ export const useSessions = () => {
     startSession: async (params: CreateSessionParams) => {
       try {
         const startTime = new Date().toISOString();
-        await createSession(Number(params.projectId), startTime, params.notes);
+        const itemId = await createSession(Number(params.projectId), startTime, params.notes);
         dispatch({
           type: ActionType.CREATE_SESSION,
           payload: {
+            sessionId: itemId,
             projectId: Number(params.projectId),
             notes: params.notes,
           },
@@ -51,15 +52,15 @@ export const useSessions = () => {
         });
       }
     },
-    stopSession: async () => {
+    stopSession: async (totalDuration: number = 0) => {
       if (!state.sessions.currentSession) return;
 
       try {
-        const endTime = new Date().toISOString();
-        const startTime = new Date(state.sessions.currentSession.startTime);
-        const duration = Math.floor((new Date(endTime).getTime() - startTime.getTime()) / 1000);
-
-        await endSession(Number(state.sessions.currentSession.id), endTime, duration);
+        await endSession(
+          Number(state.sessions.currentSession.id),
+          new Date().toISOString(),
+          totalDuration
+        );
         dispatch({ type: ActionType.END_SESSION });
       } catch (error) {
         console.error('Error stopping session:', error);

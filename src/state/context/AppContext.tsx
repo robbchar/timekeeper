@@ -1,23 +1,16 @@
 import React, { createContext, useReducer, useContext } from 'react';
 import type { ReactNode } from 'react';
-import type { Project } from '@/types/project';
-import type { Tag } from '@/types/tag';
+import type { ProjectAction } from '@/types/project';
+import type { TagAction } from '@/types/tag';
 import type { Settings, AppState } from '@/types/state';
 import { Theme, ActionType } from '@/types/state';
+import type { SessionAction } from '@/types/session';
 import { appReducer } from '@/state/reducers/appReducer';
 
 type AppAction =
-  | { type: ActionType.ADD_PROJECT; payload: Project }
-  | { type: ActionType.UPDATE_PROJECT; payload: Project }
-  | { type: ActionType.DELETE_PROJECT; payload: string }
-  | { type: ActionType.CREATE_SESSION; payload: { projectId: number; notes?: string } }
-  | { type: ActionType.PAUSE_SESSION }
-  | { type: ActionType.RESUME_SESSION }
-  | { type: ActionType.END_SESSION }
-  | { type: ActionType.UPDATE_SESSION_NOTES; payload: { notes: string } }
-  | { type: ActionType.ADD_TAG; payload: Tag }
-  | { type: ActionType.UPDATE_TAG; payload: Tag }
-  | { type: ActionType.DELETE_TAG; payload: string }
+  | ProjectAction
+  | SessionAction
+  | TagAction
   | { type: ActionType.UPDATE_SETTINGS; payload: Partial<Settings> }
   | { type: ActionType.TOGGLE_THEME }
   | { type: ActionType.SET_ERROR; payload: string | undefined }

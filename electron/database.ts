@@ -5,12 +5,12 @@ import fs from 'fs';
 import { ipcMain } from 'electron';
 import type { Project } from '../src/types/project';
 import type { SessionDatabase } from '../src/types/session';
-import type { TagDatabase, TagDatabaseResponse } from '../src/types/tag';
+import type { TagDatabase } from '../src/types/tag';
+import type { CreateResponse, UpdateResponse } from '../src/types/database-response';
 
 // Get the path to the user data directory
 const userDataPath = app.getPath('userData');
 const dbPath = path.join(userDataPath, 'timekeeper.db');
-
 // Create data directory if it doesn't exist
 if (!fs.existsSync(userDataPath)) {
   fs.mkdirSync(userDataPath, { recursive: true });
@@ -95,13 +95,13 @@ export function setupDatabaseHandlers() {
   ipcMain.handle(
     'database:createProject',
     (_, name: string, description?: string, color?: string) => {
-      return new Promise((resolve, reject) => {
+      return new Promise<CreateResponse>((resolve, reject) => {
         db.run(
           'INSERT INTO projects (name, description, color) VALUES (?, ?, ?)',
           [name, description, color],
           function (err) {
             if (err) reject(err);
-            else resolve(this.lastID);
+            else resolve({ itemId: this.lastID, changes: this.changes });
           }
         );
       });
@@ -156,13 +156,13 @@ export function setupDatabaseHandlers() {
   ipcMain.handle(
     'database:createSession',
     (_, projectId: number, startTime: string, notes?: string) => {
-      return new Promise((resolve, reject) => {
+      return new Promise<CreateResponse>((resolve, reject) => {
         db.run(
           'INSERT INTO sessions (project_id, start_time, notes) VALUES (?, ?, ?)',
           [projectId, startTime, notes],
           function (err) {
             if (err) reject(err);
-            else resolve(this.lastID);
+            else resolve({ itemId: this.lastID, changes: this.changes });
           }
         );
       });
@@ -172,13 +172,13 @@ export function setupDatabaseHandlers() {
   ipcMain.handle(
     'database:endSession',
     (_, sessionId: number, endTime: string, duration: number) => {
-      return new Promise<void>((resolve, reject) => {
+      return new Promise<UpdateResponse>((resolve, reject) => {
         db.run(
           'UPDATE sessions SET end_time = ?, duration = ? WHERE id = ?',
           [endTime, duration, sessionId],
-          err => {
+          function (err) {
             if (err) reject(err);
-            else resolve();
+            else resolve({ changes: this.changes });
           }
         );
       });
@@ -205,10 +205,10 @@ export function setupDatabaseHandlers() {
 
   // Tag operations
   ipcMain.handle('database:createTag', (_, name: string, color?: string) => {
-    return new Promise<TagDatabaseResponse>((resolve, reject) => {
+    return new Promise<CreateResponse>((resolve, reject) => {
       db.run('INSERT INTO tags (name, color) VALUES (?, ?)', [name, color], function (err) {
         if (err) reject(err);
-        else resolve({ lastInsertRowid: this.lastID, changes: this.changes });
+        else resolve({ itemId: this.lastID, changes: this.changes });
       });
     });
   });
