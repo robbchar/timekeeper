@@ -34,8 +34,8 @@ export const ProjectsProvider: React.FC<{ children: ReactNode }> = ({ children }
         description: project.description || '',
         totalTime: 0,
         sessionCount: 0,
-        createdAt: new Date(project.created_at),
-        updatedAt: new Date(project.created_at),
+        createdAt: new Date(project.createdAt),
+        updatedAt: new Date(project.createdAt),
       }));
 
       console.log('Mapped projects:', mappedProjects);

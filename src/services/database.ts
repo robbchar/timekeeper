@@ -118,11 +118,11 @@ function allAsync<T>(
 export const database: DatabaseAPI = {
   // Project operations
   createProject: async (name: string, description?: string, color?: string) => {
-    return runAsync('INSERT INTO projects (name, description, color) VALUES (?, ?, ?)', [
-      name,
-      description,
-      color,
-    ]);
+    const result = await runAsync(
+      'INSERT INTO projects (name, description, color) VALUES (?, ?, ?)',
+      [name, description, color]
+    );
+    return { ...result, itemId: result.lastInsertRowid };
   },
 
   getProjects: async () => {
@@ -139,11 +139,11 @@ export const database: DatabaseAPI = {
 
   // Session operations
   createSession: async (projectId: number, startTime: string, notes?: string) => {
-    return runAsync('INSERT INTO sessions (project_id, start_time, notes) VALUES (?, ?, ?)', [
-      projectId,
-      startTime,
-      notes,
-    ]);
+    const result = await runAsync(
+      'INSERT INTO sessions (project_id, start_time, notes) VALUES (?, ?, ?)',
+      [projectId, startTime, notes]
+    );
+    return { ...result, itemId: result.lastInsertRowid };
   },
 
   endSession: async (sessionId: number, endTime: string, duration: number) => {
@@ -179,7 +179,8 @@ export const database: DatabaseAPI = {
 
   // Tag operations
   createTag: async (name: string, color?: string) => {
-    return runAsync('INSERT INTO tags (name, color) VALUES (?, ?)', [name, color]);
+    const result = await runAsync('INSERT INTO tags (name, color) VALUES (?, ?)', [name, color]);
+    return { ...result, itemId: result.lastInsertRowid };
   },
 
   getTags: async () => {

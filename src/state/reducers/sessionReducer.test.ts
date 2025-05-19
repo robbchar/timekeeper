@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { sessionReducer } from './sessionReducer';
 import type { SessionState } from '@/types/session';
 import { ActionType } from '@/types/state';
-import type { SessionAction } from './sessionReducer';
+import type { SessionAction } from '@/types/session';
 
 describe('sessionReducer', () => {
   const initialState: SessionState = {
@@ -24,7 +24,8 @@ describe('sessionReducer', () => {
     const action: SessionAction = {
       type: ActionType.CREATE_SESSION,
       payload: {
-        projectId: 'project-1',
+        sessionId: 1,
+        projectId: 1,
         notes: 'Test session',
       },
     };
@@ -32,7 +33,7 @@ describe('sessionReducer', () => {
     const newState = sessionReducer(initialState, action);
 
     expect(newState.currentSession).toBeDefined();
-    expect(newState.currentSession?.projectId).toBe('project-1');
+    expect(newState.currentSession?.projectId).toBe(1);
     expect(newState.currentSession?.notes).toBe('Test session');
     expect(newState.currentSession?.status).toBe('active');
     expect(newState.error).toBeNull();
@@ -43,18 +44,22 @@ describe('sessionReducer', () => {
       ...initialState,
       currentSession: {
         id: 1,
-        projectId: 'project-1',
+        projectId: 1,
         startTime: new Date(),
         duration: 0,
         status: 'active',
         totalPausedTime: 0,
+        tags: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
     };
 
     const action: SessionAction = {
       type: ActionType.CREATE_SESSION,
       payload: {
-        projectId: 'project-2',
+        sessionId: 1,
+        projectId: 2,
       },
     };
 
@@ -69,11 +74,14 @@ describe('sessionReducer', () => {
       ...initialState,
       currentSession: {
         id: 1,
-        projectId: 'project-1',
+        projectId: 1,
         startTime: new Date(),
         duration: 0,
         status: 'active',
         totalPausedTime: 0,
+        tags: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
     };
 
@@ -98,12 +106,15 @@ describe('sessionReducer', () => {
       ...initialState,
       currentSession: {
         id: 1,
-        projectId: 'project-1',
+        projectId: 1,
         startTime,
         duration: 0,
         status: 'paused',
         lastPausedAt: pauseTime,
         totalPausedTime: 0,
+        tags: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
     };
 
@@ -128,11 +139,14 @@ describe('sessionReducer', () => {
       ...initialState,
       currentSession: {
         id: 1,
-        projectId: 'project-1',
+        projectId: 1,
         startTime,
         duration: 0,
         status: 'active',
         totalPausedTime: 0,
+        tags: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
     };
 
@@ -156,11 +170,14 @@ describe('sessionReducer', () => {
       ...initialState,
       currentSession: {
         id: 1,
-        projectId: 'project-1',
+        projectId: 1,
         startTime: new Date(),
         duration: 0,
         status: 'active',
         totalPausedTime: 0,
+        tags: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
     };
 

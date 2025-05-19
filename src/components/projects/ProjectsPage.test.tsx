@@ -33,8 +33,8 @@ vi.mock('@/contexts/ProjectsContext', () => {
         description: p.description || '',
         totalTime: 0,
         sessionCount: 0,
-        createdAt: new Date(p.created_at),
-        updatedAt: new Date(p.created_at),
+        createdAt: new Date(p.createdAt),
+        updatedAt: new Date(p.createdAt),
       }));
       return dbProjects;
     }),

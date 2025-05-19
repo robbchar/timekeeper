@@ -1,4 +1,4 @@
-import { ActionType } from './state';
+import { ActionType } from '@/types/state';
 
 export type SessionStatus = 'active' | 'paused' | 'completed';
 

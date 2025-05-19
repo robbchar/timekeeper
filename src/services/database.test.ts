@@ -9,7 +9,7 @@ describe('Database Service', () => {
 
   it('should create and retrieve a project', async () => {
     const result = await database.createProject('Test Project', 'Test Description', '#FF0000');
-    expect(result.lastInsertRowid).toBeDefined();
+    expect(result.itemId).toBeDefined();
 
     const projects = await database.getProjects();
     expect(projects.length).toBe(1);
@@ -20,12 +20,12 @@ describe('Database Service', () => {
 
   it('should create and end a session', async () => {
     const projectResult = await database.createProject('Test Project');
-    const projectId = projectResult.lastInsertRowid as number;
+    const projectId = projectResult.itemId as number;
     const startTime = new Date().toISOString();
 
     const sessionResult = await database.createSession(projectId, startTime, 'Test session');
-    expect(sessionResult.lastInsertRowid).toBeDefined();
-    const sessionId = sessionResult.lastInsertRowid as number;
+    expect(sessionResult.itemId).toBeDefined();
+    const sessionId = sessionResult.itemId as number;
 
     const endTime = new Date().toISOString();
     const duration = 3600; // 1 hour in seconds
@@ -43,10 +43,10 @@ describe('Database Service', () => {
 
   it('should create and retrieve tags', async () => {
     const tag1Result = await database.createTag('Test Tag', '#FF0000');
-    expect(tag1Result.lastInsertRowid).toBeDefined();
+    expect(tag1Result.itemId).toBeDefined();
 
     const tag2Result = await database.createTag('Another Tag', '#00FF00');
-    expect(tag2Result.lastInsertRowid).toBeDefined();
+    expect(tag2Result.itemId).toBeDefined();
 
     const tags = await database.getTags();
     expect(tags.length).toBe(2);

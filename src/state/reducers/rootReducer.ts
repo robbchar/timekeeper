@@ -1,7 +1,8 @@
 import { AppState, Action, Theme } from '@/types/state';
 import { ActionType } from '@/types/state';
 import { projectReducer } from './projectReducer';
-import { sessionReducer, SessionAction } from './sessionReducer';
+import { sessionReducer } from './sessionReducer';
+import type { SessionAction } from '@/types/session';
 import { tagReducer } from './tagReducer';
 import { settingsReducer } from './settingsReducer';
 import { uiReducer } from './uiReducer';
