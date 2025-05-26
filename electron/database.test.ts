@@ -1,88 +1,102 @@
 import { describe, it, beforeEach, afterEach, expect } from 'vitest';
-import Database from 'sqlite3';
-import fs from 'fs';
-import path from 'path';
-
-// Use a temporary database file for testing
-const testDbPath = path.join(__dirname, 'test-timekeeper.db');
-
-function cleanupTestDb() {
-  if (fs.existsSync(testDbPath)) {
-    fs.unlinkSync(testDbPath);
-  }
-}
+import * as sqlite3 from 'sqlite3';
+import { closeDatabase, createTablesSchema, initializeDatabase } from './database';
 
 describe('Main Process Database', () => {
-  let db: Database.Database;
+  let db: sqlite3.Database;
+  let statements: sqlite3.Statement[] = [];
 
-  beforeEach(() => {
-    cleanupTestDb();
-    db = new Database(testDbPath);
+  beforeEach(async () => {
+    db = await initializeDatabase();
+    statements = [];
     // Re-run schema creation for each test
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS projects (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        description TEXT,
-        color TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      );
-
-      CREATE TABLE IF NOT EXISTS sessions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        project_id INTEGER NOT NULL,
-        start_time DATETIME NOT NULL,
-        end_time DATETIME,
-        duration INTEGER,
-        notes TEXT,
-        FOREIGN KEY (project_id) REFERENCES projects(id)
-      );
-
-      CREATE TABLE IF NOT EXISTS tags (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL UNIQUE,
-        color TEXT
-      );
-
-      CREATE TABLE IF NOT EXISTS settings (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL
-      );
-    `);
+    await new Promise<void>((resolve, reject) => {
+      db.exec(createTablesSchema, err => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
   });
 
-  afterEach(() => {
-    db.close();
-    cleanupTestDb();
+  afterEach(async () => {
+    // Finalize all tracked statements
+    for (const stmt of statements) {
+      try {
+        stmt.finalize();
+      } catch (e) {
+        // Ignore errors from already finalized statements
+        console.error(e);
+      }
+    }
+    statements = [];
+    await closeDatabase();
   });
+
+  // Helper function to prepare statements and track them
+  function prepareStatement(sql: string): sqlite3.Statement {
+    const stmt = db.prepare(sql);
+    statements.push(stmt);
+    return stmt;
+  }
 
   describe('Projects', () => {
     it('should create and retrieve a project', () => {
-      const stmt = db.prepare('INSERT INTO projects (name, description, color) VALUES (?, ?, ?)');
-      const result = stmt.run('Test Project', 'A test project', '#ff0000');
-      expect(result.lastInsertRowid).toBeGreaterThan(0);
+      return new Promise<void>((resolve, reject) => {
+        const stmt = prepareStatement(
+          'INSERT INTO projects (name, description, color) VALUES (?, ?, ?)'
+        );
+        stmt.run('Test Project', 'A test project', '#ff0000', function (err) {
+          if (err) {
+            reject(err);
+            return;
+          }
+          const projectId = this.lastID;
+          expect(projectId).toBeGreaterThan(0);
 
-      const getStmt = db.prepare('SELECT * FROM projects WHERE id = ?');
-      const project = getStmt.get(result.lastInsertRowid) as {
-        name: string;
-        description: string;
-        color: string;
-      };
-      expect(project).toMatchObject({
-        name: 'Test Project',
-        description: 'A test project',
-        color: '#ff0000',
+          const getStmt = prepareStatement('SELECT * FROM projects WHERE id = ?');
+          getStmt.get(projectId, (err, project) => {
+            if (err) {
+              reject(err);
+              return;
+            }
+            expect(project).toMatchObject({
+              name: 'Test Project',
+              description: 'A test project',
+              color: '#ff0000',
+            });
+            resolve();
+          });
+        });
       });
     });
 
     it('should return all projects', () => {
-      db.prepare('INSERT INTO projects (name) VALUES (?)').run('Project 1');
-      db.prepare('INSERT INTO projects (name) VALUES (?)').run('Project 2');
-      const stmt = db.prepare('SELECT * FROM projects ORDER BY name');
-      const projects = stmt.all();
-      expect(projects.length).toBe(2);
-      expect((projects[0] as { name: string }).name).toBe('Project 1');
-      expect((projects[1] as { name: string }).name).toBe('Project 2');
+      return new Promise<void>((resolve, reject) => {
+        const insertStmt = prepareStatement('INSERT INTO projects (name) VALUES (?)');
+        insertStmt.run('Project 1', err => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          insertStmt.run('Project 2', err => {
+            if (err) {
+              reject(err);
+              return;
+            }
+            const stmt = prepareStatement('SELECT * FROM projects ORDER BY name');
+            stmt.all((err, projects) => {
+              if (err) {
+                reject(err);
+                return;
+              }
+              expect(projects).toHaveLength(2);
+              expect(projects[0]).toMatchObject({ name: 'Project 1' });
+              expect(projects[1]).toMatchObject({ name: 'Project 2' });
+              resolve();
+            });
+          });
+        });
+      });
     });
   });
 
@@ -90,139 +104,278 @@ describe('Main Process Database', () => {
     let projectId: number;
 
     beforeEach(() => {
-      // Create a test project for session tests
-      const result = db.prepare('INSERT INTO projects (name) VALUES (?)').run('Test Project');
-      projectId = result.lastInsertRowid as number;
+      return new Promise<void>((resolve, reject) => {
+        // Create a test project for session tests
+        const stmt = prepareStatement('INSERT INTO projects (name) VALUES (?)');
+        stmt.run('Test Project', function (err) {
+          if (err) {
+            reject(err);
+            return;
+          }
+          projectId = this.lastID;
+          resolve();
+        });
+      });
     });
 
     it('should create and retrieve a session', () => {
-      const startTime = new Date().toISOString();
-      const stmt = db.prepare(
-        'INSERT INTO sessions (project_id, start_time, notes) VALUES (?, ?, ?)'
-      );
-      const result = stmt.run(projectId, startTime, 'Test session notes');
-      expect(result.lastInsertRowid).toBeGreaterThan(0);
+      return new Promise<void>((resolve, reject) => {
+        const startTime = new Date().toISOString();
+        const stmt = prepareStatement(
+          'INSERT INTO sessions (project_id, start_time, notes) VALUES (?, ?, ?)'
+        );
+        stmt.run(projectId, startTime, 'Test session notes', function (err) {
+          if (err) {
+            reject(err);
+            return;
+          }
+          const sessionId = this.lastID;
+          expect(sessionId).toBeGreaterThan(0);
 
-      const getStmt = db.prepare('SELECT * FROM sessions WHERE id = ?');
-      const session = getStmt.get(result.lastInsertRowid) as {
-        project_id: number;
-        start_time: string;
-        notes: string;
-      };
-      expect(session).toMatchObject({
-        project_id: projectId,
-        start_time: startTime,
-        notes: 'Test session notes',
+          const getStmt = prepareStatement('SELECT * FROM sessions WHERE id = ?');
+          getStmt.get(sessionId, (err, session) => {
+            if (err) {
+              reject(err);
+              return;
+            }
+            expect(session).toMatchObject({
+              project_id: projectId,
+              start_time: startTime,
+              notes: 'Test session notes',
+            });
+            resolve();
+          });
+        });
       });
     });
 
     it('should end a session and update duration', () => {
-      const startTime = new Date().toISOString();
-      const endTime = new Date(Date.now() + 3600000).toISOString(); // 1 hour later
-      const duration = 3600; // 1 hour in seconds
+      return new Promise<void>((resolve, reject) => {
+        const startTime = new Date().toISOString();
+        const endTime = new Date(Date.now() + 3600000).toISOString(); // 1 hour later
+        const duration = 3600; // 1 hour in seconds
 
-      // Create session
-      const createResult = db
-        .prepare('INSERT INTO sessions (project_id, start_time) VALUES (?, ?)')
-        .run(projectId, startTime);
-      const sessionId = createResult.lastInsertRowid as number;
+        // Create session
+        const createStmt = prepareStatement(
+          'INSERT INTO sessions (project_id, start_time) VALUES (?, ?)'
+        );
+        createStmt.run(projectId, startTime, function (err) {
+          if (err) {
+            reject(err);
+            return;
+          }
+          const sessionId = this.lastID;
 
-      // End session
-      const updateStmt = db.prepare('UPDATE sessions SET end_time = ?, duration = ? WHERE id = ?');
-      const updateResult = updateStmt.run(endTime, duration, sessionId);
-      expect(updateResult.changes).toBe(1);
+          // End session
+          const updateStmt = prepareStatement(
+            'UPDATE sessions SET end_time = ?, duration = ? WHERE id = ?'
+          );
+          updateStmt.run(endTime, duration, sessionId, function (err) {
+            if (err) {
+              reject(err);
+              return;
+            }
+            expect(this.changes).toBe(1);
 
-      // Verify session was updated
-      const getStmt = db.prepare('SELECT * FROM sessions WHERE id = ?');
-      const session = getStmt.get(sessionId) as {
-        end_time: string;
-        duration: number;
-      };
-      expect(session).toMatchObject({
-        end_time: endTime,
-        duration: duration,
+            // Verify session was updated
+            const getStmt = prepareStatement('SELECT * FROM sessions WHERE id = ?');
+            getStmt.get(sessionId, (err, session) => {
+              if (err) {
+                reject(err);
+                return;
+              }
+              expect(session).toMatchObject({
+                end_time: endTime,
+                duration: duration,
+              });
+              resolve();
+            });
+          });
+        });
       });
     });
 
     it('should return all sessions for a project', () => {
-      const startTime1 = new Date().toISOString();
-      const startTime2 = new Date(Date.now() + 3600000).toISOString();
+      return new Promise<void>((resolve, reject) => {
+        const startTime1 = new Date().toISOString();
+        const startTime2 = new Date(Date.now() + 3600000).toISOString();
 
-      db.prepare('INSERT INTO sessions (project_id, start_time) VALUES (?, ?)').run(
-        projectId,
-        startTime1
-      );
-      db.prepare('INSERT INTO sessions (project_id, start_time) VALUES (?, ?)').run(
-        projectId,
-        startTime2
-      );
-
-      const stmt = db.prepare('SELECT * FROM sessions WHERE project_id = ? ORDER BY start_time');
-      const sessions = stmt.all(projectId);
-      expect(sessions.length).toBe(2);
-      expect((sessions[0] as { start_time: string }).start_time).toBe(startTime1);
-      expect((sessions[1] as { start_time: string }).start_time).toBe(startTime2);
+        const insertStmt = prepareStatement(
+          'INSERT INTO sessions (project_id, start_time) VALUES (?, ?)'
+        );
+        insertStmt.run(projectId, startTime1, err => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          insertStmt.run(projectId, startTime2, err => {
+            if (err) {
+              reject(err);
+              return;
+            }
+            const stmt = prepareStatement(
+              'SELECT * FROM sessions WHERE project_id = ? ORDER BY start_time'
+            );
+            stmt.all(projectId, (err, sessions) => {
+              if (err) {
+                reject(err);
+                return;
+              }
+              expect(sessions).toHaveLength(2);
+              expect(sessions[0]).toMatchObject({ start_time: startTime1 });
+              expect(sessions[1]).toMatchObject({ start_time: startTime2 });
+              resolve();
+            });
+          });
+        });
+      });
     });
   });
 
   describe('Tags', () => {
-    it('should create and retrieve a tag', () => {
-      const stmt = db.prepare('INSERT INTO tags (name, color) VALUES (?, ?)');
-      const result = stmt.run('Urgent', '#ff0000');
-      expect(result.lastInsertRowid).toBeGreaterThan(0);
+    it('should return all tags', () => {
+      return new Promise<void>((resolve, reject) => {
+        const insertStmt = prepareStatement('INSERT INTO tags (name) VALUES (?)');
+        insertStmt.run('Tag1', err => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          insertStmt.run('Tag2', err => {
+            if (err) {
+              reject(err);
+              return;
+            }
+            const stmt = prepareStatement('SELECT * FROM tags ORDER BY name');
+            stmt.all((err, tags) => {
+              if (err) {
+                reject(err);
+                return;
+              }
+              expect(tags).toHaveLength(2);
+              expect(tags[0]).toMatchObject({ name: 'Tag1' });
+              expect(tags[1]).toMatchObject({ name: 'Tag2' });
+              resolve();
+            });
+          });
+        });
+      });
+    });
 
-      const getStmt = db.prepare('SELECT * FROM tags WHERE id = ?');
-      const tag = getStmt.get(result.lastInsertRowid) as {
-        name: string;
-        color: string;
-      };
-      expect(tag).toMatchObject({
-        name: 'Urgent',
-        color: '#ff0000',
+    it('should create and retrieve a tag', () => {
+      return new Promise<void>((resolve, reject) => {
+        const stmt = prepareStatement('INSERT INTO tags (name, color) VALUES (?, ?)');
+        stmt.run('Urgent', '#ff0000', function (err) {
+          if (err) {
+            reject(err);
+            return;
+          }
+          const tagId = this.lastID;
+          expect(tagId).toBeGreaterThan(0);
+
+          const getStmt = prepareStatement('SELECT * FROM tags WHERE id = ?');
+          getStmt.get(tagId, (err, tag) => {
+            if (err) {
+              reject(err);
+              return;
+            }
+            expect(tag).toMatchObject({
+              name: 'Urgent',
+              color: '#ff0000',
+            });
+            resolve();
+          });
+        });
       });
     });
 
     it('should not allow duplicate tag names', () => {
-      db.prepare('INSERT INTO tags (name) VALUES (?)').run('UniqueTag');
-      expect(() => {
-        db.prepare('INSERT INTO tags (name) VALUES (?)').run('UniqueTag');
-      }).toThrow();
-    });
-
-    it('should return all tags', () => {
-      db.prepare('INSERT INTO tags (name) VALUES (?)').run('Tag1');
-      db.prepare('INSERT INTO tags (name) VALUES (?)').run('Tag2');
-      const stmt = db.prepare('SELECT * FROM tags ORDER BY name');
-      const tags = stmt.all();
-      expect(tags.length).toBe(2);
-      expect((tags[0] as { name: string }).name).toBe('Tag1');
-      expect((tags[1] as { name: string }).name).toBe('Tag2');
+      return new Promise<void>((resolve, reject) => {
+        const stmt = prepareStatement('INSERT INTO tags (name) VALUES (?)');
+        stmt.run('UniqueTag', err => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          // Try to insert the same tag again
+          const duplicateStmt = prepareStatement('INSERT INTO tags (name) VALUES (?)');
+          duplicateStmt.run('UniqueTag', err => {
+            expect(err).toBeTruthy();
+            expect(err?.message).toContain('UNIQUE constraint failed');
+            resolve();
+          });
+        });
+      });
     });
   });
 
   describe('Settings', () => {
     it('should set and get a setting', () => {
-      const stmt = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)');
-      stmt.run('theme', 'dark');
-      const getStmt = db.prepare('SELECT value FROM settings WHERE key = ?');
-      const result = getStmt.get('theme') as { value: string };
-      expect(result.value).toBe('dark');
+      return new Promise<void>((resolve, reject) => {
+        const stmt = prepareStatement('INSERT INTO settings (key, value) VALUES (?, ?)');
+        stmt.run('theme', 'dark', err => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          const getStmt = prepareStatement('SELECT value FROM settings WHERE key = ?');
+          getStmt.get('theme', (err, result) => {
+            if (err) {
+              reject(err);
+              return;
+            }
+            expect((result as { value: string }).value).toBe('dark');
+            resolve();
+          });
+        });
+      });
     });
 
     it('should update a setting', () => {
-      db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('timer', '25');
-      const updateStmt = db.prepare('UPDATE settings SET value = ? WHERE key = ?');
-      const updateResult = updateStmt.run('30', 'timer');
-      expect(updateResult.changes).toBe(1);
-      const getStmt = db.prepare('SELECT value FROM settings WHERE key = ?');
-      const result = getStmt.get('timer') as { value: string };
-      expect(result.value).toBe('30');
+      return new Promise<void>((resolve, reject) => {
+        // First insert the setting
+        const insertStmt = prepareStatement('INSERT INTO settings (key, value) VALUES (?, ?)');
+        insertStmt.run('timer', '25', err => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          // Then update it
+          const updateStmt = prepareStatement('UPDATE settings SET value = ? WHERE key = ?');
+          updateStmt.run('30', 'timer', function (err) {
+            if (err) {
+              reject(err);
+              return;
+            }
+            expect(this.changes).toBe(1);
+
+            // Verify the update
+            const getStmt = prepareStatement('SELECT value FROM settings WHERE key = ?');
+            getStmt.get('timer', (err, result) => {
+              if (err) {
+                reject(err);
+                return;
+              }
+              expect(result).toMatchObject({ value: '30' });
+              resolve();
+            });
+          });
+        });
+      });
     });
 
     it('should return undefined for non-existent setting', () => {
-      const getStmt = db.prepare('SELECT value FROM settings WHERE key = ?');
-      const result = getStmt.get('nonexistent');
-      expect(result).toBeUndefined();
+      return new Promise<void>((resolve, reject) => {
+        const getStmt = prepareStatement('SELECT value FROM settings WHERE key = ?');
+        getStmt.get('nonexistent', (err, result) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          expect(result).toBeUndefined();
+          resolve();
+        });
+      });
     });
   });
 });

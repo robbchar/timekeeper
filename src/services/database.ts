@@ -1,81 +1,8 @@
-import sqlite3 from 'sqlite3';
-import path from 'path';
-import { app } from 'electron';
-import fs from 'fs';
 import type { DatabaseAPI } from '@/types/database';
-
-// Get the path to the user data directory
-const userDataPath = app.getPath('userData');
-const dbPath = path.join(userDataPath, 'timekeeper.db');
-
-// Create data directory if it doesn't exist
-if (!fs.existsSync(userDataPath)) {
-  fs.mkdirSync(userDataPath, { recursive: true });
-}
+import { initializeDatabase } from '../../electron/database';
 
 // Initialize database
-const db = new sqlite3.Database(dbPath);
-
-// Enable foreign keys
-db.run('PRAGMA foreign_keys = ON');
-
-// Create tables if they don't exist
-function initializeDatabase() {
-  // Projects table
-  db.run(`
-    CREATE TABLE IF NOT EXISTS projects (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      description TEXT,
-      color TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  // Sessions table
-  db.run(`
-    CREATE TABLE IF NOT EXISTS sessions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      project_id INTEGER NOT NULL,
-      start_time DATETIME NOT NULL,
-      end_time DATETIME,
-      duration INTEGER,
-      notes TEXT,
-      FOREIGN KEY (project_id) REFERENCES projects(id)
-    )
-  `);
-
-  // Tags table
-  db.run(`
-    CREATE TABLE IF NOT EXISTS tags (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL UNIQUE,
-      color TEXT
-    )
-  `);
-
-  // Session tags junction table
-  db.run(`
-    CREATE TABLE IF NOT EXISTS session_tags (
-      session_id INTEGER NOT NULL,
-      tag_id INTEGER NOT NULL,
-      PRIMARY KEY (session_id, tag_id),
-      FOREIGN KEY (session_id) REFERENCES sessions(id),
-      FOREIGN KEY (tag_id) REFERENCES tags(id)
-    )
-  `);
-
-  // Settings table
-  db.run(`
-    CREATE TABLE IF NOT EXISTS settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    )
-  `);
-}
-
-// Initialize the database
-initializeDatabase();
+const db = await initializeDatabase();
 
 // Helper function to promisify database operations
 function runAsync(

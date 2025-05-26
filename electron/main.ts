@@ -11,8 +11,7 @@ async function createWindow() {
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
     },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as any); // TODO: Fix type issue with BrowserWindow options - current Electron types are out of sync with actual API
+  });
 
   // In development, load from Vite dev server
   if (process.env.NODE_ENV === 'development') {

@@ -1,25 +1,55 @@
 import * as sqlite3 from 'sqlite3';
-import path from 'path';
-import { app } from 'electron';
-import fs from 'fs';
 import { ipcMain } from 'electron';
 import type { Project } from '../src/types/project';
 import type { SessionDatabase } from '../src/types/session';
 import type { TagDatabase } from '../src/types/tag';
 import type { CreateResponse, UpdateResponse } from '../src/types/database-response';
+import { getDatabaseConfig } from '../src/utils/database-config';
 
-// Get the path to the user data directory
-const userDataPath = app.getPath('userData');
-const dbPath = path.join(userDataPath, 'timekeeper.db');
-// Create data directory if it doesn't exist
-if (!fs.existsSync(userDataPath)) {
-  fs.mkdirSync(userDataPath, { recursive: true });
-}
+const { dbPath } = getDatabaseConfig();
 
 let db: sqlite3.Database;
+export const createTablesSchema = `
+    CREATE TABLE IF NOT EXISTS projects (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      color TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id INTEGER NOT NULL,
+      start_time DATETIME NOT NULL,
+      end_time DATETIME,
+      duration INTEGER,
+      notes TEXT,
+      FOREIGN KEY (project_id) REFERENCES projects(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS tags (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      color TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS session_tags (
+      session_id INTEGER NOT NULL,
+      tag_id INTEGER NOT NULL,
+      PRIMARY KEY (session_id, tag_id),
+      FOREIGN KEY (session_id) REFERENCES sessions(id),
+      FOREIGN KEY (tag_id) REFERENCES tags(id)
+    );
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+  `;
 
 // Initialize database with proper error handling
-export function initializeDatabase(): Promise<void> {
+export function initializeDatabase(): Promise<sqlite3.Database> {
   return new Promise((resolve, reject) => {
     db = new sqlite3.Database(dbPath, (err: Error | null) => {
       if (err) {
@@ -37,54 +67,25 @@ export function initializeDatabase(): Promise<void> {
         }
 
         // Create tables if they don't exist
-        const createTables = `
-          CREATE TABLE IF NOT EXISTS projects (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            description TEXT,
-            color TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-          );
-
-          CREATE TABLE IF NOT EXISTS sessions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            project_id INTEGER NOT NULL,
-            start_time DATETIME NOT NULL,
-            end_time DATETIME,
-            duration INTEGER,
-            notes TEXT,
-            FOREIGN KEY (project_id) REFERENCES projects(id)
-          );
-
-          CREATE TABLE IF NOT EXISTS tags (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL UNIQUE,
-            color TEXT
-          );
-
-          CREATE TABLE IF NOT EXISTS session_tags (
-            session_id INTEGER NOT NULL,
-            tag_id INTEGER NOT NULL,
-            PRIMARY KEY (session_id, tag_id),
-            FOREIGN KEY (session_id) REFERENCES sessions(id),
-            FOREIGN KEY (tag_id) REFERENCES tags(id)
-          );
-
-          CREATE TABLE IF NOT EXISTS settings (
-            key TEXT PRIMARY KEY,
-            value TEXT NOT NULL
-          );
-        `;
-
-        db.exec(createTables, err => {
+        console.log('Creating tables...');
+        db.exec(createTablesSchema, err => {
           if (err) {
             console.error('Failed to create tables:', err);
             reject(err);
             return;
           }
-          resolve();
+          resolve(db);
         });
       });
+    });
+  });
+}
+
+export async function closeDatabase() {
+  await new Promise<void>((resolve, reject) => {
+    db.close(err => {
+      if (err) reject(err);
+      else resolve();
     });
   });
 }
