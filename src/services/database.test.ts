@@ -1,10 +1,25 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { database } from './database';
+import * as sqlite3 from 'sqlite3';
+import { closeDatabase, createTablesSchema, initializeDatabase } from '../../electron/database';
 
 describe('Database Service', () => {
-  beforeEach(() => {
-    // Reset database before each test
-    database.reset();
+  let db: sqlite3.Database;
+
+  beforeEach(async () => {
+    db = await initializeDatabase();
+    // Re-run schema creation for each test
+    await new Promise<void>((resolve, reject) => {
+      db.exec(createTablesSchema, err => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  });
+
+  afterEach(async () => {
+    // Then close the database
+    await closeDatabase();
   });
 
   it('should create and retrieve a project', async () => {

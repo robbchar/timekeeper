@@ -26,7 +26,7 @@ export default defineConfig({
       },
     ]),
   ],
-  base: process.env.ELECTRON ? './' : '/',
+  base: './',
   build: {
     outDir: 'dist',
     emptyOutDir: true,
