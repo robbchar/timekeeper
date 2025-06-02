@@ -5,6 +5,7 @@ import { useProjects } from '@/contexts/ProjectsContext';
 import type { Project } from '@/types/project';
 import { formatDuration } from '@/utils/time';
 import { Button } from '@heroui/react';
+import { ConfirmModal } from '@/components/ConfirmModal';
 
 const PageContainer = styled.div`
   padding: 2rem;
@@ -63,26 +64,6 @@ const ProjectActions = styled.div`
   margin-top: 1rem;
 `;
 
-const Modal = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`;
-
-const ModalContent = styled.div`
-  background: ${({ theme }) => theme.colors.background.primary};
-  padding: 2rem;
-  border-radius: 0.5rem;
-  width: 100%;
-  max-width: 500px;
-`;
-
 const Form = styled.form`
   display: flex;
   flex-direction: column;
@@ -106,12 +87,6 @@ const ButtonGroup = styled.div`
   gap: 1rem;
   justify-content: flex-end;
   margin-top: 1rem;
-`;
-
-const ModalTitle = styled.h2`
-  color: ${({ theme }) => theme.colors.text.primary};
-  margin-bottom: 1.5rem;
-  font-size: 1.5rem;
 `;
 
 const ErrorMessage = styled.p`
@@ -156,6 +131,32 @@ const StatRow = styled.div`
   font-size: 0.9rem;
 `;
 
+const Modal = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`;
+
+const ModalContent = styled.div`
+  background: ${({ theme }) => theme.colors.background.primary};
+  padding: 2rem;
+  border-radius: 0.5rem;
+  width: 100%;
+  max-width: 500px;
+`;
+
+const ModalTitle = styled.h2`
+  color: ${({ theme }) => theme.colors.text.primary};
+  margin-bottom: 1.5rem;
+  font-size: 1.5rem;
+`;
+
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -164,41 +165,6 @@ interface ModalProps {
   title: string;
   existingProjects?: Project[];
 }
-
-interface ConfirmModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  title: string;
-  message: string;
-}
-
-const ConfirmModal: React.FC<ConfirmModalProps> = ({
-  isOpen,
-  onClose,
-  onConfirm,
-  title,
-  message,
-}) => {
-  if (!isOpen) return null;
-
-  return (
-    <Modal onClick={onClose} role="dialog" aria-modal="true">
-      <ModalContent onClick={e => e.stopPropagation()}>
-        <ModalTitle>{title}</ModalTitle>
-        <p>{message}</p>
-        <ButtonGroup>
-          <Button color="primary" onPress={onClose}>
-            Cancel
-          </Button>
-          <Button color="primary" onPress={onConfirm}>
-            Delete
-          </Button>
-        </ButtonGroup>
-      </ModalContent>
-    </Modal>
-  );
-};
 
 const ProjectModal: React.FC<ModalProps> = ({
   isOpen,

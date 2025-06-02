@@ -12,12 +12,13 @@ interface DatabaseContextType {
   deleteProject: (id: number) => Promise<{ changes: number }>;
   updateProject: (id: number, name: string) => Promise<{ changes: number }>;
   // Sessions
-  createSession: (projectId: number, startTime: string, notes?: string) => Promise<number>;
-  endSession: (
-    sessionId: number,
-    endTime: string,
-    duration: number
-  ) => Promise<{ changes: number }>;
+  createSession: (
+    projectId: number,
+    startTime: string,
+    notes?: string,
+    tags?: number[]
+  ) => Promise<number>;
+  endSession: (sessionId: number, duration: number) => Promise<{ changes: number }>;
   getSessionsForProject: (projectId: number) => Promise<Session[]>;
   // Tags
   createTag: (name: string, color?: string) => Promise<number>;
@@ -93,21 +94,18 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   const createSession = async (
     projectId: number,
     startTime: string,
-    notes?: string
+    notes?: string,
+    tags?: number[]
   ): Promise<number> => {
-    console.log('Creating session:', { projectId, startTime, notes });
-    const result = await window.database.createSession(projectId, startTime, notes);
+    console.log('Creating session:', { projectId, startTime, notes, tags });
+    const result = await window.database.createSession(projectId, startTime, notes, tags);
     console.log('Create session result:', result);
     return result.itemId;
   };
 
-  const endSession = async (
-    sessionId: number,
-    endTime: string,
-    duration: number
-  ): Promise<{ changes: number }> => {
-    console.log('Ending session:', { sessionId, endTime, duration });
-    const result = await window.database.endSession(sessionId, endTime, duration);
+  const endSession = async (sessionId: number, duration: number): Promise<{ changes: number }> => {
+    console.log('Ending session:', { sessionId, duration });
+    const result = await window.database.endSession(sessionId, duration);
     return { changes: result.changes };
   };
 
@@ -115,21 +113,20 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
     console.log('Getting sessions for project:', projectId);
     const sessions = await window.database.getSessions();
     console.log('All sessions:', sessions);
-    return sessions
-      .filter(s => s.project_id === projectId)
-      .map(s => ({
-        id: s.id,
-        projectId: s.project_id,
-        startTime: new Date(s.start_time),
-        endTime: s.end_time ? new Date(s.end_time) : undefined,
-        duration: s.duration ?? 0,
-        notes: s.notes ?? '',
-        status: 'completed' as const,
-        totalPausedTime: 0,
-        tags: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }));
+    return sessions.filter(s => s.projectId === projectId);
+    // .map(s => ({
+    //   id: s.id,
+    //   projectId: s.project_id,
+    //   startTime: new Date(s.start_time),
+    //   endTime: s.end_time ? new Date(s.end_time) : undefined,
+    //   duration: s.duration ?? 0,
+    //   notes: s.notes ?? '',
+    //   status: 'completed' as const,
+    //   totalPausedTime: 0,
+    //   tags: [],
+    //   createdAt: new Date(),
+    //   updatedAt: new Date(),
+    // }));
   };
 
   // Tags

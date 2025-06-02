@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useDatabase } from '@/contexts/DatabaseContext';
 import { useProjects } from '@/contexts/ProjectsContext';
 import type { Session, SessionStatus } from '@/types/session';
+import { useSessions } from '@/state/hooks/useAppState';
 
 const PageContainer = styled.div`
   display: flex;
@@ -19,11 +20,11 @@ const TimerPage = () => {
   const [isSessionsLoading, setIsSessionsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const { getSessionsForProject } = useDatabase();
-  const [sessions, setSessions] = useState<Session[]>([]);
   const { projects, isLoading: projectsLoading } = useProjects();
+  const { sessions, setSessions } = useSessions();
 
   const fetchSessions = useCallback(async () => {
-    if (!selectedProjectId) {
+    if (!selectedProjectId || selectedProjectId <= 0) {
       console.log('SessionControls No currentProjectId, skipping fetch');
       return;
     }
@@ -31,9 +32,7 @@ const TimerPage = () => {
     setIsSessionsLoading(true);
     setError(null);
     try {
-      const dbSessions = (await getSessionsForProject(
-        Number(selectedProjectId)
-      )) as unknown as Array<{
+      const dbSessions = (await getSessionsForProject(selectedProjectId)) as unknown as Array<{
         id: number;
         projectId?: number;
         project_id?: number;
@@ -73,7 +72,7 @@ const TimerPage = () => {
       console.log('SessionControls Finished fetching sessions');
       setIsSessionsLoading(false);
     }
-  }, [selectedProjectId, getSessionsForProject]);
+  }, [selectedProjectId, getSessionsForProject, setSessions, error]);
 
   useEffect(() => {
     fetchSessions();
