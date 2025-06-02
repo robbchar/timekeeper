@@ -1,37 +1,19 @@
-import { Tag, Action, ActionType } from '@/types/state';
+import type { Tag } from '@/types/state';
+import type { Action } from '@/types/state';
+import { ActionType } from '@/types/state';
 
-export const tagReducer = (state: Tag[] = [], action: Action): Tag[] => {
+export const tagReducer = (state: Tag[], action: Action): Tag[] => {
   switch (action.type) {
-    case ActionType.ADD_TAG: {
-      if (
-        !action.payload ||
-        typeof action.payload === 'string' ||
-        typeof action.payload === 'boolean'
-      ) {
-        return state;
-      }
+    case ActionType.ADD_TAG:
       return [...state, action.payload as Tag];
-    }
 
-    case ActionType.UPDATE_TAG: {
-      if (
-        !action.payload ||
-        typeof action.payload === 'string' ||
-        typeof action.payload === 'boolean'
-      ) {
-        return state;
-      }
-      const updatedTag = action.payload as Partial<Tag>;
-      if (!updatedTag.id) return state;
+    case ActionType.UPDATE_TAG:
       return state.map(tag =>
-        tag.id === updatedTag.id ? { ...tag, ...updatedTag, updatedAt: new Date() } : tag
+        tag.id === (action.payload as Tag).id ? (action.payload as Tag) : tag
       );
-    }
 
-    case ActionType.DELETE_TAG: {
-      if (typeof action.payload !== 'string') return state;
-      return state.filter(tag => tag.id !== Number(action.payload));
-    }
+    case ActionType.DELETE_TAG:
+      return state.filter(tag => tag.id !== action.payload);
 
     default:
       return state;

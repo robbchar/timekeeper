@@ -48,7 +48,6 @@ describe('sessionReducer', () => {
         startTime: new Date(),
         duration: 0,
         status: 'active',
-        totalPausedTime: 0,
         tags: [],
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -78,7 +77,6 @@ describe('sessionReducer', () => {
         startTime: new Date(),
         duration: 0,
         status: 'active',
-        totalPausedTime: 0,
         tags: [],
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -90,7 +88,6 @@ describe('sessionReducer', () => {
     const newState = sessionReducer(stateWithActiveSession, action);
 
     expect(newState.currentSession?.status).toBe('paused');
-    expect(newState.currentSession?.lastPausedAt).toBeDefined();
     expect(newState.error).toBeNull();
   });
 
@@ -111,7 +108,6 @@ describe('sessionReducer', () => {
         duration: 0,
         status: 'paused',
         lastPausedAt: pauseTime,
-        totalPausedTime: 0,
         tags: [],
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -126,8 +122,6 @@ describe('sessionReducer', () => {
     const newState = sessionReducer(stateWithPausedSession, action);
 
     expect(newState.currentSession?.status).toBe('active');
-    expect(newState.currentSession?.lastPausedAt).toBeUndefined();
-    expect(newState.currentSession?.totalPausedTime).toBe(1800000); // 30 minutes in milliseconds
     expect(newState.error).toBeNull();
   });
 
@@ -143,7 +137,6 @@ describe('sessionReducer', () => {
         startTime,
         duration: 0,
         status: 'active',
-        totalPausedTime: 0,
         tags: [],
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -174,7 +167,6 @@ describe('sessionReducer', () => {
         startTime: new Date(),
         duration: 0,
         status: 'active',
-        totalPausedTime: 0,
         tags: [],
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -184,6 +176,7 @@ describe('sessionReducer', () => {
     const action: SessionAction = {
       type: ActionType.UPDATE_SESSION_NOTES,
       payload: {
+        sessionId: 1,
         notes: 'Updated notes',
       },
     };

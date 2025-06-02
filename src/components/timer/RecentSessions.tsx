@@ -204,9 +204,9 @@ const RecentSessions: React.FC<{
             <Button
               className="bg-transparent"
               isIconOnly
-              aria-label="Edit Project"
+              aria-label="Edit Session"
               onPress={() => handleEditClick(session.id)}
-              title="Edit Project"
+              title="Edit Session"
             >
               ✏️
             </Button>
@@ -214,8 +214,8 @@ const RecentSessions: React.FC<{
               className="bg-transparent"
               isIconOnly
               onPress={() => handleDeleteClick(session.id)}
-              title="Delete Project"
-              aria-label="Delete Project"
+              title="Delete Session"
+              aria-label="Delete Session"
             >
               🗑️
             </Button>

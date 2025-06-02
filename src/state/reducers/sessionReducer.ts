@@ -13,6 +13,13 @@ export const sessionReducer = (
   action: SessionAction
 ): SessionState => {
   switch (action.type) {
+    case ActionType.SET_SESSIONS:
+      return {
+        ...state,
+        sessions: action.payload as Session[],
+        error: null,
+      };
+
     case ActionType.CREATE_SESSION: {
       if (state.currentSession) {
         return {
@@ -87,7 +94,6 @@ export const sessionReducer = (
       }
 
       const endTime = new Date();
-
       const completedSession: Session = {
         ...state.currentSession,
         endTime,
@@ -119,6 +125,7 @@ export const sessionReducer = (
         error: null,
       };
     }
+
     case ActionType.UPDATE_SESSION_DURATION: {
       const session = state.sessions.find(s => s.id === action.payload.sessionId);
       if (!session) {
@@ -135,11 +142,13 @@ export const sessionReducer = (
         error: null,
       };
     }
+
     case ActionType.SET_ERROR:
       return {
         ...state,
         error: action.payload,
       };
+
     case ActionType.CLEAR_ERROR:
       return {
         ...state,
