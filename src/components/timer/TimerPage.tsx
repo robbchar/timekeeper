@@ -1,9 +1,8 @@
 import styled from 'styled-components';
 import SessionControls from './SessionControls';
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useDatabase } from '@/contexts/DatabaseContext';
 import { useProjects } from '@/contexts/ProjectsContext';
-import type { Session, SessionStatus } from '@/types/session';
 import { useSessions } from '@/state/hooks/useAppState';
 
 const PageContainer = styled.div`
@@ -32,39 +31,22 @@ const TimerPage = () => {
     setIsSessionsLoading(true);
     setError(null);
     try {
-      const dbSessions = (await getSessionsForProject(selectedProjectId)) as unknown as Array<{
-        id: number;
-        projectId?: number;
-        project_id?: number;
-        startTime?: string;
-        start_time?: string;
-        endTime?: string | null;
-        end_time?: string | null;
-        duration?: number;
-        notes?: string;
-        status?: string;
-        totalPausedTime?: number;
-        total_paused_time?: number;
-        createdAt?: string;
-        created_at?: string;
-        updatedAt?: string;
-        updated_at?: string;
-      }>;
-      const mappedSessions: Session[] = dbSessions.map(s => ({
-        id: s.id,
-        projectId: Number(s.project_id ?? selectedProjectId),
-        startTime: new Date(s.startTime ?? s.start_time ?? new Date().toISOString()),
-        endTime: (s.endTime ?? s.end_time) ? new Date(String(s.endTime ?? s.end_time)) : undefined,
-        duration: typeof s.duration === 'number' ? s.duration : 0,
-        notes: s.notes ?? '',
-        status: (s.status ?? 'completed') as SessionStatus,
-        totalPausedTime: s.totalPausedTime ?? s.total_paused_time ?? 0,
-        createdAt: new Date(s.createdAt ?? s.created_at ?? new Date().toISOString()),
-        updatedAt: new Date(s.updatedAt ?? s.updated_at ?? new Date().toISOString()),
-        tags: [], // Initialize with empty array since we don't have tag data yet
-      }));
-      console.log('SessionControls Mapped sessions:', mappedSessions);
-      setSessions(mappedSessions);
+      const dbSessions = await getSessionsForProject(selectedProjectId);
+      // const mappedSessions: Session[] = dbSessions.map(s => ({
+      //   id: s.id,
+      //   projectId: Number(s.project_id ?? selectedProjectId),
+      //   startTime: new Date(s.startTime ?? s.start_time ?? new Date().toISOString()),
+      //   endTime: (s.endTime ?? s.end_time) ? new Date(String(s.endTime ?? s.end_time)) : undefined,
+      //   duration: typeof s.duration === 'number' ? s.duration : 0,
+      //   notes: s.notes ?? '',
+      //   status: (s.status ?? 'completed') as SessionStatus,
+      //   totalPausedTime: s.totalPausedTime ?? s.total_paused_time ?? 0,
+      //   createdAt: new Date(s.createdAt ?? s.created_at ?? new Date().toISOString()),
+      //   updatedAt: new Date(s.updatedAt ?? s.updated_at ?? new Date().toISOString()),
+      //   tags: [], // Initialize with empty array since we don't have tag data yet
+      // }));
+      console.log('SessionControls Mapped sessions:', dbSessions);
+      setSessions(dbSessions);
     } catch {
       console.log('SessionControls Error fetching sessions:', error);
       setError('Failed to load sessions');
@@ -73,10 +55,6 @@ const TimerPage = () => {
       setIsSessionsLoading(false);
     }
   }, [selectedProjectId, getSessionsForProject, setSessions, error]);
-
-  useEffect(() => {
-    fetchSessions();
-  }, [fetchSessions]);
 
   const projectSelected = (projectId: number) => {
     setSelectedProjectId(projectId);

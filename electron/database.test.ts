@@ -122,7 +122,7 @@ describe('Main Process Database', () => {
       return new Promise<void>((resolve, reject) => {
         const startTime = new Date().toISOString();
         const stmt = prepareStatement(
-          'INSERT INTO sessions (project_id, start_time, notes) VALUES (?, ?, ?)'
+          'INSERT INTO sessions (projectId, startTime, notes) VALUES (?, ?, ?)'
         );
         stmt.run(projectId, startTime, 'Test session notes', function (err) {
           if (err) {
@@ -139,8 +139,8 @@ describe('Main Process Database', () => {
               return;
             }
             expect(session).toMatchObject({
-              project_id: projectId,
-              start_time: startTime,
+              projectId: projectId,
+              startTime: startTime,
               notes: 'Test session notes',
             });
             resolve();
@@ -157,7 +157,7 @@ describe('Main Process Database', () => {
 
         // Create session
         const createStmt = prepareStatement(
-          'INSERT INTO sessions (project_id, start_time) VALUES (?, ?)'
+          'INSERT INTO sessions (projectId, startTime) VALUES (?, ?)'
         );
         createStmt.run(projectId, startTime, function (err) {
           if (err) {
@@ -168,7 +168,7 @@ describe('Main Process Database', () => {
 
           // End session
           const updateStmt = prepareStatement(
-            'UPDATE sessions SET end_time = ?, duration = ? WHERE id = ?'
+            'UPDATE sessions SET endTime = ?, duration = ? WHERE id = ?'
           );
           updateStmt.run(endTime, duration, sessionId, function (err) {
             if (err) {
@@ -185,7 +185,7 @@ describe('Main Process Database', () => {
                 return;
               }
               expect(session).toMatchObject({
-                end_time: endTime,
+                endTime: endTime,
                 duration: duration,
               });
               resolve();
@@ -201,7 +201,7 @@ describe('Main Process Database', () => {
         const startTime2 = new Date(Date.now() + 3600000).toISOString();
 
         const insertStmt = prepareStatement(
-          'INSERT INTO sessions (project_id, start_time) VALUES (?, ?)'
+          'INSERT INTO sessions (projectId, startTime) VALUES (?, ?)'
         );
         insertStmt.run(projectId, startTime1, err => {
           if (err) {
@@ -214,7 +214,7 @@ describe('Main Process Database', () => {
               return;
             }
             const stmt = prepareStatement(
-              'SELECT * FROM sessions WHERE project_id = ? ORDER BY start_time'
+              'SELECT * FROM sessions WHERE projectId = ? ORDER BY startTime'
             );
             stmt.all(projectId, (err, sessions) => {
               if (err) {
@@ -222,8 +222,8 @@ describe('Main Process Database', () => {
                 return;
               }
               expect(sessions).toHaveLength(2);
-              expect(sessions[0]).toMatchObject({ start_time: startTime1 });
-              expect(sessions[1]).toMatchObject({ start_time: startTime2 });
+              expect(sessions[0]).toMatchObject({ startTime: startTime1 });
+              expect(sessions[1]).toMatchObject({ startTime: startTime2 });
               resolve();
             });
           });

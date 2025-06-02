@@ -1,7 +1,9 @@
 # Time Tracking App - Data Models
 
 ## 1. Project Model
+
 Each project will have the following attributes:
+
 - **ID**: Unique identifier for the project.
 - **Name**: Name of the project (e.g., "Client Website", "Internal Tool").
 - **Description**: Short description of what the project is about.
@@ -10,18 +12,19 @@ Each project will have the following attributes:
 
 ### Table: `projects`
 
-| Column Name     | Type        | Description                               |
-|-----------------|-------------|-------------------------------------------|
-| `id`            | INTEGER     | Primary key, auto-incremented             |
-| `name`          | TEXT        | Project name                             |
-| `description`   | TEXT        | Short description of the project         |
-| `color`         | TEXT        | Hex code for the project’s visual color  |
-| `created_at`    | DATETIME    | Timestamp when the project was created   |
+| Column Name   | Type     | Description                             |
+| ------------- | -------- | --------------------------------------- |
+| `id`          | INTEGER  | Primary key, auto-incremented           |
+| `name`        | TEXT     | Project name                            |
+| `description` | TEXT     | Short description of the project        |
+| `color`       | TEXT     | Hex code for the project’s visual color |
+| `createdAt`   | DATETIME | Timestamp when the project was created  |
 
 ---
 
 ## 2. Session Model
-A session will track the time spent on each project. It will be linked to a **Project** and will store the duration of work. 
+
+A session will track the time spent on each project. It will be linked to a **Project** and will store the duration of work.
 
 - **ID**: Unique identifier for the session.
 - **ProjectID**: The ID of the project that the session is related to.
@@ -31,17 +34,18 @@ A session will track the time spent on each project. It will be linked to a **Pr
 
 ### Table: `sessions`
 
-| Column Name     | Type        | Description                               |
-|-----------------|-------------|-------------------------------------------|
-| `id`            | INTEGER     | Primary key, auto-incremented             |
-| `project_id`    | INTEGER     | Foreign key to `projects.id`              |
-| `start_time`    | DATETIME    | Timestamp when the session started       |
-| `end_time`      | DATETIME    | Timestamp when the session ended         |
-| `duration`      | INTEGER     | Duration in seconds (or minutes)          |
+| Column Name | Type     | Description                        |
+| ----------- | -------- | ---------------------------------- |
+| `id`        | INTEGER  | Primary key, auto-incremented      |
+| `projectId` | INTEGER  | Foreign key to `projects.id`       |
+| `startTime` | DATETIME | Timestamp when the session started |
+| `endTime`   | DATETIME | Timestamp when the session ended   |
+| `duration`  | INTEGER  | Duration in seconds (or minutes)   |
 
 ---
 
 ## 3. AppState Model
+
 We can store **app-wide preferences** in the SQLite database too, such as whether the user prefers dark mode or other simple settings.
 
 - **ID**: Unique identifier for the state entry.
@@ -50,17 +54,18 @@ We can store **app-wide preferences** in the SQLite database too, such as whethe
 
 ### Table: `app_state`
 
-| Column Name     | Type        | Description                               |
-|-----------------|-------------|-------------------------------------------|
-| `id`            | INTEGER     | Primary key, auto-incremented             |
-| `key`           | TEXT        | Setting name (e.g., "dark_mode")          |
-| `value`         | TEXT        | Setting value (e.g., "true", "false")     |
+| Column Name | Type    | Description                           |
+| ----------- | ------- | ------------------------------------- |
+| `id`        | INTEGER | Primary key, auto-incremented         |
+| `key`       | TEXT    | Setting name (e.g., "dark_mode")      |
+| `value`     | TEXT    | Setting value (e.g., "true", "false") |
 
 ---
 
 ## 4. Database Structure Overview
 
 To make the SQLite database functional, the relationships between the **Project** and **Session** models are important:
+
 - **One-to-many relationship**: A project can have many sessions, but each session belongs to only one project.
 
 ### SQLite Schema
@@ -71,16 +76,16 @@ CREATE TABLE projects (
     name TEXT NOT NULL,
     description TEXT,
     color TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE sessions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    project_id INTEGER NOT NULL,
-    start_time DATETIME NOT NULL,
-    end_time DATETIME NOT NULL,
+    projectId INTEGER NOT NULL,
+    startTime DATETIME NOT NULL,
+    endTime DATETIME NOT NULL,
     duration INTEGER NOT NULL,
-    FOREIGN KEY (project_id) REFERENCES projects(id)
+    FOREIGN KEY (projectId) REFERENCES projects(id)
 );
 
 CREATE TABLE app_state (
@@ -88,3 +93,4 @@ CREATE TABLE app_state (
     key TEXT NOT NULL,
     value TEXT NOT NULL
 );
+```

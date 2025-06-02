@@ -15,17 +15,17 @@ export const createTablesSchema = `
       name TEXT NOT NULL,
       description TEXT,
       color TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS sessions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      project_id INTEGER NOT NULL,
-      start_time DATETIME NOT NULL,
-      end_time DATETIME,
+      projectId INTEGER NOT NULL,
+      startTime DATETIME NOT NULL,
+      endTime DATETIME,
       duration INTEGER,
       notes TEXT,
-      FOREIGN KEY (project_id) REFERENCES projects(id)
+      FOREIGN KEY (projectId) REFERENCES projects(id)
     );
 
     CREATE TABLE IF NOT EXISTS tags (
@@ -35,11 +35,11 @@ export const createTablesSchema = `
     );
 
     CREATE TABLE IF NOT EXISTS session_tags (
-      session_id INTEGER NOT NULL,
-      tag_id INTEGER NOT NULL,
-      PRIMARY KEY (session_id, tag_id),
-      FOREIGN KEY (session_id) REFERENCES sessions(id),
-      FOREIGN KEY (tag_id) REFERENCES tags(id)
+      sessionId INTEGER NOT NULL,
+      tagId INTEGER NOT NULL,
+      PRIMARY KEY (sessionId, tagId),
+      FOREIGN KEY (sessionId) REFERENCES sessions(id),
+      FOREIGN KEY (tagId) REFERENCES tags(id)
     );
 
     CREATE TABLE IF NOT EXISTS settings (
@@ -131,7 +131,7 @@ export function setupDatabaseHandlers() {
     return new Promise<void>((resolve, reject) => {
       db.serialize(() => {
         db.run('BEGIN TRANSACTION');
-        db.run('DELETE FROM sessions WHERE project_id = ?', [id], err => {
+        db.run('DELETE FROM sessions WHERE projectId = ?', [id], err => {
           if (err) {
             db.run('ROLLBACK');
             reject(err);
@@ -159,7 +159,7 @@ export function setupDatabaseHandlers() {
     (_, projectId: number, notes?: string, tags?: number[]) => {
       return new Promise<CreateResponse>((resolve, reject) => {
         db.run(
-          'INSERT INTO sessions (project_id, start_time, notes, tags) VALUES (?, ?, ?, ?)',
+          'INSERT INTO sessions (projectId, startTime, notes, tags) VALUES (?, ?, ?, ?)',
           [projectId, new Date().toISOString(), notes, tags ? JSON.stringify(tags) : '[]'],
           function (err) {
             if (err) reject(err);
@@ -173,7 +173,7 @@ export function setupDatabaseHandlers() {
   ipcMain.handle('database:endSession', (_, sessionId: number, duration: number) => {
     return new Promise<UpdateResponse>((resolve, reject) => {
       db.run(
-        'UPDATE sessions SET end_time = ?, duration = ? WHERE id = ?',
+        'UPDATE sessions SET endTime = ?, duration = ? WHERE id = ?',
         [new Date().toISOString(), duration, sessionId],
         function (err) {
           if (err) reject(err);
@@ -189,7 +189,7 @@ export function setupDatabaseHandlers() {
       let query = 'SELECT * FROM sessions';
       const params: string[] = [];
 
-      query += ' ORDER BY start_time DESC';
+      query += ' ORDER BY startTime DESC';
       db.all(query, params, (err, rows) => {
         if (err) reject(err);
         else resolve(rows as Session[]);
@@ -200,7 +200,7 @@ export function setupDatabaseHandlers() {
   ipcMain.handle('database:getSessionsForProject', (_, projectId: number) => {
     return new Promise<Session[]>((resolve, reject) => {
       db.all(
-        'SELECT * FROM sessions WHERE project_id = ? ORDER BY start_time DESC',
+        'SELECT * FROM sessions WHERE projectId = ? ORDER BY startTime DESC',
         [projectId],
         (err, rows) => {
           if (err) reject(err);

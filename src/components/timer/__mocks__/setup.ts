@@ -38,17 +38,17 @@ const createMockProjects = () => [
 const createMockSessions = () => [
   {
     id: 1,
-    project_id: 1,
-    start_time: '2024-03-10T10:00:00Z',
-    end_time: '2024-03-10T11:00:00Z',
+    projectId: 1,
+    startTime: '2024-03-10T10:00:00Z',
+    endTime: '2024-03-10T11:00:00Z',
     duration: 3600,
     notes: 'Test session 1',
   },
   {
     id: 2,
-    project_id: 2,
-    start_time: '2024-03-10T12:00:00Z',
-    end_time: '2024-03-10T13:30:00Z',
+    projectId: 2,
+    startTime: '2024-03-10T12:00:00Z',
+    endTime: '2024-03-10T13:30:00Z',
     duration: 5400,
     notes: 'Test session 2',
   },
@@ -120,7 +120,7 @@ const setupMockDatabase = (sessions = defaultSessions) => {
     createProject: vi.fn().mockResolvedValue(1),
     getProject: vi
       .fn()
-      .mockResolvedValue({ id: 1, name: 'Project 1', created_at: new Date().toISOString() }),
+      .mockResolvedValue({ id: 1, name: 'Project 1', createdAt: new Date().toISOString() }),
     getAllProjects: vi.fn().mockResolvedValue(defaultProjects),
     // Sessions
     createSession: vi
@@ -128,9 +128,9 @@ const setupMockDatabase = (sessions = defaultSessions) => {
       .mockImplementation((projectId: number, startTime: string, notes?: string) => {
         const newSession = {
           id: Date.now(),
-          project_id: projectId,
-          start_time: startTime,
-          end_time: '',
+          projectId: projectId,
+          startTime: startTime,
+          endTime: '',
           duration: 0,
           notes: notes || '',
         };

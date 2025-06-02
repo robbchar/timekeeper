@@ -105,7 +105,7 @@ describe('ProjectsPage', () => {
 
   it('adds a new project when submitting the form', async () => {
     // Create a variable to store our projects
-    let projects: Array<{ id: number; name: string; description: string; created_at: string }> = [];
+    let projects: Array<{ id: number; name: string; description: string; createdAt: string }> = [];
 
     // Set up both database mocks to use the same projects array
     (mockDatabase.getProjects as ReturnType<typeof vi.fn>).mockImplementation(async () => projects);
@@ -115,7 +115,7 @@ describe('ProjectsPage', () => {
           id: 1,
           name,
           description: '',
-          created_at: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
         };
         projects = [newProject];
         return newProject.id;
@@ -156,7 +156,7 @@ describe('ProjectsPage', () => {
 
   it('shows error when creating project with duplicate name', async () => {
     // Create a variable to store our projects
-    let projects: Array<{ id: number; name: string; description: string; created_at: string }> = [];
+    let projects: Array<{ id: number; name: string; description: string; createdAt: string }> = [];
 
     // Set up both database mocks to use the same projects array
     (mockDatabase.getProjects as ReturnType<typeof vi.fn>).mockImplementation(async () => projects);
@@ -170,7 +170,7 @@ describe('ProjectsPage', () => {
           id: projects.length + 1,
           name,
           description: '',
-          created_at: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
         };
         projects = [...projects, newProject];
         return newProject.id;
@@ -224,7 +224,7 @@ describe('ProjectsPage', () => {
 
   it('allows editing project name to same name', async () => {
     // Create a variable to store our projects
-    let projects: Array<{ id: number; name: string; description: string; created_at: string }> = [];
+    let projects: Array<{ id: number; name: string; description: string; createdAt: string }> = [];
 
     // Set up both database mocks to use the same projects array
     (mockDatabase.getProjects as ReturnType<typeof vi.fn>).mockImplementation(async () => projects);
@@ -234,7 +234,7 @@ describe('ProjectsPage', () => {
           id: 1,
           name,
           description: '',
-          created_at: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
         };
         projects = [newProject];
         return newProject.id;
@@ -285,7 +285,7 @@ describe('ProjectsPage', () => {
 
   it('shows error when editing project to duplicate name', async () => {
     // Create a variable to store our projects
-    let projects: Array<{ id: number; name: string; description: string; created_at: string }> = [];
+    let projects: Array<{ id: number; name: string; description: string; createdAt: string }> = [];
 
     // Set up both database mocks to use the same projects array
     (mockDatabase.getProjects as ReturnType<typeof vi.fn>).mockImplementation(async () => projects);
@@ -295,7 +295,7 @@ describe('ProjectsPage', () => {
           id: projects.length + 1,
           name,
           description: '',
-          created_at: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
         };
         projects = [...projects, newProject];
         return newProject.id;
@@ -396,7 +396,7 @@ describe('ProjectsPage', () => {
 describe('Project Stats', () => {
   it('shows stats when expanded', async () => {
     // Create a variable to store our projects
-    let projects: Array<{ id: number; name: string; description: string; created_at: string }> = [];
+    let projects: Array<{ id: number; name: string; description: string; createdAt: string }> = [];
 
     // Set up both database mocks to use the same projects array
     (mockDatabase.getProjects as ReturnType<typeof vi.fn>).mockImplementation(async () => projects);
@@ -406,7 +406,7 @@ describe('Project Stats', () => {
           id: 1,
           name,
           description: '',
-          created_at: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
         };
         projects = [newProject];
         return newProject.id;

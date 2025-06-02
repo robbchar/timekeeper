@@ -42,17 +42,15 @@ describe('Database Service', () => {
     expect(sessionResult.itemId).toBeDefined();
     const sessionId = sessionResult.itemId as number;
 
-    const endTime = new Date().toISOString();
     const duration = 3600; // 1 hour in seconds
 
-    const endResult = await database.endSession(sessionId, endTime, duration);
+    const endResult = await database.endSession(sessionId, duration);
     expect(endResult.changes).toBe(1);
 
     const sessions = await database.getSessions();
     expect(sessions.length).toBe(1);
-    expect(sessions[0]).toHaveProperty('project_id', projectId);
-    expect(sessions[0]).toHaveProperty('start_time', startTime);
-    expect(sessions[0]).toHaveProperty('end_time', endTime);
+    expect(sessions[0]).toHaveProperty('projectId', projectId);
+    expect(sessions[0]).toHaveProperty('startTime', startTime);
     expect(sessions[0]).toHaveProperty('duration', duration);
   });
 
