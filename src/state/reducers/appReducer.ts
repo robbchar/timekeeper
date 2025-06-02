@@ -1,7 +1,7 @@
 import type { AppState, Action, Project, Tag, Settings } from '@/types/state';
 import { ActionType, Theme } from '@/types/state';
 import { sessionReducer } from './sessionReducer';
-import type { SessionState, SessionAction } from '@/types/session';
+import type { SessionState, SessionAction, Session } from '@/types/session';
 
 export const appReducer = (state: AppState, action: Action): AppState => {
   switch (action.type) {
@@ -16,6 +16,16 @@ export const appReducer = (state: AppState, action: Action): AppState => {
           action as unknown as SessionAction
         ),
       };
+
+    case ActionType.SET_SESSIONS: {
+      return {
+        ...state,
+        sessions: {
+          ...state.sessions,
+          sessions: action.payload as Array<Session>,
+        },
+      };
+    }
 
     case ActionType.END_SESSION: {
       const newSessions = sessionReducer(

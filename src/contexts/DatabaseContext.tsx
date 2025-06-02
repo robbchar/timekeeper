@@ -114,19 +114,6 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
     const sessions = await window.database.getSessions();
     console.log('All sessions:', sessions);
     return sessions.filter(s => s.projectId === projectId);
-    // .map(s => ({
-    //   id: s.id,
-    //   projectId: s.project_id,
-    //   startTime: new Date(s.start_time),
-    //   endTime: s.end_time ? new Date(s.end_time) : undefined,
-    //   duration: s.duration ?? 0,
-    //   notes: s.notes ?? '',
-    //   status: 'completed' as const,
-    //   totalPausedTime: 0,
-    //   tags: [],
-    //   createdAt: new Date(),
-    //   updatedAt: new Date(),
-    // }));
   };
 
   // Tags
