@@ -44,6 +44,7 @@ export const rootReducer = (state: AppState = initialState, action: Action): App
     case ActionType.RESUME_SESSION:
     case ActionType.END_SESSION:
     case ActionType.UPDATE_SESSION_NOTES:
+    case ActionType.UPDATE_SESSION_DURATION:
     case ActionType.START_SESSION:
     case ActionType.STOP_SESSION:
     case ActionType.UPDATE_SESSION:

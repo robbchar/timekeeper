@@ -1,7 +1,7 @@
 import * as sqlite3 from 'sqlite3';
 import { ipcMain } from 'electron';
 import type { Project } from '../src/types/project';
-import type { SessionDatabase } from '../src/types/session';
+import type { Session } from '../src/types/session';
 import type { TagDatabase } from '../src/types/tag';
 import type { CreateResponse, UpdateResponse } from '../src/types/database-response';
 import { getDatabaseConfig } from '../src/utils/database-config';
@@ -156,11 +156,11 @@ export function setupDatabaseHandlers() {
   // Session operations
   ipcMain.handle(
     'database:createSession',
-    (_, projectId: number, startTime: string, notes?: string) => {
+    (_, projectId: number, notes?: string, tags?: number[]) => {
       return new Promise<CreateResponse>((resolve, reject) => {
         db.run(
-          'INSERT INTO sessions (project_id, start_time, notes) VALUES (?, ?, ?)',
-          [projectId, startTime, notes],
+          'INSERT INTO sessions (project_id, start_time, notes, tags) VALUES (?, ?, ?, ?)',
+          [projectId, new Date().toISOString(), notes, tags ? JSON.stringify(tags) : '[]'],
           function (err) {
             if (err) reject(err);
             else resolve({ itemId: this.lastID, changes: this.changes });
@@ -170,37 +170,43 @@ export function setupDatabaseHandlers() {
     }
   );
 
-  ipcMain.handle(
-    'database:endSession',
-    (_, sessionId: number, endTime: string, duration: number) => {
-      return new Promise<UpdateResponse>((resolve, reject) => {
-        db.run(
-          'UPDATE sessions SET end_time = ?, duration = ? WHERE id = ?',
-          [endTime, duration, sessionId],
-          function (err) {
-            if (err) reject(err);
-            else resolve({ changes: this.changes });
-          }
-        );
-      });
-    }
-  );
+  ipcMain.handle('database:endSession', (_, sessionId: number, duration: number) => {
+    return new Promise<UpdateResponse>((resolve, reject) => {
+      db.run(
+        'UPDATE sessions SET end_time = ?, duration = ? WHERE id = ?',
+        [new Date().toISOString(), duration, sessionId],
+        function (err) {
+          if (err) reject(err);
+          else resolve({ changes: this.changes });
+        }
+      );
+    });
+  });
 
-  ipcMain.handle('database:getSessions', (_, startDate?: string, endDate?: string) => {
-    return new Promise<SessionDatabase[]>((resolve, reject) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  ipcMain.handle('database:getSessions', _ => {
+    return new Promise<Session[]>((resolve, reject) => {
       let query = 'SELECT * FROM sessions';
       const params: string[] = [];
-
-      if (startDate && endDate) {
-        query += ' WHERE start_time BETWEEN ? AND ?';
-        params.push(startDate, endDate);
-      }
 
       query += ' ORDER BY start_time DESC';
       db.all(query, params, (err, rows) => {
         if (err) reject(err);
-        else resolve(rows as SessionDatabase[]);
+        else resolve(rows as Session[]);
       });
+    });
+  });
+
+  ipcMain.handle('database:getSessionsForProject', (_, projectId: number) => {
+    return new Promise<Session[]>((resolve, reject) => {
+      db.all(
+        'SELECT * FROM sessions WHERE project_id = ? ORDER BY start_time DESC',
+        [projectId],
+        (err, rows) => {
+          if (err) reject(err);
+          else resolve(rows as Session[]);
+        }
+      );
     });
   });
 

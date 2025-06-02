@@ -11,20 +11,9 @@ export interface Session {
   notes?: string;
   status: SessionStatus;
   lastPausedAt?: Date;
-  totalPausedTime: number; // in milliseconds
   tags: number[];
   createdAt: Date;
   updatedAt: Date;
-}
-
-// Database-specific types
-export interface SessionDatabase {
-  id: number;
-  project_id: number;
-  start_time: string;
-  end_time?: string;
-  duration?: number;
-  notes?: string;
 }
 
 export interface SessionState {
@@ -55,7 +44,12 @@ export interface EndSessionAction {
 
 export interface UpdateSessionNotesAction {
   type: ActionType.UPDATE_SESSION_NOTES;
-  payload: { notes: string };
+  payload: { sessionId: number; notes: string };
+}
+
+export interface UpdateSessionDurationAction {
+  type: ActionType.UPDATE_SESSION_DURATION;
+  payload: { sessionId: number; duration: number };
 }
 
 export interface PauseSessionAction {
@@ -75,11 +69,18 @@ export interface ClearErrorAction {
   type: ActionType.CLEAR_ERROR;
 }
 
+export interface SetSessionsAction {
+  type: ActionType.SET_SESSIONS;
+  payload: Session[];
+}
+
 export type SessionAction =
   | CreateSessionAction
   | EndSessionAction
   | UpdateSessionNotesAction
+  | UpdateSessionDurationAction
   | PauseSessionAction
   | ResumeSessionAction
   | SetErrorAction
-  | ClearErrorAction;
+  | ClearErrorAction
+  | SetSessionsAction;

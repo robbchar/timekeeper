@@ -22,6 +22,7 @@ export const mockDatabase: DatabaseAPI = {
   }),
   endSession: vi.fn().mockResolvedValue(undefined),
   getSessions: vi.fn().mockResolvedValue([]),
+  getSessionsForProject: vi.fn().mockResolvedValue([]),
   createTag: vi.fn().mockResolvedValue(1),
   getTags: vi.fn().mockResolvedValue([]),
   getSetting: vi.fn().mockResolvedValue(null),

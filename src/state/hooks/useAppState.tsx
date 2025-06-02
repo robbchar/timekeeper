@@ -1,7 +1,7 @@
 import { useContext } from 'react';
 import { AppContext } from '@/state/context/AppContext';
 import type { Project, Tag, Settings } from '@/types/state';
-import type { CreateSessionParams } from '@/types/session';
+import type { CreateSessionParams, Session } from '@/types/session';
 import { ActionType } from '@/types/state';
 import { useDatabase } from '@/contexts/DatabaseContext';
 
@@ -56,11 +56,7 @@ export const useSessions = () => {
       if (!state.sessions.currentSession) return;
 
       try {
-        await endSession(
-          Number(state.sessions.currentSession.id),
-          new Date().toISOString(),
-          totalDuration
-        );
+        await endSession(Number(state.sessions.currentSession.id), totalDuration);
         dispatch({ type: ActionType.END_SESSION });
       } catch (error) {
         console.error('Error stopping session:', error);
@@ -76,8 +72,14 @@ export const useSessions = () => {
     resumeSession: () => {
       dispatch({ type: ActionType.RESUME_SESSION });
     },
-    updateSessionNotes: (notes: string) => {
-      dispatch({ type: ActionType.UPDATE_SESSION_NOTES, payload: { notes } });
+    updateSessionNotes: (sessionId: number, notes: string) => {
+      dispatch({ type: ActionType.UPDATE_SESSION_NOTES, payload: { sessionId, notes } });
+    },
+    updateSessionDuration: (sessionId: number, duration: number) => {
+      dispatch({ type: ActionType.UPDATE_SESSION_DURATION, payload: { sessionId, duration } });
+    },
+    setSessions: (sessions: Session[]) => {
+      dispatch({ type: ActionType.SET_SESSIONS, payload: sessions });
     },
   };
 };

@@ -1,5 +1,5 @@
 import type { Project } from './project';
-import type { SessionDatabase } from './session';
+import type { Session } from './session';
 import type { TagDatabase } from './tag';
 import type { CreateResponse, UpdateResponse } from './database-response';
 
@@ -11,9 +11,15 @@ export interface DatabaseAPI {
   deleteProject: (id: number) => Promise<UpdateResponse>;
   updateProject: (id: number, name: string) => Promise<UpdateResponse>;
   // Session operations
-  createSession: (projectId: number, startTime: string, notes?: string) => Promise<CreateResponse>;
-  endSession: (sessionId: number, endTime: string, duration: number) => Promise<UpdateResponse>;
-  getSessions: (startDate?: string, endDate?: string) => Promise<SessionDatabase[]>;
+  createSession: (
+    projectId: number,
+    startTime: string,
+    notes?: string,
+    tags?: number[]
+  ) => Promise<CreateResponse>;
+  endSession: (sessionId: number, duration: number) => Promise<UpdateResponse>;
+  getSessions: () => Promise<Session[]>;
+  getSessionsForProject: (projectId: number) => Promise<Session[]>;
   // Tag operations
   createTag: (name: string, color?: string) => Promise<CreateResponse>;
   getTags: () => Promise<TagDatabase[]>;

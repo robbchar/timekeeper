@@ -28,7 +28,6 @@ export const sessionReducer = (
         duration: 0,
         notes: action.payload.notes,
         status: 'active',
-        totalPausedTime: 0,
         tags: [],
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -68,17 +67,12 @@ export const sessionReducer = (
         };
       }
 
-      const pausedTime = state.currentSession.lastPausedAt
-        ? new Date().getTime() - state.currentSession.lastPausedAt.getTime()
-        : 0;
-
       return {
         ...state,
         currentSession: {
           ...state.currentSession,
           status: 'active',
           lastPausedAt: undefined,
-          totalPausedTime: state.currentSession.totalPausedTime + pausedTime,
         },
         error: null,
       };
@@ -93,15 +87,10 @@ export const sessionReducer = (
       }
 
       const endTime = new Date();
-      const duration =
-        endTime.getTime() -
-        state.currentSession.startTime.getTime() -
-        state.currentSession.totalPausedTime;
 
       const completedSession: Session = {
         ...state.currentSession,
         endTime,
-        duration,
         status: 'completed',
       };
 
@@ -114,29 +103,43 @@ export const sessionReducer = (
     }
 
     case ActionType.UPDATE_SESSION_NOTES: {
-      if (!state.currentSession) {
+      const session = state.sessions.find(s => s.id === action.payload.sessionId);
+      if (!session) {
         return {
           ...state,
-          error: 'No active session to update',
+          error: 'Session not found',
         };
       }
 
       return {
         ...state,
-        currentSession: {
-          ...state.currentSession,
-          notes: action.payload.notes,
-        },
+        sessions: state.sessions.map(s =>
+          s.id === action.payload.sessionId ? { ...s, notes: action.payload.notes } : s
+        ),
         error: null,
       };
     }
-
+    case ActionType.UPDATE_SESSION_DURATION: {
+      const session = state.sessions.find(s => s.id === action.payload.sessionId);
+      if (!session) {
+        return {
+          ...state,
+          error: 'Session not found',
+        };
+      }
+      return {
+        ...state,
+        sessions: state.sessions.map(s =>
+          s.id === action.payload.sessionId ? { ...s, duration: action.payload.duration } : s
+        ),
+        error: null,
+      };
+    }
     case ActionType.SET_ERROR:
       return {
         ...state,
         error: action.payload,
       };
-
     case ActionType.CLEAR_ERROR:
       return {
         ...state,
