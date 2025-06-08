@@ -34,11 +34,9 @@ describe('useProjects', () => {
   it('should add a project', () => {
     const { result } = renderHook(() => useProjects(), { wrapper });
     const mockProject: Project = {
-      id: 1,
+      projectId: 1,
       name: 'Test Project',
       description: 'Test Description',
-      totalTime: 0,
-      sessionCount: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
     };

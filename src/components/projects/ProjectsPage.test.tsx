@@ -10,11 +10,9 @@ import { useProjects } from '@/contexts/ProjectsContext';
 vi.mock('@/contexts/ProjectsContext', () => {
   const mockProjectsContext: {
     projects: Array<{
-      id: string;
+      projectId: number;
       name: string;
       description: string;
-      totalTime: number;
-      sessionCount: number;
       createdAt: Date;
       updatedAt: Date;
     }>;
@@ -28,11 +26,9 @@ vi.mock('@/contexts/ProjectsContext', () => {
     refreshProjects: vi.fn().mockImplementation(async () => {
       const dbProjects = await mockDatabase.getProjects();
       mockProjectsContext.projects = dbProjects.map(p => ({
-        id: p.id.toString(),
+        projectId: p.projectId,
         name: p.name,
         description: p.description || '',
-        totalTime: 0,
-        sessionCount: 0,
         createdAt: new Date(p.createdAt),
         updatedAt: new Date(p.createdAt),
       }));
@@ -363,20 +359,16 @@ describe('ProjectsPage', () => {
     const mockProjectsContext = useProjects();
     mockProjectsContext.projects = [
       {
-        id: 1,
+        projectId: 1,
         name: 'Project 1',
         description: '',
-        totalTime: 0,
-        sessionCount: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
       {
-        id: 2,
+        projectId: 2,
         name: 'Project 2',
         description: '',
-        totalTime: 0,
-        sessionCount: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -534,11 +526,9 @@ describe('Project Stats', () => {
   it('shows zero time for new projects', async () => {
     // Create a new project
     const newProject = {
-      id: '1',
+      projectId: 1,
       name: 'New Project',
       description: '',
-      totalTime: 0,
-      sessionCount: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
     };

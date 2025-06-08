@@ -5,8 +5,6 @@ export interface Project {
   name: string;
   description: string;
   color?: string;
-  totalTime: number; // in milliseconds
-  sessionCount: number;
   createdAt: Date;
   updatedAt: Date;
 }

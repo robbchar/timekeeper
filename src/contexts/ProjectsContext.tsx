@@ -32,8 +32,6 @@ export const ProjectsProvider: React.FC<{ children: ReactNode }> = ({ children }
         projectId: project.projectId,
         name: project.name,
         description: project.description || '',
-        totalTime: 0,
-        sessionCount: 0,
         createdAt: new Date(project.createdAt),
         updatedAt: new Date(project.createdAt),
       }));

@@ -6,7 +6,7 @@ import { ActionType } from '@/types/state';
 import type { Project } from '@/types/project';
 import type { Session } from '@/types/session';
 import TimerControls from './TimerControls';
-import { Textarea, Select, SelectItem, Button } from '@heroui/react';
+import { Select, SelectItem, Button } from '@heroui/react';
 import RecentSessions from './RecentSessions';
 
 const Container = styled.div`
@@ -166,34 +166,28 @@ const SessionControls: React.FC<{
             ))}
           </Select>
           {isSessionActive && notes !== '' && <input type="text" value={notes} disabled />}
-          {!isSessionsLoading && !isSessionActive && (
-            <Textarea
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              className="max-w-full bg-white"
-              placeholder="Add notes..."
-            />
-          )}
-          {!isSessionsLoading && !isSessionActive && (
-            <ButtonContainer>
-              <Button
-                onPress={handleStartSession}
-                isDisabled={selectedProjectId < 0}
-                color="primary"
-              >
-                Start Session
-              </Button>
-            </ButtonContainer>
-          )}
-          {!isSessionsLoading && isSessionActive && (
-            <TimerControls
-              isSessionActive={isSessionActive}
-              isTimingActive={isTiming}
-              elapsedTime={elapsedTime}
-              onStartTimer={handleStartTimer}
-              onStopTimer={handleStopTimer}
-              onStopSession={handleStopSession}
-            />
+          {!isSessionsLoading && !isSessionActive && selectedProjectId > 0 && (
+            <>
+              <ButtonContainer>
+                <Button
+                  onPress={handleStartSession}
+                  isDisabled={selectedProjectId < 0}
+                  color="primary"
+                >
+                  Start Session
+                </Button>
+              </ButtonContainer>
+              {isSessionActive && (
+                <TimerControls
+                  isSessionActive={isSessionActive}
+                  isTimingActive={isTiming}
+                  elapsedTime={elapsedTime}
+                  onStartTimer={handleStartTimer}
+                  onStopTimer={handleStopTimer}
+                  onStopSession={handleStopSession}
+                />
+              )}
+            </>
           )}
           {!isSessionsLoading && !isSessionActive && !isTiming && selectedProjectId > 0 && (
             <RecentSessions sessions={sessions} sessionEdited={sessionEdited} />

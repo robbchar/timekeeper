@@ -16,20 +16,16 @@ declare global {
 // Create mock data without hoisting
 const createMockProjects = () => [
   {
-    id: 1,
+    projectId: 1,
     name: 'Project 1',
     description: '',
-    totalTime: 0,
-    sessionCount: 0,
     createdAt: new Date(),
     updatedAt: new Date(),
   },
   {
-    id: 2,
+    projectId: 2,
     name: 'Project 2',
     description: '',
-    totalTime: 0,
-    sessionCount: 0,
     createdAt: new Date(),
     updatedAt: new Date(),
   },
