@@ -121,6 +121,14 @@ export const sessionReducer = (
       };
     }
 
+    case ActionType.DELETE_SESSION: {
+      return {
+        ...state,
+        sessions: state.sessions.filter(s => s.sessionId !== action.payload.sessionId),
+        error: null,
+      };
+    }
+
     case ActionType.UPDATE_SESSION_DURATION: {
       const session = state.sessions.find(s => s.sessionId === action.payload.sessionId);
       if (!session) {

@@ -32,6 +32,8 @@ contextBridge.exposeInMainWorld('database', {
   updateSessionDuration: (id: number, duration: number) =>
     ipcRenderer.invoke('database:updateSessionDuration', id, duration),
 
+  deleteSession: (id: number) => ipcRenderer.invoke('database:deleteSession', id),
+
   // Tag operations
   createTag: (name: string, color?: string) =>
     ipcRenderer.invoke('database:createTag', name, color),

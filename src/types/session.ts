@@ -51,6 +51,11 @@ export interface UpdateSessionDurationAction {
   payload: { sessionId: number; duration: number };
 }
 
+export interface DeleteSessionAction {
+  type: ActionType.DELETE_SESSION;
+  payload: { sessionId: number };
+}
+
 export interface PauseSessionAction {
   type: ActionType.PAUSE_SESSION;
 }

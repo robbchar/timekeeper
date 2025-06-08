@@ -17,6 +17,7 @@ export interface DatabaseAPI {
   getSessionsForProject: (projectId: number) => Promise<Session[]>;
   updateSessionNotes: (sessionId: number, notes?: string) => Promise<UpdateResponse>;
   updateSessionDuration: (sessionId: number, duration: number) => Promise<UpdateResponse>;
+  deleteSession: (sessionId: number) => Promise<UpdateResponse>;
   // Tag operations
   createTag: (name: string, color?: string) => Promise<CreateResponse>;
   getTags: () => Promise<TagDatabase[]>;

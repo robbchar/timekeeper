@@ -226,6 +226,15 @@ export function setupDatabaseHandlers() {
     });
   });
 
+  ipcMain.handle('database:deleteSession', (_, id: number) => {
+    return new Promise<UpdateResponse>((resolve, reject) => {
+      db.run('DELETE FROM sessions WHERE sessionId = ?', [id], function (err) {
+        if (err) reject(err);
+        else resolve({ changes: this.changes });
+      });
+    });
+  });
+
   // Tag operations
   ipcMain.handle('database:createTag', (_, name: string, color?: string) => {
     return new Promise<CreateResponse>((resolve, reject) => {

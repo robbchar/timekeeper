@@ -17,6 +17,7 @@ interface DatabaseContextType {
   updateSessionNotes: (sessionId: number, notes?: string) => Promise<{ changes: number }>;
   updateSessionDuration: (sessionId: number, duration: number) => Promise<{ changes: number }>;
   getSessionsForProject: (projectId: number) => Promise<Session[]>;
+  deleteSession: (sessionId: number) => Promise<{ changes: number }>;
   // Tags
   createTag: (name: string, color?: string) => Promise<number>;
   getAllTags: () => Promise<Tag[]>;
@@ -128,6 +129,12 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
     return { changes: result.changes };
   };
 
+  const deleteSession = async (sessionId: number): Promise<{ changes: number }> => {
+    console.log('Deleting session:', sessionId);
+    const result = await window.database.deleteSession(sessionId);
+    return { changes: result.changes };
+  };
+
   // Tags
   const createTag = async (name: string, color?: string): Promise<number> => {
     console.log('Creating tag:', { name, color });
@@ -188,6 +195,7 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
     updateSessionNotes,
     updateSessionDuration,
     getSessionsForProject,
+    deleteSession,
     createTag,
     getAllTags,
     updateTag,

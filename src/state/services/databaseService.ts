@@ -129,6 +129,15 @@ export const createDatabaseService = (database: ReturnType<typeof useDatabase>) 
             break;
           }
 
+          case ActionType.DELETE_SESSION: {
+            const { sessionId } = action.payload as { sessionId: number };
+            if (!sessionId) {
+              throw new DatabaseError('Session ID is required', oldState);
+            }
+            await database.deleteSession(sessionId);
+            break;
+          }
+
           default:
             // For actions that don't need database persistence
             return;

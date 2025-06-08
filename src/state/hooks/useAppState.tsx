@@ -174,6 +174,27 @@ export const useSessions = () => {
     setSessions: (sessions: Session[]) => {
       dispatch({ type: ActionType.SET_SESSIONS, payload: sessions });
     },
+    deleteSession: async (sessionId: number) => {
+      try {
+        await dbService.persistAction(
+          {
+            type: ActionType.DELETE_SESSION,
+            payload: { sessionId: Number(sessionId) },
+          },
+          state
+        );
+        dispatch({
+          type: ActionType.DELETE_SESSION,
+          payload: { sessionId: Number(sessionId) },
+        });
+      } catch (error) {
+        if (error instanceof DatabaseError) {
+          dispatch({ type: ActionType.SET_ERROR, payload: error.message });
+          dispatch({ type: ActionType.RESTORE_STATE, payload: error.oldState });
+        }
+        throw error;
+      }
+    },
   };
 };
 

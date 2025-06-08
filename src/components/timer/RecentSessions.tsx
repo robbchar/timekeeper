@@ -55,7 +55,7 @@ const RecentSessions: React.FC<{
   sessionEdited: () => void;
 }> = ({ sessions, sessionEdited }) => {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
-  const { updateSessionNotes, updateSessionDuration } = useSessions();
+  const { updateSessionNotes, updateSessionDuration, deleteSession } = useSessions();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const handleEditClick = (sessionId: number) => {
     setSelectedSession(sessions.find(s => s.sessionId === sessionId) || null);
@@ -63,7 +63,8 @@ const RecentSessions: React.FC<{
   };
 
   const handleDeleteClick = (sessionId: number) => {
-    console.log('delete', sessionId);
+    deleteSession(sessionId);
+    sessionEdited();
   };
 
   const handleEditSubmit = (notes: string, duration: number) => {
