@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { formatDuration } from '@/utils/time';
+import { formatDate, formatDuration } from '@/utils/time';
 import type { Session } from '@/types/session';
 import { Button } from '@heroui/react';
 import { useSessions } from '@/state/hooks/useAppState';
@@ -50,6 +50,12 @@ const SessionDuration = styled.span`
   font-size: 0.875rem;
 `;
 
+const SessionStartDate = styled.span`
+  color: ${({ theme }) => theme.colors.text.secondary};
+  font-size: 0.875rem;
+  margin-right: 1rem;
+`;
+
 const RecentSessions: React.FC<{
   sessions: Session[];
   sessionEdited: () => void;
@@ -82,6 +88,7 @@ const RecentSessions: React.FC<{
       {sessions.map((session: Session) => (
         <SessionItem key={session.sessionId}>
           <SessionInfo>
+            <SessionStartDate>{formatDate(session.startTime)}</SessionStartDate>
             <SessionNotes>{session.notes || 'No notes'}</SessionNotes>
             <SessionDuration>{formatDuration(session.duration)}</SessionDuration>
             <Button
