@@ -3,15 +3,20 @@ import { ipcMain } from 'electron';
 import type { Project } from '../src/types/project';
 import type { Session } from '../src/types/session';
 import type { TagDatabase } from '../src/types/tag';
-import type { CreateResponse, UpdateResponse } from '../src/types/database-response';
-import { getDatabaseConfig } from '../src/utils/database-config';
+import type {
+  CreateResponse,
+  UpdateResponse,
+  DeleteResponse,
+  DatabaseResponse,
+} from '../src/types/database-response';
+import { getDatabaseConfig } from './database-config';
 
 const { dbPath } = getDatabaseConfig();
 
 let db: sqlite3.Database;
 export const createTablesSchema = `
     CREATE TABLE IF NOT EXISTS projects (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      projectId INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       description TEXT,
       color TEXT,
@@ -19,7 +24,7 @@ export const createTablesSchema = `
     );
 
     CREATE TABLE IF NOT EXISTS sessions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sessionId INTEGER PRIMARY KEY AUTOINCREMENT,
       projectId INTEGER NOT NULL,
       startTime DATETIME NOT NULL,
       endTime DATETIME,
@@ -29,17 +34,9 @@ export const createTablesSchema = `
     );
 
     CREATE TABLE IF NOT EXISTS tags (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tagId INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
       color TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS session_tags (
-      sessionId INTEGER NOT NULL,
-      tagId INTEGER NOT NULL,
-      PRIMARY KEY (sessionId, tagId),
-      FOREIGN KEY (sessionId) REFERENCES sessions(id),
-      FOREIGN KEY (tagId) REFERENCES tags(id)
     );
 
     CREATE TABLE IF NOT EXISTS settings (
@@ -59,7 +56,7 @@ export function initializeDatabase(): Promise<sqlite3.Database> {
       }
 
       // Enable foreign keys
-      db.run('PRAGMA foreign_keys = ON', err => {
+      db.run('PRAGMA foreign_keys = ON', function (err) {
         if (err) {
           console.error('Failed to enable foreign keys:', err);
           reject(err);
@@ -68,7 +65,7 @@ export function initializeDatabase(): Promise<sqlite3.Database> {
 
         // Create tables if they don't exist
         console.log('Creating tables...');
-        db.exec(createTablesSchema, err => {
+        db.exec(createTablesSchema, function (err) {
           if (err) {
             console.error('Failed to create tables:', err);
             reject(err);
@@ -82,10 +79,10 @@ export function initializeDatabase(): Promise<sqlite3.Database> {
 }
 
 export async function closeDatabase() {
-  await new Promise<void>((resolve, reject) => {
-    db.close(err => {
+  await new Promise<DatabaseResponse>((resolve, reject) => {
+    db.close(function (err) {
       if (err) reject(err);
-      else resolve();
+      else resolve({ changes: 0 });
     });
   });
 }
@@ -119,33 +116,33 @@ export function setupDatabaseHandlers() {
   });
 
   ipcMain.handle('database:updateProject', (_, id: number, name: string) => {
-    return new Promise<void>((resolve, reject) => {
-      db.run('UPDATE projects SET name = ? WHERE id = ?', [name, id], err => {
+    return new Promise<UpdateResponse>((resolve, reject) => {
+      db.run('UPDATE projects SET name = ? WHERE projectId = ?', [name, id], function (err) {
         if (err) reject(err);
-        else resolve();
+        else resolve({ changes: this.changes });
       });
     });
   });
 
   ipcMain.handle('database:deleteProject', (_, id: number) => {
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<DeleteResponse>((resolve, reject) => {
       db.serialize(() => {
         db.run('BEGIN TRANSACTION');
-        db.run('DELETE FROM sessions WHERE projectId = ?', [id], err => {
+        db.run('DELETE FROM sessions WHERE projectId = ?', [id], function (err) {
           if (err) {
             db.run('ROLLBACK');
             reject(err);
             return;
           }
-          db.run('DELETE FROM projects WHERE id = ?', [id], err => {
+          db.run('DELETE FROM projects WHERE projectId = ?', [id], function (err) {
             if (err) {
               db.run('ROLLBACK');
               reject(err);
               return;
             }
-            db.run('COMMIT', err => {
+            db.run('COMMIT', function (err) {
               if (err) reject(err);
-              else resolve();
+              else resolve({ changes: this.changes });
             });
           });
         });
@@ -154,27 +151,24 @@ export function setupDatabaseHandlers() {
   });
 
   // Session operations
-  ipcMain.handle(
-    'database:createSession',
-    (_, projectId: number, notes?: string, tags?: number[]) => {
-      return new Promise<CreateResponse>((resolve, reject) => {
-        db.run(
-          'INSERT INTO sessions (projectId, startTime, notes, tags) VALUES (?, ?, ?, ?)',
-          [projectId, new Date().toISOString(), notes, tags ? JSON.stringify(tags) : '[]'],
-          function (err) {
-            if (err) reject(err);
-            else resolve({ itemId: this.lastID, changes: this.changes });
-          }
-        );
-      });
-    }
-  );
+  ipcMain.handle('database:createSession', (_, projectId: number, notes?: string) => {
+    return new Promise<CreateResponse>((resolve, reject) => {
+      db.run(
+        'INSERT INTO sessions (projectId, startTime, notes) VALUES (?, ?, ?)',
+        [projectId, new Date().toISOString(), notes],
+        function (err) {
+          if (err) reject(err);
+          else resolve({ itemId: this.lastID, changes: this.changes });
+        }
+      );
+    });
+  });
 
-  ipcMain.handle('database:endSession', (_, sessionId: number, duration: number) => {
+  ipcMain.handle('database:endSession', (_, id: number, duration: number) => {
     return new Promise<UpdateResponse>((resolve, reject) => {
       db.run(
-        'UPDATE sessions SET endTime = ?, duration = ? WHERE id = ?',
-        [new Date().toISOString(), duration, sessionId],
+        'UPDATE sessions SET endTime = ?, duration = ? WHERE sessionId = ?',
+        [new Date().toISOString(), duration, id],
         function (err) {
           if (err) reject(err);
           else resolve({ changes: this.changes });
@@ -210,6 +204,28 @@ export function setupDatabaseHandlers() {
     });
   });
 
+  ipcMain.handle('database:updateSessionNotes', (_, id: number, notes: string) => {
+    return new Promise<UpdateResponse>((resolve, reject) => {
+      db.run('UPDATE sessions SET notes = ? WHERE sessionId = ?', [notes, id], function (err) {
+        if (err) reject(err);
+        else resolve({ changes: this.changes });
+      });
+    });
+  });
+
+  ipcMain.handle('database:updateSessionDuration', (_, id: number, duration: number) => {
+    return new Promise<UpdateResponse>((resolve, reject) => {
+      db.run(
+        'UPDATE sessions SET duration = ? WHERE sessionId = ?',
+        [duration, id],
+        function (err) {
+          if (err) reject(err);
+          else resolve({ changes: this.changes });
+        }
+      );
+    });
+  });
+
   // Tag operations
   ipcMain.handle('database:createTag', (_, name: string, color?: string) => {
     return new Promise<CreateResponse>((resolve, reject) => {
@@ -240,52 +256,56 @@ export function setupDatabaseHandlers() {
   });
 
   ipcMain.handle('database:setSetting', (_, key: string, value: string) => {
-    return new Promise<void>((resolve, reject) => {
-      db.run('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)', [key, value], err => {
-        if (err) reject(err);
-        else resolve();
-      });
+    return new Promise<UpdateResponse>((resolve, reject) => {
+      db.run(
+        'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
+        [key, value],
+        function (err) {
+          if (err) reject(err);
+          else resolve({ changes: this.changes });
+        }
+      );
     });
   });
 
   // Test helper
   ipcMain.handle('database:reset', () => {
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<DeleteResponse>((resolve, reject) => {
       db.serialize(() => {
         db.run('BEGIN TRANSACTION');
-        db.run('DELETE FROM session_tags', err => {
+        db.run('DELETE FROM session_tags', function (err) {
           if (err) {
             db.run('ROLLBACK');
             reject(err);
             return;
           }
-          db.run('DELETE FROM sessions', err => {
+          db.run('DELETE FROM sessions', function (err) {
             if (err) {
               db.run('ROLLBACK');
               reject(err);
               return;
             }
-            db.run('DELETE FROM tags', err => {
+            db.run('DELETE FROM tags', function (err) {
               if (err) {
                 db.run('ROLLBACK');
                 reject(err);
                 return;
               }
-              db.run('DELETE FROM projects', err => {
+              db.run('DELETE FROM projects', function (err) {
                 if (err) {
                   db.run('ROLLBACK');
                   reject(err);
                   return;
                 }
-                db.run('DELETE FROM settings', err => {
+                db.run('DELETE FROM settings', function (err) {
                   if (err) {
                     db.run('ROLLBACK');
                     reject(err);
                     return;
                   }
-                  db.run('COMMIT', err => {
+                  db.run('COMMIT', function (err) {
                     if (err) reject(err);
-                    else resolve();
+                    else resolve({ changes: this.changes });
                   });
                 });
               });

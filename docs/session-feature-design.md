@@ -85,7 +85,6 @@ interface Session {
 3. Phase 3: Enhanced Features
    - [ ] Add notes functionality
    - [ ] Implement session editing
-   - [ ] Add session tags
    - [ ] Create session reports
 
 ## Value Proposition

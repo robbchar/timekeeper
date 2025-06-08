@@ -24,7 +24,6 @@ export enum ActionType {
   UPDATE_SESSION_NOTES = 'UPDATE_SESSION_NOTES',
   UPDATE_SESSION_DURATION = 'UPDATE_SESSION_DURATION',
   START_SESSION = 'START_SESSION',
-  STOP_SESSION = 'STOP_SESSION',
   UPDATE_SESSION = 'UPDATE_SESSION',
   DELETE_SESSION = 'DELETE_SESSION',
   SET_SESSIONS = 'SET_SESSIONS',
@@ -42,6 +41,9 @@ export enum ActionType {
   SET_LOADING = 'SET_LOADING',
   SET_ERROR = 'SET_ERROR',
   CLEAR_ERROR = 'CLEAR_ERROR',
+
+  // State management
+  RESTORE_STATE = 'RESTORE_STATE',
 }
 
 export interface Settings {
@@ -80,5 +82,6 @@ export interface Action {
     | Partial<Session>
     | Partial<Tag>
     | Partial<Settings>
-    | Partial<UIState>;
+    | Partial<UIState>
+    | AppState;
 }

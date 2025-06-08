@@ -40,6 +40,10 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
+    preserveSymlinks: true,
+  },
+  optimizeDeps: {
+    include: ['@/types/state'],
   },
   server: {
     port: 5173,

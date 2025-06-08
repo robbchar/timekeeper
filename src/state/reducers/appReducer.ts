@@ -1,14 +1,18 @@
-import type { AppState, Action } from '@/types/state';
+import type { AppState } from '@/types/state';
 import { ActionType } from '@/types/state';
 import type { SessionAction } from '@/types/session';
+import type { AppAction } from '@/state/context/AppContext';
 import { sessionReducer } from './sessionReducer';
 import { projectReducer } from './projectReducer';
 import { tagReducer } from './tagReducer';
 import { settingsReducer } from './settingsReducer';
 import { uiReducer } from './uiReducer';
 
-export const appReducer = (state: AppState, action: Action): AppState => {
+export const appReducer = (state: AppState, action: AppAction): AppState => {
   switch (action.type) {
+    case ActionType.RESTORE_STATE:
+      return action.payload as AppState;
+
     case ActionType.CREATE_SESSION:
     case ActionType.PAUSE_SESSION:
     case ActionType.RESUME_SESSION:
@@ -16,7 +20,6 @@ export const appReducer = (state: AppState, action: Action): AppState => {
     case ActionType.UPDATE_SESSION_NOTES:
     case ActionType.UPDATE_SESSION_DURATION:
     case ActionType.START_SESSION:
-    case ActionType.STOP_SESSION:
     case ActionType.UPDATE_SESSION:
     case ActionType.DELETE_SESSION:
     case ActionType.SET_SESSIONS:

@@ -7,22 +7,21 @@ import type { Tag } from '@/types/tag';
 interface DatabaseContextType {
   // Projects
   createProject: (name: string, description?: string, color?: string) => Promise<number>;
-  getProject: (id: number) => Promise<Project>;
+  getProject: (projectId: number) => Promise<Project>;
   getAllProjects: () => Promise<Project[]>;
-  deleteProject: (id: number) => Promise<{ changes: number }>;
-  updateProject: (id: number, name: string) => Promise<{ changes: number }>;
+  deleteProject: (projectId: number) => Promise<{ changes: number }>;
+  updateProject: (projectId: number, name: string) => Promise<{ changes: number }>;
   // Sessions
-  createSession: (
-    projectId: number,
-    startTime: string,
-    notes?: string,
-    tags?: number[]
-  ) => Promise<number>;
+  createSession: (sessionId: number, notes?: string) => Promise<number>;
   endSession: (sessionId: number, duration: number) => Promise<{ changes: number }>;
+  updateSessionNotes: (sessionId: number, notes?: string) => Promise<{ changes: number }>;
+  updateSessionDuration: (sessionId: number, duration: number) => Promise<{ changes: number }>;
   getSessionsForProject: (projectId: number) => Promise<Session[]>;
   // Tags
   createTag: (name: string, color?: string) => Promise<number>;
   getAllTags: () => Promise<Tag[]>;
+  updateTag: (tagId: number, name: string, color?: string) => Promise<{ changes: number }>;
+  deleteTag: (tagId: number) => Promise<{ changes: number }>;
   // Settings
   getSetting: (key: string) => Promise<string | undefined>;
   setSetting: (key: string, value: string) => Promise<{ changes: number }>;
@@ -45,13 +44,13 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
     return result.itemId;
   };
 
-  const getProject = async (id: number): Promise<Project> => {
-    console.log('Getting project:', id);
+  const getProject = async (projectId: number): Promise<Project> => {
+    console.log('Getting project:', projectId);
     const projects = await window.database.getProjects();
     console.log('All projects:', projects);
-    const project = projects.find(p => p.id === id);
+    const project = projects.find(p => p.projectId === projectId);
     if (!project) {
-      throw new Error(`Project with id ${id} not found`);
+      throw new Error(`Project with id ${projectId} not found`);
     }
     return project;
   };
@@ -68,10 +67,10 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
     }
   };
 
-  const deleteProject = async (id: number): Promise<{ changes: number }> => {
-    console.log('Deleting project:', id);
+  const deleteProject = async (projectId: number): Promise<{ changes: number }> => {
+    console.log('Deleting project:', projectId);
     try {
-      const result = await window.database.deleteProject(id);
+      const result = await window.database.deleteProject(projectId);
       return { changes: result.changes };
     } catch (error) {
       console.error('Error deleting project:', error);
@@ -79,10 +78,10 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
     }
   };
 
-  const updateProject = async (id: number, name: string): Promise<{ changes: number }> => {
-    console.log('Updating project:', { id, name });
+  const updateProject = async (projectId: number, name: string): Promise<{ changes: number }> => {
+    console.log('Updating project:', { projectId, name });
     try {
-      const result = await window.database.updateProject(id, name);
+      const result = await window.database.updateProject(projectId, name);
       return { changes: result.changes };
     } catch (error) {
       console.error('Error updating project:', error);
@@ -91,21 +90,16 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   };
 
   // Sessions
-  const createSession = async (
-    projectId: number,
-    startTime: string,
-    notes?: string,
-    tags?: number[]
-  ): Promise<number> => {
-    console.log('Creating session:', { projectId, startTime, notes, tags });
-    const result = await window.database.createSession(projectId, startTime, notes, tags);
+  const createSession = async (projectId: number, notes?: string): Promise<number> => {
+    console.log('Creating session:', { projectId, notes });
+    const result = await window.database.createSession(projectId, notes);
     console.log('Create session result:', result);
     return result.itemId;
   };
 
-  const endSession = async (sessionId: number, duration: number): Promise<{ changes: number }> => {
-    console.log('Ending session:', { sessionId, duration });
-    const result = await window.database.endSession(sessionId, duration);
+  const endSession = async (id: number, duration: number): Promise<{ changes: number }> => {
+    console.log('Ending session:', { id, duration });
+    const result = await window.database.endSession(id, duration);
     return { changes: result.changes };
   };
 
@@ -114,6 +108,24 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
     const sessions = await window.database.getSessions();
     console.log('All sessions:', sessions);
     return sessions.filter(s => s.projectId === projectId);
+  };
+
+  const updateSessionNotes = async (
+    sessionId: number,
+    notes?: string
+  ): Promise<{ changes: number }> => {
+    console.log('Updating session notes:', { sessionId, notes });
+    const result = await window.database.updateSessionNotes(sessionId, notes);
+    return { changes: result.changes };
+  };
+
+  const updateSessionDuration = async (
+    sessionId: number,
+    duration: number
+  ): Promise<{ changes: number }> => {
+    console.log('Updating session duration:', { sessionId, duration });
+    const result = await window.database.updateSessionDuration(sessionId, duration);
+    return { changes: result.changes };
   };
 
   // Tags
@@ -137,6 +149,22 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
     }));
   };
 
+  const updateTag = async (
+    tagId: number,
+    name: string,
+    color?: string
+  ): Promise<{ changes: number }> => {
+    console.log('Updating tag:', { tagId, name, color });
+    const result = await window.database.updateTag(tagId, name, color);
+    return { changes: result.changes };
+  };
+
+  const deleteTag = async (tagId: number): Promise<{ changes: number }> => {
+    console.log('Deleting tag:', tagId);
+    const result = await window.database.deleteTag(tagId);
+    return { changes: result.changes };
+  };
+
   // Settings
   const getSetting = async (key: string): Promise<string | undefined> => {
     console.log('Getting setting:', key);
@@ -157,9 +185,13 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
     updateProject,
     createSession,
     endSession,
+    updateSessionNotes,
+    updateSessionDuration,
     getSessionsForProject,
     createTag,
     getAllTags,
+    updateTag,
+    deleteTag,
     getSetting,
     setSetting,
   };

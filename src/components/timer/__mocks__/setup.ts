@@ -142,6 +142,7 @@ const setupMockDatabase = (sessions = defaultSessions) => {
     // Tags
     createTag: vi.fn().mockResolvedValue(1),
     getAllTags: vi.fn().mockResolvedValue([]),
+    deleteTag: vi.fn().mockResolvedValue({ changes: 1 }),
     // Settings
     getSetting: vi.fn().mockResolvedValue(undefined),
     setSetting: vi.fn().mockResolvedValue(undefined),

@@ -13,14 +13,12 @@ describe('RecentSessions', () => {
 
   const mockSessions: Session[] = [
     {
-      id: 1,
+      sessionId: 1,
       projectId: 1,
       startTime: new Date(),
       duration: 0,
       status: 'active',
-      totalPausedTime: 0,
       notes: 'Test notes',
-      tags: [],
       createdAt: new Date(),
       updatedAt: new Date(),
     },
@@ -29,7 +27,7 @@ describe('RecentSessions', () => {
   const renderSessions = (sessions: Session[] = mockSessions) => {
     render(
       <ThemeProvider theme={theme}>
-        <RecentSessions sessions={sessions} />
+        <RecentSessions sessions={sessions} sessionEdited={() => {}} />
       </ThemeProvider>
     );
   };

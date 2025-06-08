@@ -43,12 +43,11 @@ describe('sessionReducer', () => {
     const stateWithActiveSession: SessionState = {
       ...initialState,
       currentSession: {
-        id: 1,
+        sessionId: 1,
         projectId: 1,
         startTime: new Date(),
         duration: 0,
         status: 'active',
-        tags: [],
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -72,12 +71,11 @@ describe('sessionReducer', () => {
     const stateWithActiveSession: SessionState = {
       ...initialState,
       currentSession: {
-        id: 1,
+        sessionId: 1,
         projectId: 1,
         startTime: new Date(),
         duration: 0,
         status: 'active',
-        tags: [],
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -93,7 +91,6 @@ describe('sessionReducer', () => {
 
   it('should resume a paused session', () => {
     const startTime = new Date('2024-01-01T10:00:00');
-    const pauseTime = new Date('2024-01-01T10:30:00');
     const resumeTime = new Date('2024-01-01T11:00:00');
 
     // Set initial time
@@ -102,13 +99,11 @@ describe('sessionReducer', () => {
     const stateWithPausedSession: SessionState = {
       ...initialState,
       currentSession: {
-        id: 1,
+        sessionId: 1,
         projectId: 1,
         startTime,
         duration: 0,
         status: 'paused',
-        lastPausedAt: pauseTime,
-        tags: [],
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -132,12 +127,11 @@ describe('sessionReducer', () => {
     const stateWithActiveSession: SessionState = {
       ...initialState,
       currentSession: {
-        id: 1,
+        sessionId: 1,
         projectId: 1,
         startTime,
         duration: 0,
         status: 'active',
-        tags: [],
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -146,7 +140,10 @@ describe('sessionReducer', () => {
     // Advance time by 1 hour
     vi.advanceTimersByTime(3600000);
 
-    const action: SessionAction = { type: ActionType.END_SESSION };
+    const action: SessionAction = {
+      type: ActionType.END_SESSION,
+      payload: { sessionId: 1, duration: 3600000 },
+    };
 
     const newState = sessionReducer(stateWithActiveSession, action);
 
@@ -162,12 +159,11 @@ describe('sessionReducer', () => {
     const stateWithActiveSession: SessionState = {
       ...initialState,
       currentSession: {
-        id: 1,
+        sessionId: 1,
         projectId: 1,
         startTime: new Date(),
         duration: 0,
         status: 'active',
-        tags: [],
         createdAt: new Date(),
         updatedAt: new Date(),
       },

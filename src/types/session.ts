@@ -3,17 +3,15 @@ import { ActionType } from '@/types/state';
 export type SessionStatus = 'active' | 'paused' | 'completed';
 
 export interface Session {
-  id: number;
+  sessionId: number;
   projectId: number;
   startTime: Date;
   endTime?: Date;
   duration: number; // in milliseconds
   notes?: string;
   status: SessionStatus;
-  lastPausedAt?: Date;
-  tags: number[];
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface SessionState {
@@ -40,6 +38,7 @@ export interface CreateSessionAction {
 
 export interface EndSessionAction {
   type: ActionType.END_SESSION;
+  payload: { sessionId: number; duration: number };
 }
 
 export interface UpdateSessionNotesAction {
@@ -74,6 +73,26 @@ export interface SetSessionsAction {
   payload: Session[];
 }
 
+export interface StartSessionAction {
+  type: ActionType.START_SESSION;
+  payload: { sessionId: number; projectId: number; notes?: string };
+}
+
+export interface EndSessionAction {
+  type: ActionType.END_SESSION;
+  payload: { sessionId: number; duration: number };
+}
+
+export interface UpdateSessionAction {
+  type: ActionType.UPDATE_SESSION;
+  payload: { sessionId: number; notes?: string; duration: number };
+}
+
+export interface DeleteSessionAction {
+  type: ActionType.DELETE_SESSION;
+  payload: { sessionId: number };
+}
+
 export type SessionAction =
   | CreateSessionAction
   | EndSessionAction
@@ -83,4 +102,7 @@ export type SessionAction =
   | ResumeSessionAction
   | SetErrorAction
   | ClearErrorAction
-  | SetSessionsAction;
+  | SetSessionsAction
+  | StartSessionAction
+  | UpdateSessionAction
+  | DeleteSessionAction;

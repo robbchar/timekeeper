@@ -29,15 +29,12 @@ export const sessionReducer = (
       }
 
       const newSession: Session = {
-        id: action.payload.sessionId,
+        sessionId: action.payload.sessionId,
         projectId: action.payload.projectId,
         startTime: new Date(),
         duration: 0,
         notes: action.payload.notes,
         status: 'active',
-        tags: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
       };
 
       return {
@@ -60,7 +57,6 @@ export const sessionReducer = (
         currentSession: {
           ...state.currentSession,
           status: 'paused',
-          lastPausedAt: new Date(),
         },
         error: null,
       };
@@ -79,7 +75,6 @@ export const sessionReducer = (
         currentSession: {
           ...state.currentSession,
           status: 'active',
-          lastPausedAt: undefined,
         },
         error: null,
       };
@@ -109,7 +104,7 @@ export const sessionReducer = (
     }
 
     case ActionType.UPDATE_SESSION_NOTES: {
-      const session = state.sessions.find(s => s.id === action.payload.sessionId);
+      const session = state.sessions.find(s => s.sessionId === action.payload.sessionId);
       if (!session) {
         return {
           ...state,
@@ -120,14 +115,14 @@ export const sessionReducer = (
       return {
         ...state,
         sessions: state.sessions.map(s =>
-          s.id === action.payload.sessionId ? { ...s, notes: action.payload.notes } : s
+          s.sessionId === action.payload.sessionId ? { ...s, notes: action.payload.notes } : s
         ),
         error: null,
       };
     }
 
     case ActionType.UPDATE_SESSION_DURATION: {
-      const session = state.sessions.find(s => s.id === action.payload.sessionId);
+      const session = state.sessions.find(s => s.sessionId === action.payload.sessionId);
       if (!session) {
         return {
           ...state,
@@ -137,7 +132,7 @@ export const sessionReducer = (
       return {
         ...state,
         sessions: state.sessions.map(s =>
-          s.id === action.payload.sessionId ? { ...s, duration: action.payload.duration } : s
+          s.sessionId === action.payload.sessionId ? { ...s, duration: action.payload.duration } : s
         ),
         error: null,
       };

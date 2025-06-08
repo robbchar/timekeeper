@@ -35,6 +35,7 @@ const SessionControls: React.FC<{
   isProjectsLoading: boolean;
   isSessionsLoading: boolean;
   sessionCompleted: () => void;
+  sessionEdited: () => void;
 }> = ({
   projects,
   sessions,
@@ -43,13 +44,13 @@ const SessionControls: React.FC<{
   isProjectsLoading,
   isSessionsLoading,
   sessionCompleted,
+  sessionEdited,
 }) => {
   const { state, dispatch } = useAppContext();
   const { startSession, stopSession } = useSessions();
   const [notes, setNotes] = useState<string>('');
   const [isTiming, setIsTiming] = useState<boolean>(false);
   const [elapsedTime, setElapsedTime] = useState<number>(0);
-  // const [sessions, setSessions] = useState<Session[]>([]);
   const timerRef = useRef<number | undefined>(undefined);
   const startTimeRef = useRef<number | undefined>(undefined);
 
@@ -150,7 +151,9 @@ const SessionControls: React.FC<{
             isDisabled={isSessionActive}
             placeholder="Select a project"
             aria-label="Select a project"
-            selectedKeys={[projects.find(p => p.id === selectedProjectId)?.id?.toString() ?? '']}
+            selectedKeys={[
+              projects.find(p => p.projectId === selectedProjectId)?.projectId?.toString() ?? '',
+            ]}
             popoverProps={{
               classNames: {
                 base: 'before:bg-default-200',
@@ -159,7 +162,7 @@ const SessionControls: React.FC<{
             }}
           >
             {projects.map((project: Project) => (
-              <SelectItem key={project.id}>{project.name}</SelectItem>
+              <SelectItem key={project.projectId}>{project.name}</SelectItem>
             ))}
           </Select>
           {isSessionActive && notes !== '' && <input type="text" value={notes} disabled />}
@@ -193,7 +196,7 @@ const SessionControls: React.FC<{
             />
           )}
           {!isSessionsLoading && !isSessionActive && !isTiming && selectedProjectId > 0 && (
-            <RecentSessions sessions={sessions} />
+            <RecentSessions sessions={sessions} sessionEdited={sessionEdited} />
           )}
         </Controls>
       )}

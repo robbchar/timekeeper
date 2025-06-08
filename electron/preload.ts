@@ -15,16 +15,22 @@ contextBridge.exposeInMainWorld('database', {
   deleteProject: (id: number) => ipcRenderer.invoke('database:deleteProject', id),
 
   // Session operations
-  createSession: (projectId: number, startTime: string, notes?: string, tags?: number[]) =>
-    ipcRenderer.invoke('database:createSession', projectId, startTime, notes, tags),
+  createSession: (projectId: number, notes?: string) =>
+    ipcRenderer.invoke('database:createSession', projectId, notes),
 
-  endSession: (sessionId: number, duration: number) =>
-    ipcRenderer.invoke('database:endSession', sessionId, duration),
+  endSession: (id: number, duration: number) =>
+    ipcRenderer.invoke('database:endSession', id, duration),
 
   getSessions: () => ipcRenderer.invoke('database:getSessions'),
 
   getSessionsForProject: (projectId: number) =>
     ipcRenderer.invoke('database:getSessionsForProject', projectId),
+
+  updateSessionNotes: (id: number, notes: string) =>
+    ipcRenderer.invoke('database:updateSessionNotes', id, notes),
+
+  updateSessionDuration: (id: number, duration: number) =>
+    ipcRenderer.invoke('database:updateSessionDuration', id, duration),
 
   // Tag operations
   createTag: (name: string, color?: string) =>

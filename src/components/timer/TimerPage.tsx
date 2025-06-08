@@ -56,6 +56,10 @@ const TimerPage = () => {
     fetchSessions();
   };
 
+  const sessionEdited = () => {
+    fetchSessions();
+  };
+
   return (
     <PageContainer data-testid="timer-page">
       {error && <div style={{ color: 'red' }}>{error}</div>}
@@ -68,6 +72,7 @@ const TimerPage = () => {
           selectedProjectId={selectedProjectId}
           isSessionsLoading={isSessionsLoading}
           isProjectsLoading={projectsLoading}
+          sessionEdited={sessionEdited}
         />
       )}
     </PageContainer>

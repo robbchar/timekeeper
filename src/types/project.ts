@@ -1,7 +1,7 @@
 import { ActionType } from '@/types/state';
 
 export interface Project {
-  id: number;
+  projectId: number;
   name: string;
   description: string;
   color?: string;

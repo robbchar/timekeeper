@@ -19,8 +19,10 @@
     "paths": {
       "@/*": ["src/*"]
     },
-    "types": ["node", "electron"]
+    "types": ["node", "electron"],
+    "outDir": "dist"
   },
   "include": ["src"],
+  "exclude": ["**/*.js", "**/*.js.map"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

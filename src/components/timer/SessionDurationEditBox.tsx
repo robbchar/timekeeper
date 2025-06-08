@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
 
 interface SessionDurationEditBoxProps {
-  initialSeconds: number;
+  initialDuration: number;
   onChange: (seconds: number) => void;
 }
 
 export const SessionDurationEditBox: React.FC<SessionDurationEditBoxProps> = ({
-  initialSeconds,
+  initialDuration,
   onChange,
 }) => {
-  const [hours, setHours] = useState(Math.floor(initialSeconds / 3600));
-  const [minutes, setMinutes] = useState(Math.floor((initialSeconds % 3600) / 60));
-  const [seconds, setSeconds] = useState(initialSeconds % 60);
+  const [hours, setHours] = useState(Math.floor(initialDuration / 3600));
+  const [minutes, setMinutes] = useState(Math.floor((initialDuration % 3600) / 60));
+  const [seconds, setSeconds] = useState(initialDuration % 60);
 
   useEffect(() => {
     onChange(hours * 3600 + minutes * 60 + seconds);
@@ -55,7 +55,6 @@ export const SessionDurationEditBox: React.FC<SessionDurationEditBoxProps> = ({
       </div>
     </div>
   );
-
   return (
     <div className="flex items-center gap-1 font-mono text-2xl">
       <div className="flex items-center">

@@ -46,7 +46,7 @@ vi.mock('@/contexts/DatabaseContext', () => ({
 
 const mockProjects = [
   {
-    id: 1,
+    projectId: 1,
     name: 'Project 1',
     description: '',
     totalTime: 0,
@@ -55,7 +55,7 @@ const mockProjects = [
     updatedAt: new Date(),
   },
   {
-    id: 2,
+    projectId: 2,
     name: 'Project 2',
     description: '',
     totalTime: 0,
@@ -67,13 +67,11 @@ const mockProjects = [
 
 const mockSessions: Session[] = [
   {
-    id: 1,
+    sessionId: 1,
     projectId: 1,
     startTime: new Date(),
     duration: 0,
     status: 'active',
-    totalPausedTime: 0,
-    tags: [],
     createdAt: new Date(),
     updatedAt: new Date(),
   },
@@ -124,7 +122,8 @@ const renderWithTheme = (
   selectedProjectId: number = -1,
   isProjectsLoading: boolean = false,
   isSessionsLoading: boolean = false,
-  sessionCompleted: () => void = vi.fn()
+  sessionCompleted: () => void = vi.fn(),
+  sessionEdited: () => void = vi.fn()
 ) => {
   return render(
     <ThemeProvider theme={theme}>
@@ -138,6 +137,7 @@ const renderWithTheme = (
             isProjectsLoading={isProjectsLoading}
             isSessionsLoading={isSessionsLoading}
             sessionCompleted={sessionCompleted}
+            sessionEdited={sessionEdited}
           />
         </ProjectsProvider>
       </DatabaseProvider>
@@ -201,13 +201,11 @@ describe('SessionControls', () => {
 
   it('shows timer controls when session is active', async () => {
     const mockCurrentSession = {
-      id: 1,
+      sessionId: 1,
       projectId: 1,
       startTime: new Date(),
       duration: 0,
       status: 'active',
-      totalPausedTime: 0,
-      tags: [],
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -231,13 +229,11 @@ describe('SessionControls', () => {
 
   it('stops session and clears timer when stop session is clicked', async () => {
     const mockCurrentSession = {
-      id: 1,
+      sessionId: 1,
       projectId: 1,
       startTime: new Date(),
       duration: 0,
       status: 'active',
-      totalPausedTime: 0,
-      tags: [],
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -288,13 +284,11 @@ describe('SessionControls', () => {
 
   it('handles window unload with active session', async () => {
     const mockCurrentSession = {
-      id: 1,
+      sessionId: 1,
       projectId: 1,
       startTime: new Date(),
       duration: 0,
       status: 'active',
-      totalPausedTime: 0,
-      tags: [],
       createdAt: new Date(),
       updatedAt: new Date(),
     };

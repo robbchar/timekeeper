@@ -8,21 +8,20 @@ export interface DatabaseAPI {
   // Project operations
   createProject: (name: string, description?: string, color?: string) => Promise<CreateResponse>;
   getProjects: () => Promise<Project[]>;
-  deleteProject: (id: number) => Promise<UpdateResponse>;
-  updateProject: (id: number, name: string) => Promise<UpdateResponse>;
+  deleteProject: (projectId: number) => Promise<UpdateResponse>;
+  updateProject: (projectId: number, name: string) => Promise<UpdateResponse>;
   // Session operations
-  createSession: (
-    projectId: number,
-    startTime: string,
-    notes?: string,
-    tags?: number[]
-  ) => Promise<CreateResponse>;
+  createSession: (projectId: number, notes?: string) => Promise<CreateResponse>;
   endSession: (sessionId: number, duration: number) => Promise<UpdateResponse>;
   getSessions: () => Promise<Session[]>;
   getSessionsForProject: (projectId: number) => Promise<Session[]>;
+  updateSessionNotes: (sessionId: number, notes?: string) => Promise<UpdateResponse>;
+  updateSessionDuration: (sessionId: number, duration: number) => Promise<UpdateResponse>;
   // Tag operations
   createTag: (name: string, color?: string) => Promise<CreateResponse>;
   getTags: () => Promise<TagDatabase[]>;
+  updateTag: (tagId: number, name: string, color?: string) => Promise<UpdateResponse>;
+  deleteTag: (tagId: number) => Promise<UpdateResponse>;
   // Settings operations
   getSetting: (key: string) => Promise<string | undefined>;
   setSetting: (key: string, value: string) => Promise<UpdateResponse>;

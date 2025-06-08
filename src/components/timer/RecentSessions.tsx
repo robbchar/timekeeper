@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { formatDuration } from '@/utils/time';
 import type { Session } from '@/types/session';
-import { Button, ButtonGroup, Form, Input } from '@heroui/react';
+import { Button } from '@heroui/react';
 import { useSessions } from '@/state/hooks/useAppState';
-import { SessionDurationEditBox } from './SessionDurationEditBox';
+import { EditSessionsModal } from './EditSessionModal';
 
 const SessionList = styled.div`
   background-color: ${({ theme }) => theme.colors.background.secondary};
@@ -50,134 +50,15 @@ const SessionDuration = styled.span`
   font-size: 0.875rem;
 `;
 
-const Modal = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`;
-
-const ModalContent = styled.div`
-  background: ${({ theme }) => theme.colors.background.primary};
-  padding: 2rem;
-  border-radius: 0.5rem;
-  width: 100%;
-  max-width: 500px;
-`;
-
-const ModalTitle = styled.h2`
-  color: ${({ theme }) => theme.colors.text.primary};
-  margin-bottom: 1.5rem;
-  font-size: 1.5rem;
-`;
-
-const ErrorMessage = styled.p`
-  color: ${({ theme }) => theme.colors.error};
-  font-size: 0.875rem;
-  margin-top: 0.5rem;
-`;
-
-interface ModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSubmit: (notes: string, duration: number) => void;
-  modalTitle: string;
-  initialNotes: string | undefined;
-  initialDuration: number | undefined;
-}
-
-const EditSessionsModal: React.FC<ModalProps> = ({
-  isOpen,
-  onClose,
-  onSubmit,
-  modalTitle,
-  initialNotes = '',
-  initialDuration = 0,
-}) => {
-  const [sessionNotes, setSessionNotes] = useState(initialNotes);
-  const [sessionDuration, setSessionDuration] = useState(initialDuration);
-  const [error, setError] = useState<string | null>(null);
-
-  React.useEffect(() => {
-    setSessionNotes(initialNotes);
-    setError(null);
-  }, [initialNotes, isOpen]);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmedNotes = sessionNotes.trim();
-    if (!trimmedNotes) {
-      setError('Session notes are required');
-      return;
-    }
-
-    if (sessionDuration < 0) {
-      setError('Session duration is required');
-      return;
-    }
-
-    onSubmit(trimmedNotes, sessionDuration);
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <Modal onClick={onClose} role="dialog" aria-modal="true">
-      <ModalContent onClick={e => e.stopPropagation()}>
-        <Form onSubmit={handleSubmit}>
-          <ModalTitle>{modalTitle}</ModalTitle>
-          <Input
-            type="text"
-            placeholder="Session Notes"
-            value={sessionNotes}
-            onChange={e => {
-              setSessionNotes(e.target.value);
-              setError(null);
-            }}
-            autoFocus
-            aria-label="Session Notes"
-            aria-invalid={!!error}
-            aria-describedby={error ? 'session-notes-error' : undefined}
-          />
-          <SessionDurationEditBox
-            initialSeconds={sessionDuration}
-            onChange={seconds => {
-              setSessionDuration(seconds);
-              setError(null);
-            }}
-          />
-          {error && (
-            <ErrorMessage id="session-notes-error" role="alert">
-              {error}
-            </ErrorMessage>
-          )}
-          <ButtonGroup>
-            <Button type="button" onPress={onClose} color="primary">
-              Cancel
-            </Button>
-            <Button type="submit" color="primary">
-              {modalTitle === 'Add New Session' ? 'Add Session' : 'Save Changes'}
-            </Button>
-          </ButtonGroup>
-        </Form>
-      </ModalContent>
-    </Modal>
-  );
-};
-
 const RecentSessions: React.FC<{
   sessions: Session[];
-}> = ({ sessions }) => {
+  sessionEdited: () => void;
+}> = ({ sessions, sessionEdited }) => {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const { updateSessionNotes, updateSessionDuration } = useSessions();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const handleEditClick = (sessionId: number) => {
-    setSelectedSession(sessions.find(s => s.id === sessionId) || null);
+    setSelectedSession(sessions.find(s => s.sessionId === sessionId) || null);
     setIsEditModalOpen(true);
   };
 
@@ -188,8 +69,9 @@ const RecentSessions: React.FC<{
   const handleEditSubmit = (notes: string, duration: number) => {
     console.log('edit', notes, duration);
     if (selectedSession) {
-      updateSessionNotes(selectedSession.id, notes);
-      updateSessionDuration(selectedSession.id, duration);
+      updateSessionNotes(selectedSession.sessionId, notes);
+      updateSessionDuration(selectedSession.sessionId, duration);
+      sessionEdited();
     }
   };
 
@@ -197,7 +79,7 @@ const RecentSessions: React.FC<{
     <SessionList>
       <SessionListHeader>Recent Sessions</SessionListHeader>
       {sessions.map((session: Session) => (
-        <SessionItem key={session.id}>
+        <SessionItem key={session.sessionId}>
           <SessionInfo>
             <SessionNotes>{session.notes || 'No notes'}</SessionNotes>
             <SessionDuration>{formatDuration(session.duration)}</SessionDuration>
@@ -205,7 +87,7 @@ const RecentSessions: React.FC<{
               className="bg-transparent"
               isIconOnly
               aria-label="Edit Session"
-              onPress={() => handleEditClick(session.id)}
+              onPress={() => handleEditClick(session.sessionId)}
               title="Edit Session"
             >
               ✏️
@@ -213,7 +95,7 @@ const RecentSessions: React.FC<{
             <Button
               className="bg-transparent"
               isIconOnly
-              onPress={() => handleDeleteClick(session.id)}
+              onPress={() => handleDeleteClick(session.sessionId)}
               title="Delete Session"
               aria-label="Delete Session"
             >

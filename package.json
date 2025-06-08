@@ -9,13 +9,14 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:electron": "tsc -p electron/tsconfig.json",
     "type-check": "tsc --noEmit",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,scss,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,scss,md}\"",
     "start": "cross-env BROWSER=none npm run dev",
     "clean": "rimraf dist dist-electron release",
-    "electron:build": "npm run clean && npm run build && electron-builder --win",
+    "electron:build": "npm run clean && npm run build:electron && npm run build && electron-builder --win",
     "test": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:db": "vitest -c vitest.database.config.ts",
@@ -89,7 +90,7 @@
     },
     "files": [
       "dist/**/*",
-      "dist-electron/**/*"
+      "electron/dist/**/*"
     ],
     "extraResources": [
       {
