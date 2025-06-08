@@ -78,6 +78,10 @@ export interface SetSessionsAction {
   payload: Session[];
 }
 
+export interface GetSessionsAction {
+  type: ActionType.GET_SESSIONS;
+  payload: Session[];
+}
 export interface StartSessionAction {
   type: ActionType.START_SESSION;
   payload: { sessionId: number; projectId: number; notes?: string };
@@ -108,6 +112,7 @@ export type SessionAction =
   | SetErrorAction
   | ClearErrorAction
   | SetSessionsAction
+  | GetSessionsAction
   | StartSessionAction
   | UpdateSessionAction
   | DeleteSessionAction;

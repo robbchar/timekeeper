@@ -64,6 +64,10 @@ export const useSessions = () => {
   return {
     sessions: state.sessions.sessions,
     currentSession: state.sessions.currentSession,
+    getSessions: async () => {
+      const sessions = await dbService.persistAction({ type: ActionType.GET_SESSIONS }, state);
+      return sessions;
+    },
     startSession: async (params: CreateSessionParams) => {
       try {
         const sessionId = await dbService.persistAction(

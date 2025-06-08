@@ -23,6 +23,7 @@ export const appReducer = (state: AppState, action: AppAction): AppState => {
     case ActionType.UPDATE_SESSION:
     case ActionType.DELETE_SESSION:
     case ActionType.SET_SESSIONS:
+    case ActionType.GET_SESSIONS:
       return {
         ...state,
         sessions: sessionReducer(state.sessions, action as SessionAction),
