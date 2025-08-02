@@ -1,7 +1,7 @@
 import { mockIpcMain } from './ipc-test-helper';
 import { makeDbShape } from '../../electron/helpers';
-import { setupDatabaseHandlers } from '../../electron/database';
-import { initializeDatabase, closeDatabase } from '../../electron/database';
+import { setupDatabaseHandlers } from '../../electron/database/database';
+import { initializeDatabase, closeDatabase } from '../../electron/database/database';
 import type { DatabaseAPI } from '@/types/database';
 
 export async function setupTestDatabase() {

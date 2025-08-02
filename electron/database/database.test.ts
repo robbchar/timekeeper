@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import * as sqlite3 from 'sqlite3';
 import { closeDatabase, initializeDatabase } from './database';
-import type { Project } from '../src/types/project';
-import type { Session } from '../src/types/session';
-import type { TagDatabase } from '../src/types/tag';
+import type { Project } from '../../src/types/project';
+import type { Session } from '../../src/types/session';
+import type { TagDatabase } from '../../src/types/tag';
 
 describe('Database Operations', () => {
   let db: sqlite3.Database;

@@ -1,5 +1,5 @@
 import { useContext } from 'react';
-import { AppContext } from '@/state/context/AppContext';
+import { AppContext } from '@/contexts/AppContext';
 import type { Tag, Settings } from '@/types/state';
 import type { CreateSessionParams, Session } from '@/types/session';
 import { ActionType } from '@/types/state';

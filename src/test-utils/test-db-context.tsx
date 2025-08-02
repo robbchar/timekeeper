@@ -1,5 +1,5 @@
 import React from 'react';
-import { AppProvider } from '@/state/context/AppProvider';
+import { AppProvider } from '@/contexts/AppProvider';
 import { ThemeProvider } from 'styled-components';
 import { theme } from '@/styles/theme';
 import { DatabaseProvider } from '@/contexts/DatabaseContext';

@@ -1,6 +1,6 @@
 import { createContext } from 'react';
 import type { AppState } from '@/types/state';
-import type { AppAction } from '@/state/context/AppAction';
+import type { AppAction } from '@/types/AppAction';
 import type { Dispatch } from 'react';
 import type { DatabaseProjectCreate, ProjectUpdate, Project } from '@/types/project';
 

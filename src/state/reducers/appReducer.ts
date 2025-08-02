@@ -1,7 +1,7 @@
 import type { AppState } from '@/types/state';
 import { ActionType } from '@/types/state';
 import type { SessionAction } from '@/types/session';
-import type { AppAction } from '@/state/context/AppAction';
+import type { AppAction } from '@/types/AppAction';
 import { sessionReducer } from './sessionReducer';
 import { projectReducer } from './projectReducer';
 import { tagReducer } from './tagReducer';

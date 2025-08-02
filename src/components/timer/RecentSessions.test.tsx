@@ -6,7 +6,7 @@ import { ThemeProvider } from 'styled-components';
 import { theme } from '@/styles/theme';
 import type { Session } from '@/types/session';
 import { DatabaseProvider } from '@/contexts/DatabaseContext';
-import { AppProvider } from '@/state/context/AppProvider';
+import { AppProvider } from '@/contexts/AppProvider.tsx';
 
 describe('RecentSessions', () => {
   beforeEach(() => {});

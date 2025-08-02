@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useContext } from 'react';
 import styled from 'styled-components';
-import { AppContext } from '@/state/context/AppContext';
+import { AppContext } from '@/contexts/AppContext';
 import { useSessions } from '@/state/hooks/useAppState';
 import { ActionType } from '@/types/state';
 import type { Project } from '@/types/project';

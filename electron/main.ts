@@ -1,6 +1,6 @@
 import { app, BrowserWindow } from 'electron';
 import path from 'path';
-import { setupDatabaseHandlers, initializeDatabase } from './database';
+import { setupDatabaseHandlers, initializeDatabase } from './database/database';
 
 async function createWindow() {
   const win = new BrowserWindow({

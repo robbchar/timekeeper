@@ -11,11 +11,11 @@ import { DatabaseProvider } from '@/contexts/DatabaseContext';
 import { ProjectsProvider } from '@/contexts/ProjectsContext';
 import { AppState, Project, Theme } from '@/types/state';
 import type { Session } from '@/types/session';
-import type { AppContextType } from '@/state/context/AppContext';
-import { AppProvider } from '@/state/context/AppProvider';
+import type { AppContextType } from '@/contexts/AppContext';
+import { AppProvider } from '@/contexts/AppProvider';
 
 // Mock the hooks
-vi.mock('@/state/context/AppProvider', () => ({
+vi.mock('@/contexts/AppProvider', () => ({
   AppProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 

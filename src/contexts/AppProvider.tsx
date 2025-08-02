@@ -1,7 +1,7 @@
 import React, { useReducer, useMemo, useCallback } from 'react';
-import { AppContext } from './AppContext';
+import { AppContext } from '@/contexts/AppContext';
 import { appReducer } from '@/state/reducers/appReducer';
-import { initialState } from './initialState';
+import { initialState } from '@/state/initialState';
 import { useDatabase } from '@/contexts/DatabaseContext';
 import { createDatabaseService } from '@/state/services/databaseService';
 import type { DatabaseProjectCreate, ProjectUpdate, Project } from '@/types/project';

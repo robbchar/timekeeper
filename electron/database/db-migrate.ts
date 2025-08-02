@@ -1,4 +1,3 @@
-// src/main/migrate.ts
 import type sqlite3 from 'sqlite3';
 import { up as migrate002 } from './migrations/002_camelcase_columns';
 import { logMigrationError } from './logMigrationError';
