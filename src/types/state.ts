@@ -12,7 +12,7 @@ export enum Theme {
 
 export enum ActionType {
   // Project actions
-  ADD_PROJECT = 'ADD_PROJECT',
+  CREATE_PROJECT = 'CREATE_PROJECT',
   UPDATE_PROJECT = 'UPDATE_PROJECT',
   DELETE_PROJECT = 'DELETE_PROJECT',
 
@@ -22,11 +22,12 @@ export enum ActionType {
   RESUME_SESSION = 'RESUME_SESSION',
   END_SESSION = 'END_SESSION',
   UPDATE_SESSION_NOTES = 'UPDATE_SESSION_NOTES',
+  UPDATE_SESSION_DURATION = 'UPDATE_SESSION_DURATION',
   START_SESSION = 'START_SESSION',
-  STOP_SESSION = 'STOP_SESSION',
   UPDATE_SESSION = 'UPDATE_SESSION',
   DELETE_SESSION = 'DELETE_SESSION',
-
+  SET_SESSIONS = 'SET_SESSIONS',
+  GET_SESSIONS = 'GET_SESSIONS',
   // Tag actions
   ADD_TAG = 'ADD_TAG',
   UPDATE_TAG = 'UPDATE_TAG',
@@ -41,6 +42,9 @@ export enum ActionType {
   SET_LOADING = 'SET_LOADING',
   SET_ERROR = 'SET_ERROR',
   CLEAR_ERROR = 'CLEAR_ERROR',
+
+  // State management
+  RESTORE_STATE = 'RESTORE_STATE',
 }
 
 export interface Settings {
@@ -73,11 +77,13 @@ export interface Action {
     | Settings
     | UIState
     | string
+    | number
     | boolean
     | null
     | Partial<Project>
     | Partial<Session>
     | Partial<Tag>
     | Partial<Settings>
-    | Partial<UIState>;
+    | Partial<UIState>
+    | AppState;
 }

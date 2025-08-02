@@ -5,11 +5,9 @@ import type { Project, Action } from '@/types/state';
 
 describe('projectReducer', () => {
   const mockProject: Project = {
-    id: 1,
+    projectId: 1,
     name: 'Test Project',
     description: 'Test Description',
-    totalTime: 3600000, // 1 hour
-    sessionCount: 2,
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
   };
@@ -17,13 +15,12 @@ describe('projectReducer', () => {
   it('should add a project with default stats', () => {
     const initialState: Project[] = [];
     const action = {
-      type: ActionType.ADD_PROJECT,
+      type: ActionType.CREATE_PROJECT,
       payload: {
-        id: 1,
+        projectId: 1,
         name: 'Test Project',
         description: 'Test Description',
-        totalTime: 0,
-        sessionCount: 0,
+        color: '#000000',
         createdAt: new Date(),
         updatedAt: new Date(),
       } as Project,
@@ -31,8 +28,6 @@ describe('projectReducer', () => {
 
     const newState = projectReducer(initialState, action);
     expect(newState).toHaveLength(1);
-    expect(newState[0].totalTime).toBe(0);
-    expect(newState[0].sessionCount).toBe(0);
     expect(newState[0].createdAt).toBeInstanceOf(Date);
     expect(newState[0].updatedAt).toBeInstanceOf(Date);
   });
@@ -42,11 +37,9 @@ describe('projectReducer', () => {
     const action = {
       type: ActionType.UPDATE_PROJECT,
       payload: {
-        id: 1,
+        projectId: 1,
         name: 'Updated Project',
         description: 'Updated Description',
-        totalTime: 7200000, // 2 hours
-        sessionCount: 3,
         createdAt: new Date(),
         updatedAt: new Date(),
       } as Project,
@@ -56,8 +49,6 @@ describe('projectReducer', () => {
     expect(newState).toHaveLength(1);
     expect(newState[0].name).toBe('Updated Project');
     expect(newState[0].description).toBe('Updated Description');
-    expect(newState[0].totalTime).toBe(7200000);
-    expect(newState[0].sessionCount).toBe(3);
     expect(newState[0].updatedAt).toBeInstanceOf(Date);
   });
 

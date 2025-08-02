@@ -5,6 +5,8 @@ import RecentSessions from './RecentSessions';
 import { ThemeProvider } from 'styled-components';
 import { theme } from '@/styles/theme';
 import type { Session } from '@/types/session';
+import { DatabaseProvider } from '@/contexts/DatabaseContext';
+import { AppProvider } from '@/contexts/AppProvider.tsx';
 
 describe('RecentSessions', () => {
   beforeEach(() => {});
@@ -13,14 +15,12 @@ describe('RecentSessions', () => {
 
   const mockSessions: Session[] = [
     {
-      id: 1,
+      sessionId: 1,
       projectId: 1,
       startTime: new Date(),
       duration: 0,
       status: 'active',
-      totalPausedTime: 0,
       notes: 'Test notes',
-      tags: [],
       createdAt: new Date(),
       updatedAt: new Date(),
     },
@@ -29,7 +29,11 @@ describe('RecentSessions', () => {
   const renderSessions = (sessions: Session[] = mockSessions) => {
     render(
       <ThemeProvider theme={theme}>
-        <RecentSessions sessions={sessions} />
+        <DatabaseProvider>
+          <AppProvider>
+            <RecentSessions sessions={sessions} sessionEdited={() => {}} />
+          </AppProvider>
+        </DatabaseProvider>
       </ThemeProvider>
     );
   };

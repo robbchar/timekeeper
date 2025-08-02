@@ -4,24 +4,31 @@ import type { Session } from '@/types/session';
 import type { Tag } from '@/types/tag';
 
 // Define the shape of the database context
-interface DatabaseContextType {
+export interface DatabaseContextType {
   // Projects
-  createProject: (name: string, description?: string, color?: string) => Promise<number>;
-  getProject: (id: number) => Promise<Project>;
+  createProject: (name: string, description?: string, color?: string) => Promise<Project>;
+  getProject: (projectId: number) => Promise<Project>;
   getAllProjects: () => Promise<Project[]>;
-  deleteProject: (id: number) => Promise<{ changes: number }>;
-  updateProject: (id: number, name: string) => Promise<{ changes: number }>;
+  deleteProject: (projectId: number) => Promise<{ changes: number }>;
+  updateProject: (
+    projectId: number,
+    name: string,
+    description?: string,
+    color?: string
+  ) => Promise<Project>;
   // Sessions
-  createSession: (projectId: number, startTime: string, notes?: string) => Promise<number>;
-  endSession: (
-    sessionId: number,
-    endTime: string,
-    duration: number
-  ) => Promise<{ changes: number }>;
+  createSession: (projectId: number, notes?: string) => Promise<Session>;
+  endSession: (sessionId: number, duration: number) => Promise<{ changes: number }>;
+  updateSessionNotes: (sessionId: number, notes?: string) => Promise<{ changes: number }>;
+  updateSessionDuration: (sessionId: number, duration: number) => Promise<{ changes: number }>;
+  getSessions: () => Promise<Session[]>;
   getSessionsForProject: (projectId: number) => Promise<Session[]>;
+  deleteSession: (sessionId: number) => Promise<{ changes: number }>;
   // Tags
-  createTag: (name: string, color?: string) => Promise<number>;
+  createTag: (name: string, color?: string) => Promise<Tag>;
   getAllTags: () => Promise<Tag[]>;
+  updateTag: (tagId: number, name: string, color?: string) => Promise<{ changes: number }>;
+  deleteTag: (tagId: number) => Promise<{ changes: number }>;
   // Settings
   getSetting: (key: string) => Promise<string | undefined>;
   setSetting: (key: string, value: string) => Promise<{ changes: number }>;
@@ -33,33 +40,18 @@ const DatabaseContext = createContext<DatabaseContextType | undefined>(undefined
 // Provider component
 export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // Projects
-  const createProject = async (
-    name: string,
-    description?: string,
-    color?: string
-  ): Promise<number> => {
-    console.log('Creating project:', { name, description, color });
-    const result = await window.database.createProject(name, description, color);
-    console.log('Create project result:', result);
-    return result.itemId;
-  };
-
-  const getProject = async (id: number): Promise<Project> => {
-    console.log('Getting project:', id);
+  const getProject = async (projectId: number): Promise<Project> => {
     const projects = await window.database.getProjects();
-    console.log('All projects:', projects);
-    const project = projects.find(p => p.id === id);
+    const project = projects.find(p => p.projectId === projectId);
     if (!project) {
-      throw new Error(`Project with id ${id} not found`);
+      throw new Error(`Project with id ${projectId} not found`);
     }
     return project;
   };
 
   const getAllProjects = async (): Promise<Project[]> => {
-    console.log('Getting all projects...');
     try {
       const projects = await window.database.getProjects();
-      console.log('Retrieved projects:', projects);
       return projects;
     } catch (error) {
       console.error('Error getting projects:', error);
@@ -67,22 +59,34 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
     }
   };
 
-  const deleteProject = async (id: number): Promise<{ changes: number }> => {
-    console.log('Deleting project:', id);
+  const createProject = async (
+    name: string,
+    description?: string,
+    color?: string
+  ): Promise<Project> => {
+    const result = await window.database.createProject(name, description, color);
+    return result.record as Project;
+  };
+
+  const deleteProject = async (projectId: number): Promise<{ changes: number }> => {
     try {
-      const result = await window.database.deleteProject(id);
-      return { changes: result.changes };
+      const result = await window.database.deleteProject(projectId);
+      return result;
     } catch (error) {
       console.error('Error deleting project:', error);
       throw error;
     }
   };
 
-  const updateProject = async (id: number, name: string): Promise<{ changes: number }> => {
-    console.log('Updating project:', { id, name });
+  const updateProject = async (
+    projectId: number,
+    name: string,
+    description?: string,
+    color?: string
+  ): Promise<Project> => {
     try {
-      const result = await window.database.updateProject(id, name);
-      return { changes: result.changes };
+      const result = await window.database.updateProject(projectId, name, description, color);
+      return result.record as Project;
     } catch (error) {
       console.error('Error updating project:', error);
       throw error;
@@ -90,79 +94,151 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   };
 
   // Sessions
-  const createSession = async (
-    projectId: number,
-    startTime: string,
-    notes?: string
-  ): Promise<number> => {
-    console.log('Creating session:', { projectId, startTime, notes });
-    const result = await window.database.createSession(projectId, startTime, notes);
-    console.log('Create session result:', result);
-    return result.itemId;
+  const getSessions = async (): Promise<Session[]> => {
+    try {
+      const sessions = await window.database.getSessions();
+      return sessions;
+    } catch (error) {
+      console.error('Error getting sessions:', error);
+      throw error;
+    }
   };
 
-  const endSession = async (
-    sessionId: number,
-    endTime: string,
-    duration: number
-  ): Promise<{ changes: number }> => {
-    console.log('Ending session:', { sessionId, endTime, duration });
-    const result = await window.database.endSession(sessionId, endTime, duration);
-    return { changes: result.changes };
+  const createSession = async (projectId: number, notes?: string): Promise<Session> => {
+    try {
+      const result = await window.database.createSession(projectId, notes);
+      return result.record as Session;
+    } catch (error) {
+      console.error('Error creating session:', error);
+      throw error;
+    }
+  };
+
+  const endSession = async (id: number, duration: number): Promise<{ changes: number }> => {
+    try {
+      const result = await window.database.endSession(id, duration);
+      return { changes: result.changes };
+    } catch (error) {
+      console.error('Error ending session:', error);
+      throw error;
+    }
   };
 
   const getSessionsForProject = async (projectId: number): Promise<Session[]> => {
-    console.log('Getting sessions for project:', projectId);
-    const sessions = await window.database.getSessions();
-    console.log('All sessions:', sessions);
-    return sessions
-      .filter(s => s.project_id === projectId)
-      .map(s => ({
-        id: s.id,
-        projectId: s.project_id,
-        startTime: new Date(s.start_time),
-        endTime: s.end_time ? new Date(s.end_time) : undefined,
-        duration: s.duration ?? 0,
-        notes: s.notes ?? '',
-        status: 'completed' as const,
-        totalPausedTime: 0,
-        tags: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }));
+    try {
+      const sessions = await window.database.getSessions();
+      return sessions.filter(s => s.projectId === projectId);
+    } catch (error) {
+      console.error('Error getting sessions for project:', error);
+      throw error;
+    }
+  };
+
+  const updateSessionNotes = async (
+    sessionId: number,
+    notes?: string
+  ): Promise<{ changes: number }> => {
+    try {
+      const result = await window.database.updateSessionNotes(sessionId, notes || '');
+      return { changes: result.changes };
+    } catch (error) {
+      console.error('Error updating session notes:', error);
+      throw error;
+    }
+  };
+
+  const updateSessionDuration = async (
+    sessionId: number,
+    duration: number
+  ): Promise<{ changes: number }> => {
+    try {
+      const result = await window.database.updateSessionDuration(sessionId, duration);
+      return { changes: result.changes };
+    } catch (error) {
+      console.error('Error updating session duration:', error);
+      throw error;
+    }
+  };
+
+  const deleteSession = async (sessionId: number): Promise<{ changes: number }> => {
+    try {
+      const result = await window.database.deleteSession(sessionId);
+      return { changes: result.changes };
+    } catch (error) {
+      console.error('Error deleting session:', error);
+      throw error;
+    }
   };
 
   // Tags
-  const createTag = async (name: string, color?: string): Promise<number> => {
-    console.log('Creating tag:', { name, color });
-    const result = await window.database.createTag(name, color);
-    console.log('Create tag result:', result);
-    return result.itemId;
+  const createTag = async (name: string, color?: string): Promise<Tag> => {
+    try {
+      const result = await window.database.createTag(name, color);
+      return result.record as Tag;
+    } catch (error) {
+      console.error('Error creating tag:', error);
+      throw error;
+    }
   };
 
   const getAllTags = async (): Promise<Tag[]> => {
-    console.log('Getting all tags...');
-    const tags = await window.database.getTags();
-    console.log('Retrieved tags:', tags);
-    return tags.map(t => ({
-      id: t.id,
-      name: t.name,
-      color: t.color,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }));
+    try {
+      const tags = await window.database.getTags();
+      return tags.map(t => ({
+        id: t.id,
+        name: t.name,
+        color: t.color,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }));
+    } catch (error) {
+      console.error('Error getting all tags:', error);
+      throw error;
+    }
+  };
+
+  const updateTag = async (
+    tagId: number,
+    name: string,
+    color?: string
+  ): Promise<{ changes: number }> => {
+    try {
+      const result = await window.database.updateTag(tagId, name, color);
+      return { changes: result.changes };
+    } catch (error) {
+      console.error('Error updating tag:', error);
+      throw error;
+    }
+  };
+
+  const deleteTag = async (tagId: number): Promise<{ changes: number }> => {
+    try {
+      const result = await window.database.deleteTag(tagId);
+      return { changes: result.changes };
+    } catch (error) {
+      console.error('Error deleting tag:', error);
+      throw error;
+    }
   };
 
   // Settings
   const getSetting = async (key: string): Promise<string | undefined> => {
-    console.log('Getting setting:', key);
-    return window.database.getSetting(key);
+    try {
+      return await window.database.getSetting(key);
+    } catch (error) {
+      console.error('Error getting setting:', error);
+      throw error;
+    }
   };
 
   const setSetting = async (key: string, value: string): Promise<{ changes: number }> => {
-    console.log('Setting:', { key, value });
-    const result = await window.database.setSetting(key, value);
-    return { changes: result.changes };
+    try {
+      const result = await window.database.setSetting(key, value);
+      return { changes: result.changes };
+    } catch (error) {
+      console.error('Error setting setting:', error);
+      throw error;
+    }
   };
 
   const value: DatabaseContextType = {
@@ -173,9 +249,15 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
     updateProject,
     createSession,
     endSession,
+    updateSessionNotes,
+    updateSessionDuration,
     getSessionsForProject,
+    getSessions,
+    deleteSession,
     createTag,
     getAllTags,
+    updateTag,
+    deleteTag,
     getSetting,
     setSetting,
   };
@@ -183,7 +265,7 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   return <DatabaseContext.Provider value={value}>{children}</DatabaseContext.Provider>;
 };
 
-// Custom hook to use the database context
+// eslint-disable-next-line react-refresh/only-export-components
 export const useDatabase = (): DatabaseContextType => {
   const context = useContext(DatabaseContext);
   if (context === undefined) {

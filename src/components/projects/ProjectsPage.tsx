@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { useDatabase } from '@/contexts/DatabaseContext';
 import { useProjects } from '@/contexts/ProjectsContext';
 import type { Project } from '@/types/project';
 import { formatDuration } from '@/utils/time';
 import { Button } from '@heroui/react';
+import { ConfirmModal } from '@/components/ConfirmModal';
+import { useSessions } from '@/state/hooks/useAppState';
+import { useDatabase } from '@/contexts/DatabaseContext';
 
 const PageContainer = styled.div`
   padding: 2rem;
@@ -63,26 +65,6 @@ const ProjectActions = styled.div`
   margin-top: 1rem;
 `;
 
-const Modal = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-`;
-
-const ModalContent = styled.div`
-  background: ${({ theme }) => theme.colors.background.primary};
-  padding: 2rem;
-  border-radius: 0.5rem;
-  width: 100%;
-  max-width: 500px;
-`;
-
 const Form = styled.form`
   display: flex;
   flex-direction: column;
@@ -106,12 +88,6 @@ const ButtonGroup = styled.div`
   gap: 1rem;
   justify-content: flex-end;
   margin-top: 1rem;
-`;
-
-const ModalTitle = styled.h2`
-  color: ${({ theme }) => theme.colors.text.primary};
-  margin-bottom: 1.5rem;
-  font-size: 1.5rem;
 `;
 
 const ErrorMessage = styled.p`
@@ -156,6 +132,32 @@ const StatRow = styled.div`
   font-size: 0.9rem;
 `;
 
+const Modal = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`;
+
+const ModalContent = styled.div`
+  background: ${({ theme }) => theme.colors.background.primary};
+  padding: 2rem;
+  border-radius: 0.5rem;
+  width: 100%;
+  max-width: 500px;
+`;
+
+const ModalTitle = styled.h2`
+  color: ${({ theme }) => theme.colors.text.primary};
+  margin-bottom: 1.5rem;
+  font-size: 1.5rem;
+`;
+
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -164,41 +166,6 @@ interface ModalProps {
   title: string;
   existingProjects?: Project[];
 }
-
-interface ConfirmModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  title: string;
-  message: string;
-}
-
-const ConfirmModal: React.FC<ConfirmModalProps> = ({
-  isOpen,
-  onClose,
-  onConfirm,
-  title,
-  message,
-}) => {
-  if (!isOpen) return null;
-
-  return (
-    <Modal onClick={onClose} role="dialog" aria-modal="true">
-      <ModalContent onClick={e => e.stopPropagation()}>
-        <ModalTitle>{title}</ModalTitle>
-        <p>{message}</p>
-        <ButtonGroup>
-          <Button color="primary" onPress={onClose}>
-            Cancel
-          </Button>
-          <Button color="primary" onPress={onConfirm}>
-            Delete
-          </Button>
-        </ButtonGroup>
-      </ModalContent>
-    </Modal>
-  );
-};
 
 const ProjectModal: React.FC<ModalProps> = ({
   isOpen,
@@ -276,13 +243,22 @@ const ProjectModal: React.FC<ModalProps> = ({
 };
 
 export const ProjectsPage: React.FC = () => {
-  const { createProject, deleteProject, updateProject } = useDatabase();
+  const { createProject, deleteProject, updateProject, getSessions } = useDatabase();
   const { projects, isLoading, error, refreshProjects } = useProjects();
+  const { sessions, setSessions } = useSessions();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [expandedStats, setExpandedStats] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    const fetchSessions = async () => {
+      const sessions = await getSessions();
+      setSessions(sessions);
+    };
+    fetchSessions();
+  }, [getSessions, setSessions]);
 
   const handleAddSubmit = async (name: string) => {
     try {
@@ -297,7 +273,7 @@ export const ProjectsPage: React.FC = () => {
   const handleEditSubmit = async (name: string) => {
     if (!selectedProject) return;
     try {
-      await updateProject(selectedProject.id, name);
+      await updateProject(selectedProject.projectId, name);
       await refreshProjects();
       setIsEditModalOpen(false);
     } catch (error) {
@@ -318,7 +294,7 @@ export const ProjectsPage: React.FC = () => {
   const handleDeleteConfirm = async () => {
     if (!selectedProject) return;
     try {
-      await deleteProject(selectedProject.id);
+      await deleteProject(selectedProject.projectId);
       await refreshProjects();
       setIsDeleteModalOpen(false);
     } catch (error) {
@@ -352,7 +328,7 @@ export const ProjectsPage: React.FC = () => {
 
       <ProjectList>
         {projects.map(project => (
-          <ProjectCard key={project.id} data-testid={`project-card-${project.id}`}>
+          <ProjectCard key={project.projectId} data-testid={`project-card-${project.projectId}`}>
             <ProjectName>{project.name}</ProjectName>
             <ProjectDate>Created {new Date(project.createdAt).toLocaleDateString()}</ProjectDate>
             <ProjectActions>
@@ -375,18 +351,26 @@ export const ProjectsPage: React.FC = () => {
                 🗑️
               </Button>
             </ProjectActions>
-            <StatsSection data-testid={`stats-section-${project.id}`}>
-              <StatsToggle onClick={() => toggleProjectStats(project.id)}>
-                {expandedStats.has(project.id) ? '▼' : '▶'} Project Stats
+            <StatsSection data-testid={`stats-section-${project.projectId}`}>
+              <StatsToggle onClick={() => toggleProjectStats(project.projectId)}>
+                {expandedStats.has(project.projectId) ? '▼' : '▶'} Project Stats
               </StatsToggle>
-              <StatsContent $isExpanded={expandedStats.has(project.id)}>
+              <StatsContent $isExpanded={expandedStats.has(project.projectId)}>
                 <StatRow>
                   <span>Total Time:</span>
-                  <span>{formatDuration(project.totalTime)}</span>
+                  <span>
+                    {formatDuration(
+                      sessions
+                        .filter(session => session.projectId === project.projectId)
+                        .reduce((acc, session) => acc + session.duration, 0)
+                    )}
+                  </span>
                 </StatRow>
                 <StatRow>
                   <span>Sessions:</span>
-                  <span>{project.sessionCount}</span>
+                  <span>
+                    {sessions.filter(session => session.projectId === project.projectId).length}
+                  </span>
                 </StatRow>
               </StatsContent>
             </StatsSection>

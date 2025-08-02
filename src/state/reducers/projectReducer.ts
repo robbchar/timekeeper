@@ -1,33 +1,42 @@
-import type { Project, Action } from '@/types/state';
+import { ProjectCreate, ProjectUpdate } from '@/types/project';
+import type { Project } from '@/types/state';
+import type { Action } from '@/types/state';
 import { ActionType } from '@/types/state';
 
-export const projectReducer = (state: Project[], action: Action): Project[] => {
+export const projectReducer = (projectsState: Project[], action: Action): Project[] => {
   switch (action.type) {
-    case ActionType.ADD_PROJECT: {
-      const project = action.payload as Project;
+    case ActionType.CREATE_PROJECT: {
+      const { projectId, name, description, color, createdAt, updatedAt } =
+        action.payload as ProjectCreate;
+
       return [
-        ...state,
+        ...projectsState,
         {
-          ...project,
-          totalTime: 0,
-          sessionCount: 0,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          projectId,
+          name,
+          description,
+          color,
+          createdAt,
+          updatedAt,
         },
       ];
     }
 
-    case ActionType.UPDATE_PROJECT: {
-      const project = action.payload as Project;
-      return state.map(p =>
-        p.id === project.id ? { ...p, ...project, updatedAt: new Date() } : p
+    case ActionType.UPDATE_PROJECT:
+      return projectsState.map(project =>
+        project.projectId === (action.payload as ProjectUpdate).projectId
+          ? {
+              ...project,
+              ...(action.payload as Partial<Project>),
+              updatedAt: new Date(),
+            }
+          : project
       );
-    }
 
     case ActionType.DELETE_PROJECT:
-      return state.filter(project => project.id !== Number(action.payload));
+      return projectsState.filter(project => project.projectId !== Number(action.payload));
 
     default:
-      return state;
+      return projectsState;
   }
 };

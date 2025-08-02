@@ -3,29 +3,20 @@ import { ActionType } from '@/types/state';
 export type SessionStatus = 'active' | 'paused' | 'completed';
 
 export interface Session {
-  id: number;
+  sessionId: number;
   projectId: number;
   startTime: Date;
   endTime?: Date;
   duration: number; // in milliseconds
   notes?: string;
   status: SessionStatus;
-  lastPausedAt?: Date;
-  totalPausedTime: number; // in milliseconds
-  tags: number[];
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
-// Database-specific types
-export interface SessionDatabase {
-  id: number;
-  project_id: number;
-  start_time: string;
-  end_time?: string;
-  duration?: number;
-  notes?: string;
-}
+// Type for database operations
+export type SessionCreate = Session;
+export type SessionUpdate = Pick<Session, 'sessionId' | 'notes' | 'duration'>;
 
 export interface SessionState {
   currentSession: Session | null;
@@ -35,6 +26,7 @@ export interface SessionState {
 }
 
 export interface CreateSessionParams {
+  sessionId?: number;
   projectId: number;
   notes?: string;
 }
@@ -49,13 +41,19 @@ export interface CreateSessionAction {
   payload: { sessionId: number; projectId: number; notes?: string };
 }
 
-export interface EndSessionAction {
-  type: ActionType.END_SESSION;
-}
-
 export interface UpdateSessionNotesAction {
   type: ActionType.UPDATE_SESSION_NOTES;
-  payload: { notes: string };
+  payload: { sessionId: number; notes: string };
+}
+
+export interface UpdateSessionDurationAction {
+  type: ActionType.UPDATE_SESSION_DURATION;
+  payload: { sessionId: number; duration: number };
+}
+
+export interface DeleteSessionAction {
+  type: ActionType.DELETE_SESSION;
+  payload: { sessionId: number };
 }
 
 export interface PauseSessionAction {
@@ -75,11 +73,46 @@ export interface ClearErrorAction {
   type: ActionType.CLEAR_ERROR;
 }
 
+export interface SetSessionsAction {
+  type: ActionType.SET_SESSIONS;
+  payload: Session[];
+}
+
+export interface GetSessionsAction {
+  type: ActionType.GET_SESSIONS;
+  payload: Session[];
+}
+export interface StartSessionAction {
+  type: ActionType.START_SESSION;
+  payload: { sessionId: number; projectId: number; notes?: string };
+}
+
+export interface EndSessionAction {
+  type: ActionType.END_SESSION;
+  payload: { sessionId: number; duration: number };
+}
+
+export interface UpdateSessionAction {
+  type: ActionType.UPDATE_SESSION;
+  payload: { sessionId: number; notes?: string; duration: number };
+}
+
+export interface DeleteSessionAction {
+  type: ActionType.DELETE_SESSION;
+  payload: { sessionId: number };
+}
+
 export type SessionAction =
   | CreateSessionAction
   | EndSessionAction
   | UpdateSessionNotesAction
+  | UpdateSessionDurationAction
   | PauseSessionAction
   | ResumeSessionAction
   | SetErrorAction
-  | ClearErrorAction;
+  | ClearErrorAction
+  | SetSessionsAction
+  | GetSessionsAction
+  | StartSessionAction
+  | UpdateSessionAction
+  | DeleteSessionAction;

@@ -1,18 +1,18 @@
 import '@testing-library/jest-dom';
-import { expect, afterEach, afterAll, beforeAll, vi } from 'vitest';
+import { expect, afterEach, afterAll, beforeAll, vi, beforeEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import * as matchers from '@testing-library/jest-dom/matchers';
-import { initializeDatabase } from '../../electron/database';
+import { mockIpcMain } from './ipc-test-helper';
+
+vi.mock('electron', () => ({
+  ipcMain: mockIpcMain,
+}));
 
 // Extend Vitest's expect method with methods from react-testing-library
 expect.extend(matchers);
 
-// Mock electron app
-vi.mock('electron', () => ({
-  app: {
-    getPath: vi.fn(() => ':memory:'),
-  },
-}));
+// Set up the mock before each test
+beforeEach(() => {});
 
 // Cleanup after each test case (e.g. clearing jsdom)
 afterEach(() => {
@@ -21,7 +21,7 @@ afterEach(() => {
 
 // Set up test database
 beforeAll(async () => {
-  await initializeDatabase();
+  // await initializeDatabase();
 });
 
 // Clean up after tests

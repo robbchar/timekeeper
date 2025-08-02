@@ -1,12 +1,12 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useContext } from 'react';
 import styled from 'styled-components';
-import { useAppContext } from '@/state/context/AppContext';
+import { AppContext } from '@/contexts/AppContext';
 import { useSessions } from '@/state/hooks/useAppState';
 import { ActionType } from '@/types/state';
 import type { Project } from '@/types/project';
 import type { Session } from '@/types/session';
 import TimerControls from './TimerControls';
-import { Textarea, Select, SelectItem, Button } from '@heroui/react';
+import { Select, SelectItem, Button, Textarea } from '@heroui/react';
 import RecentSessions from './RecentSessions';
 
 const Container = styled.div`
@@ -35,6 +35,7 @@ const SessionControls: React.FC<{
   isProjectsLoading: boolean;
   isSessionsLoading: boolean;
   sessionCompleted: () => void;
+  sessionEdited: () => void;
 }> = ({
   projects,
   sessions,
@@ -43,13 +44,15 @@ const SessionControls: React.FC<{
   isProjectsLoading,
   isSessionsLoading,
   sessionCompleted,
+  sessionEdited,
 }) => {
-  const { state, dispatch } = useAppContext();
+  const context = useContext(AppContext);
+  if (!context) throw new Error('useSessions must be used within an AppProvider');
+  const { state, dispatch } = context;
   const { startSession, stopSession } = useSessions();
   const [notes, setNotes] = useState<string>('');
   const [isTiming, setIsTiming] = useState<boolean>(false);
   const [elapsedTime, setElapsedTime] = useState<number>(0);
-  // const [sessions, setSessions] = useState<Session[]>([]);
   const timerRef = useRef<number | undefined>(undefined);
   const startTimeRef = useRef<number | undefined>(undefined);
 
@@ -150,7 +153,9 @@ const SessionControls: React.FC<{
             isDisabled={isSessionActive}
             placeholder="Select a project"
             aria-label="Select a project"
-            selectedKeys={[projects.find(p => p.id === selectedProjectId)?.id?.toString() ?? '']}
+            selectedKeys={[
+              projects.find(p => p.projectId === selectedProjectId)?.projectId?.toString() ?? '',
+            ]}
             popoverProps={{
               classNames: {
                 base: 'before:bg-default-200',
@@ -159,30 +164,30 @@ const SessionControls: React.FC<{
             }}
           >
             {projects.map((project: Project) => (
-              <SelectItem key={project.id}>{project.name}</SelectItem>
+              <SelectItem key={project.projectId}>{project.name}</SelectItem>
             ))}
           </Select>
           {isSessionActive && notes !== '' && <input type="text" value={notes} disabled />}
-          {!isSessionsLoading && !isSessionActive && (
-            <Textarea
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              className="max-w-full bg-white"
-              placeholder="Add notes..."
-            />
+          {!isSessionsLoading && !isSessionActive && selectedProjectId > 0 && (
+            <>
+              <Textarea
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                className="max-w-full bg-white"
+                placeholder="Add notes..."
+              />
+              <ButtonContainer>
+                <Button
+                  onPress={handleStartSession}
+                  isDisabled={selectedProjectId < 0}
+                  color="primary"
+                >
+                  Start Session
+                </Button>
+              </ButtonContainer>
+            </>
           )}
-          {!isSessionsLoading && !isSessionActive && (
-            <ButtonContainer>
-              <Button
-                onPress={handleStartSession}
-                isDisabled={selectedProjectId < 0}
-                color="primary"
-              >
-                Start Session
-              </Button>
-            </ButtonContainer>
-          )}
-          {!isSessionsLoading && isSessionActive && (
+          {isSessionActive && (
             <TimerControls
               isSessionActive={isSessionActive}
               isTimingActive={isTiming}
@@ -193,7 +198,7 @@ const SessionControls: React.FC<{
             />
           )}
           {!isSessionsLoading && !isSessionActive && !isTiming && selectedProjectId > 0 && (
-            <RecentSessions sessions={sessions} />
+            <RecentSessions sessions={sessions} sessionEdited={sessionEdited} />
           )}
         </Controls>
       )}

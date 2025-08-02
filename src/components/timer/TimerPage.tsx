@@ -1,9 +1,9 @@
 import styled from 'styled-components';
 import SessionControls from './SessionControls';
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useDatabase } from '@/contexts/DatabaseContext';
 import { useProjects } from '@/contexts/ProjectsContext';
-import type { Session, SessionStatus } from '@/types/session';
+import { useSessions } from '@/state/hooks/useAppState';
 
 const PageContainer = styled.div`
   display: flex;
@@ -19,11 +19,11 @@ const TimerPage = () => {
   const [isSessionsLoading, setIsSessionsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const { getSessionsForProject } = useDatabase();
-  const [sessions, setSessions] = useState<Session[]>([]);
   const { projects, isLoading: projectsLoading } = useProjects();
+  const { sessions, setSessions } = useSessions();
 
   const fetchSessions = useCallback(async () => {
-    if (!selectedProjectId) {
+    if (!selectedProjectId || selectedProjectId <= 0) {
       console.log('SessionControls No currentProjectId, skipping fetch');
       return;
     }
@@ -31,41 +31,9 @@ const TimerPage = () => {
     setIsSessionsLoading(true);
     setError(null);
     try {
-      const dbSessions = (await getSessionsForProject(
-        Number(selectedProjectId)
-      )) as unknown as Array<{
-        id: number;
-        projectId?: number;
-        project_id?: number;
-        startTime?: string;
-        start_time?: string;
-        endTime?: string | null;
-        end_time?: string | null;
-        duration?: number;
-        notes?: string;
-        status?: string;
-        totalPausedTime?: number;
-        total_paused_time?: number;
-        createdAt?: string;
-        created_at?: string;
-        updatedAt?: string;
-        updated_at?: string;
-      }>;
-      const mappedSessions: Session[] = dbSessions.map(s => ({
-        id: s.id,
-        projectId: Number(s.project_id ?? selectedProjectId),
-        startTime: new Date(s.startTime ?? s.start_time ?? new Date().toISOString()),
-        endTime: (s.endTime ?? s.end_time) ? new Date(String(s.endTime ?? s.end_time)) : undefined,
-        duration: typeof s.duration === 'number' ? s.duration : 0,
-        notes: s.notes ?? '',
-        status: (s.status ?? 'completed') as SessionStatus,
-        totalPausedTime: s.totalPausedTime ?? s.total_paused_time ?? 0,
-        createdAt: new Date(s.createdAt ?? s.created_at ?? new Date().toISOString()),
-        updatedAt: new Date(s.updatedAt ?? s.updated_at ?? new Date().toISOString()),
-        tags: [], // Initialize with empty array since we don't have tag data yet
-      }));
-      console.log('SessionControls Mapped sessions:', mappedSessions);
-      setSessions(mappedSessions);
+      const dbSessions = await getSessionsForProject(selectedProjectId);
+      console.log('SessionControls Mapped sessions:', dbSessions);
+      setSessions(dbSessions);
     } catch {
       console.log('SessionControls Error fetching sessions:', error);
       setError('Failed to load sessions');
@@ -73,11 +41,12 @@ const TimerPage = () => {
       console.log('SessionControls Finished fetching sessions');
       setIsSessionsLoading(false);
     }
-  }, [selectedProjectId, getSessionsForProject]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProjectId]);
 
   useEffect(() => {
     fetchSessions();
-  }, [fetchSessions]);
+  }, [selectedProjectId, fetchSessions]);
 
   const projectSelected = (projectId: number) => {
     setSelectedProjectId(projectId);
@@ -85,6 +54,10 @@ const TimerPage = () => {
   };
 
   const sessionCompleted = () => {
+    fetchSessions();
+  };
+
+  const sessionEdited = () => {
     fetchSessions();
   };
 
@@ -100,6 +73,7 @@ const TimerPage = () => {
           selectedProjectId={selectedProjectId}
           isSessionsLoading={isSessionsLoading}
           isProjectsLoading={projectsLoading}
+          sessionEdited={sessionEdited}
         />
       )}
     </PageContainer>

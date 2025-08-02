@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { sessionReducer } from './sessionReducer';
-import type { SessionState } from '@/types/session';
+import type { SessionState, SessionStatus, SessionAction } from '@/types/session';
 import { ActionType } from '@/types/state';
-import type { SessionAction } from '@/types/session';
 
 describe('sessionReducer', () => {
   const initialState: SessionState = {
@@ -43,13 +42,11 @@ describe('sessionReducer', () => {
     const stateWithActiveSession: SessionState = {
       ...initialState,
       currentSession: {
-        id: 1,
+        sessionId: 1,
         projectId: 1,
         startTime: new Date(),
         duration: 0,
         status: 'active',
-        totalPausedTime: 0,
-        tags: [],
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -58,7 +55,7 @@ describe('sessionReducer', () => {
     const action: SessionAction = {
       type: ActionType.CREATE_SESSION,
       payload: {
-        sessionId: 1,
+        sessionId: 2,
         projectId: 2,
       },
     };
@@ -73,13 +70,11 @@ describe('sessionReducer', () => {
     const stateWithActiveSession: SessionState = {
       ...initialState,
       currentSession: {
-        id: 1,
+        sessionId: 1,
         projectId: 1,
         startTime: new Date(),
         duration: 0,
         status: 'active',
-        totalPausedTime: 0,
-        tags: [],
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -90,13 +85,11 @@ describe('sessionReducer', () => {
     const newState = sessionReducer(stateWithActiveSession, action);
 
     expect(newState.currentSession?.status).toBe('paused');
-    expect(newState.currentSession?.lastPausedAt).toBeDefined();
     expect(newState.error).toBeNull();
   });
 
   it('should resume a paused session', () => {
     const startTime = new Date('2024-01-01T10:00:00');
-    const pauseTime = new Date('2024-01-01T10:30:00');
     const resumeTime = new Date('2024-01-01T11:00:00');
 
     // Set initial time
@@ -105,14 +98,11 @@ describe('sessionReducer', () => {
     const stateWithPausedSession: SessionState = {
       ...initialState,
       currentSession: {
-        id: 1,
+        sessionId: 1,
         projectId: 1,
         startTime,
         duration: 0,
         status: 'paused',
-        lastPausedAt: pauseTime,
-        totalPausedTime: 0,
-        tags: [],
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -126,8 +116,6 @@ describe('sessionReducer', () => {
     const newState = sessionReducer(stateWithPausedSession, action);
 
     expect(newState.currentSession?.status).toBe('active');
-    expect(newState.currentSession?.lastPausedAt).toBeUndefined();
-    expect(newState.currentSession?.totalPausedTime).toBe(1800000); // 30 minutes in milliseconds
     expect(newState.error).toBeNull();
   });
 
@@ -138,22 +126,20 @@ describe('sessionReducer', () => {
     const stateWithActiveSession: SessionState = {
       ...initialState,
       currentSession: {
-        id: 1,
+        sessionId: 1,
         projectId: 1,
         startTime,
         duration: 0,
         status: 'active',
-        totalPausedTime: 0,
-        tags: [],
         createdAt: new Date(),
         updatedAt: new Date(),
       },
     };
 
-    // Advance time by 1 hour
-    vi.advanceTimersByTime(3600000);
-
-    const action: SessionAction = { type: ActionType.END_SESSION };
+    const action: SessionAction = {
+      type: ActionType.END_SESSION,
+      payload: { sessionId: 1, duration: 3600000 },
+    };
 
     const newState = sessionReducer(stateWithActiveSession, action);
 
@@ -166,31 +152,30 @@ describe('sessionReducer', () => {
   });
 
   it('should update session notes', () => {
+    const testSession = {
+      sessionId: 1,
+      projectId: 1,
+      startTime: new Date(),
+      duration: 0,
+      status: 'active' as SessionStatus,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
     const stateWithActiveSession: SessionState = {
       ...initialState,
-      currentSession: {
-        id: 1,
-        projectId: 1,
-        startTime: new Date(),
-        duration: 0,
-        status: 'active',
-        totalPausedTime: 0,
-        tags: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
+      sessions: [testSession],
     };
 
     const action: SessionAction = {
       type: ActionType.UPDATE_SESSION_NOTES,
       payload: {
+        sessionId: 1,
         notes: 'Updated notes',
       },
     };
 
     const newState = sessionReducer(stateWithActiveSession, action);
-
-    expect(newState.currentSession?.notes).toBe('Updated notes');
+    expect(newState.sessions[0].notes).toBe('Updated notes');
     expect(newState.error).toBeNull();
   });
 });

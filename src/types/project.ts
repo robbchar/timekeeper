@@ -1,34 +1,36 @@
 import { ActionType } from '@/types/state';
 
 export interface Project {
-  id: number;
+  projectId: number;
   name: string;
-  description: string;
+  description?: string;
   color?: string;
-  totalTime: number; // in milliseconds
-  sessionCount: number;
   createdAt: Date;
   updatedAt: Date;
 }
 
 // Type for database operations
-export type ProjectCreate = Pick<Project, 'name' | 'description' | 'color'>;
-export type ProjectUpdate = Partial<ProjectCreate>;
+export type ProjectCreate = Project;
+export type ProjectUpdate = Pick<
+  Project,
+  'projectId' | 'name' | 'description' | 'color' | 'createdAt'
+>;
+export type DatabaseProjectCreate = Pick<Project, 'name' | 'description' | 'color'>;
 
 // Project action types
 export interface CreateProjectAction {
-  type: ActionType.ADD_PROJECT;
-  payload: Project;
+  type: ActionType.CREATE_PROJECT;
+  payload: ProjectCreate;
 }
 
-export interface DeletePorojectAction {
+export interface DeleteProjectAction {
   type: ActionType.DELETE_PROJECT;
-  payload: string;
+  payload: number;
 }
 
 export interface UpdateProjectAction {
   type: ActionType.UPDATE_PROJECT;
-  payload: Project;
+  payload: ProjectUpdate;
 }
 
 // Type for database response
@@ -37,4 +39,4 @@ export interface ProjectDatabaseResponse {
   changes?: number;
 }
 
-export type ProjectAction = CreateProjectAction | DeletePorojectAction | UpdateProjectAction;
+export type ProjectAction = CreateProjectAction | DeleteProjectAction | UpdateProjectAction;

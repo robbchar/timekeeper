@@ -1,20 +1,21 @@
 import React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, fireEvent, within, waitFor } from '@testing-library/react';
-import { render, mockDatabase } from '@/test-utils';
+import { describe, it, expect, vi, beforeEach, Mocked } from 'vitest';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
+import { setupMockDatabase } from '@/components/timer/__mocks__/setup';
 import { ProjectsPage } from './ProjectsPage';
-import { useDatabase } from '@/contexts/DatabaseContext';
+import { DatabaseContextType, useDatabase } from '@/contexts/DatabaseContext';
 import { useProjects } from '@/contexts/ProjectsContext';
+import { Project } from '@/types/project';
+
+let mockDatabase: Mocked<DatabaseContextType>;
 
 // Mock the useProjects hook and provider
 vi.mock('@/contexts/ProjectsContext', () => {
   const mockProjectsContext: {
     projects: Array<{
-      id: string;
+      projectId: number;
       name: string;
       description: string;
-      totalTime: number;
-      sessionCount: number;
       createdAt: Date;
       updatedAt: Date;
     }>;
@@ -26,13 +27,11 @@ vi.mock('@/contexts/ProjectsContext', () => {
     isLoading: false,
     error: null,
     refreshProjects: vi.fn().mockImplementation(async () => {
-      const dbProjects = await mockDatabase.getProjects();
-      mockProjectsContext.projects = dbProjects.map(p => ({
-        id: p.id.toString(),
+      const dbProjects = await mockDatabase.getAllProjects();
+      mockProjectsContext.projects = dbProjects.map((p: Project) => ({
+        projectId: p.projectId,
         name: p.name,
         description: p.description || '',
-        totalTime: 0,
-        sessionCount: 0,
         createdAt: new Date(p.createdAt),
         updatedAt: new Date(p.createdAt),
       }));
@@ -46,41 +45,18 @@ vi.mock('@/contexts/ProjectsContext', () => {
   };
 });
 
-// Mock the useDatabase hook
-vi.mock('@/contexts/DatabaseContext', () => ({
-  useDatabase: vi.fn().mockReturnValue({
-    getAllProjects: vi.fn().mockResolvedValue([]),
-    createProject: vi.fn().mockResolvedValue(1),
-    updateProject: vi.fn().mockResolvedValue(undefined),
-    deleteProject: vi.fn().mockResolvedValue(undefined),
-  }),
-  DatabaseProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
-
 describe('ProjectsPage', () => {
   beforeEach(() => {
+    mockDatabase = setupMockDatabase();
+
     // Reset all mocks
     vi.clearAllMocks();
 
-    // Reset mock database state
-    (mockDatabase.getProjects as ReturnType<typeof vi.fn>).mockResolvedValue([]);
-    (mockDatabase.createProject as ReturnType<typeof vi.fn>).mockResolvedValue(1);
-    (mockDatabase.updateProject as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
-    (mockDatabase.deleteProject as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
-
-    // Reset mock database context
-    (useDatabase as ReturnType<typeof vi.fn>).mockReturnValue({
-      getAllProjects: mockDatabase.getProjects,
-      createProject: mockDatabase.createProject,
-      updateProject: mockDatabase.updateProject,
-      deleteProject: mockDatabase.deleteProject,
-    });
-
-    // Reset mock projects context
-    const mockProjectsContext = useProjects();
-    mockProjectsContext.projects = [];
-    mockProjectsContext.isLoading = false;
-    mockProjectsContext.error = null;
+    // Mock the useDatabase hook
+    vi.mock('@/contexts/DatabaseContext', () => ({
+      useDatabase: vi.fn().mockReturnValue(mockDatabase),
+      DatabaseProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    }));
   });
 
   it('renders the projects page with title', async () => {
@@ -105,17 +81,19 @@ describe('ProjectsPage', () => {
 
   it('adds a new project when submitting the form', async () => {
     // Create a variable to store our projects
-    let projects: Array<{ id: number; name: string; description: string; created_at: string }> = [];
+    let projects: Array<{ id: number; name: string; description: string; createdAt: string }> = [];
 
     // Set up both database mocks to use the same projects array
-    (mockDatabase.getProjects as ReturnType<typeof vi.fn>).mockImplementation(async () => projects);
+    (mockDatabase.getAllProjects as ReturnType<typeof vi.fn>).mockImplementation(
+      async () => projects
+    );
     (mockDatabase.createProject as ReturnType<typeof vi.fn>).mockImplementation(
       async (name: string) => {
         const newProject = {
           id: 1,
           name,
           description: '',
-          created_at: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
         };
         projects = [newProject];
         return newProject.id;
@@ -124,10 +102,11 @@ describe('ProjectsPage', () => {
 
     // Mock the database context to use our mock
     (useDatabase as ReturnType<typeof vi.fn>).mockReturnValue({
-      getAllProjects: mockDatabase.getProjects,
+      getAllProjects: mockDatabase.getAllProjects,
       createProject: mockDatabase.createProject,
       updateProject: mockDatabase.updateProject,
       deleteProject: mockDatabase.deleteProject,
+      getSessions: mockDatabase.getSessions,
     });
 
     render(<ProjectsPage />);
@@ -156,10 +135,12 @@ describe('ProjectsPage', () => {
 
   it('shows error when creating project with duplicate name', async () => {
     // Create a variable to store our projects
-    let projects: Array<{ id: number; name: string; description: string; created_at: string }> = [];
+    let projects: Array<{ id: number; name: string; description: string; createdAt: string }> = [];
 
     // Set up both database mocks to use the same projects array
-    (mockDatabase.getProjects as ReturnType<typeof vi.fn>).mockImplementation(async () => projects);
+    (mockDatabase.getAllProjects as ReturnType<typeof vi.fn>).mockImplementation(
+      async () => projects
+    );
     (mockDatabase.createProject as ReturnType<typeof vi.fn>).mockImplementation(
       async (name: string) => {
         // Check for duplicate name
@@ -170,7 +151,7 @@ describe('ProjectsPage', () => {
           id: projects.length + 1,
           name,
           description: '',
-          created_at: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
         };
         projects = [...projects, newProject];
         return newProject.id;
@@ -179,10 +160,11 @@ describe('ProjectsPage', () => {
 
     // Mock the database context to use our mock
     (useDatabase as ReturnType<typeof vi.fn>).mockReturnValue({
-      getAllProjects: mockDatabase.getProjects,
+      getAllProjects: mockDatabase.getAllProjects,
       createProject: mockDatabase.createProject,
       updateProject: mockDatabase.updateProject,
       deleteProject: mockDatabase.deleteProject,
+      getSessions: mockDatabase.getSessions,
     });
 
     render(<ProjectsPage />);
@@ -224,17 +206,19 @@ describe('ProjectsPage', () => {
 
   it('allows editing project name to same name', async () => {
     // Create a variable to store our projects
-    let projects: Array<{ id: number; name: string; description: string; created_at: string }> = [];
+    let projects: Array<{ id: number; name: string; description: string; createdAt: string }> = [];
 
     // Set up both database mocks to use the same projects array
-    (mockDatabase.getProjects as ReturnType<typeof vi.fn>).mockImplementation(async () => projects);
+    (mockDatabase.getAllProjects as ReturnType<typeof vi.fn>).mockImplementation(
+      async () => projects
+    );
     (mockDatabase.createProject as ReturnType<typeof vi.fn>).mockImplementation(
       async (name: string) => {
         const newProject = {
           id: 1,
           name,
           description: '',
-          created_at: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
         };
         projects = [newProject];
         return newProject.id;
@@ -243,10 +227,11 @@ describe('ProjectsPage', () => {
 
     // Mock the database context to use our mock
     (useDatabase as ReturnType<typeof vi.fn>).mockReturnValue({
-      getAllProjects: mockDatabase.getProjects,
+      getAllProjects: mockDatabase.getAllProjects,
       createProject: mockDatabase.createProject,
       updateProject: mockDatabase.updateProject,
       deleteProject: mockDatabase.deleteProject,
+      getSessions: mockDatabase.getSessions,
     });
 
     render(<ProjectsPage />);
@@ -285,17 +270,19 @@ describe('ProjectsPage', () => {
 
   it('shows error when editing project to duplicate name', async () => {
     // Create a variable to store our projects
-    let projects: Array<{ id: number; name: string; description: string; created_at: string }> = [];
+    let projects: Array<{ id: number; name: string; description: string; createdAt: string }> = [];
 
     // Set up both database mocks to use the same projects array
-    (mockDatabase.getProjects as ReturnType<typeof vi.fn>).mockImplementation(async () => projects);
+    (mockDatabase.getAllProjects as ReturnType<typeof vi.fn>).mockImplementation(
+      async () => projects
+    );
     (mockDatabase.createProject as ReturnType<typeof vi.fn>).mockImplementation(
       async (name: string) => {
         const newProject = {
           id: projects.length + 1,
           name,
           description: '',
-          created_at: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
         };
         projects = [...projects, newProject];
         return newProject.id;
@@ -304,10 +291,11 @@ describe('ProjectsPage', () => {
 
     // Mock the database context to use our mock
     (useDatabase as ReturnType<typeof vi.fn>).mockReturnValue({
-      getAllProjects: mockDatabase.getProjects,
+      getAllProjects: mockDatabase.getAllProjects,
       createProject: mockDatabase.createProject,
       updateProject: mockDatabase.updateProject,
       deleteProject: mockDatabase.deleteProject,
+      getSessions: mockDatabase.getSessions,
     });
 
     render(<ProjectsPage />);
@@ -363,20 +351,16 @@ describe('ProjectsPage', () => {
     const mockProjectsContext = useProjects();
     mockProjectsContext.projects = [
       {
-        id: 1,
+        projectId: 1,
         name: 'Project 1',
         description: '',
-        totalTime: 0,
-        sessionCount: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
       {
-        id: 2,
+        projectId: 2,
         name: 'Project 2',
         description: '',
-        totalTime: 0,
-        sessionCount: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -396,17 +380,19 @@ describe('ProjectsPage', () => {
 describe('Project Stats', () => {
   it('shows stats when expanded', async () => {
     // Create a variable to store our projects
-    let projects: Array<{ id: number; name: string; description: string; created_at: string }> = [];
+    let projects: Array<{ id: number; name: string; description: string; createdAt: string }> = [];
 
     // Set up both database mocks to use the same projects array
-    (mockDatabase.getProjects as ReturnType<typeof vi.fn>).mockImplementation(async () => projects);
+    (mockDatabase.getAllProjects as ReturnType<typeof vi.fn>).mockImplementation(
+      async () => projects
+    );
     (mockDatabase.createProject as ReturnType<typeof vi.fn>).mockImplementation(
       async (name: string) => {
         const newProject = {
           id: 1,
           name,
           description: '',
-          created_at: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
         };
         projects = [newProject];
         return newProject.id;
@@ -415,10 +401,11 @@ describe('Project Stats', () => {
 
     // Mock the database context to use our mock
     (useDatabase as ReturnType<typeof vi.fn>).mockReturnValue({
-      getAllProjects: mockDatabase.getProjects,
+      getAllProjects: mockDatabase.getAllProjects,
       createProject: mockDatabase.createProject,
       updateProject: mockDatabase.updateProject,
       deleteProject: mockDatabase.deleteProject,
+      getSessions: mockDatabase.getSessions,
     });
 
     render(<ProjectsPage />);
@@ -534,11 +521,9 @@ describe('Project Stats', () => {
   it('shows zero time for new projects', async () => {
     // Create a new project
     const newProject = {
-      id: '1',
+      projectId: 1,
       name: 'New Project',
       description: '',
-      totalTime: 0,
-      sessionCount: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
     };

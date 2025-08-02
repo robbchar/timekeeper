@@ -13,6 +13,13 @@ export const sessionReducer = (
   action: SessionAction
 ): SessionState => {
   switch (action.type) {
+    case ActionType.SET_SESSIONS:
+      return {
+        ...state,
+        sessions: action.payload as Session[],
+        error: null,
+      };
+
     case ActionType.CREATE_SESSION: {
       if (state.currentSession) {
         return {
@@ -22,16 +29,12 @@ export const sessionReducer = (
       }
 
       const newSession: Session = {
-        id: action.payload.sessionId,
+        sessionId: action.payload.sessionId,
         projectId: action.payload.projectId,
         startTime: new Date(),
         duration: 0,
         notes: action.payload.notes,
         status: 'active',
-        totalPausedTime: 0,
-        tags: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
       };
 
       return {
@@ -54,7 +57,6 @@ export const sessionReducer = (
         currentSession: {
           ...state.currentSession,
           status: 'paused',
-          lastPausedAt: new Date(),
         },
         error: null,
       };
@@ -68,17 +70,11 @@ export const sessionReducer = (
         };
       }
 
-      const pausedTime = state.currentSession.lastPausedAt
-        ? new Date().getTime() - state.currentSession.lastPausedAt.getTime()
-        : 0;
-
       return {
         ...state,
         currentSession: {
           ...state.currentSession,
           status: 'active',
-          lastPausedAt: undefined,
-          totalPausedTime: state.currentSession.totalPausedTime + pausedTime,
         },
         error: null,
       };
@@ -93,15 +89,10 @@ export const sessionReducer = (
       }
 
       const endTime = new Date();
-      const duration =
-        endTime.getTime() -
-        state.currentSession.startTime.getTime() -
-        state.currentSession.totalPausedTime;
-
       const completedSession: Session = {
         ...state.currentSession,
         endTime,
-        duration,
+        duration: action.payload.duration,
         status: 'completed',
       };
 
@@ -114,19 +105,44 @@ export const sessionReducer = (
     }
 
     case ActionType.UPDATE_SESSION_NOTES: {
-      if (!state.currentSession) {
+      const session = state.sessions.find(s => s.sessionId === action.payload.sessionId);
+      if (!session) {
         return {
           ...state,
-          error: 'No active session to update',
+          error: 'Session not found',
         };
       }
 
       return {
         ...state,
-        currentSession: {
-          ...state.currentSession,
-          notes: action.payload.notes,
-        },
+        sessions: state.sessions.map(s =>
+          s.sessionId === action.payload.sessionId ? { ...s, notes: action.payload.notes } : s
+        ),
+        error: null,
+      };
+    }
+
+    case ActionType.DELETE_SESSION: {
+      return {
+        ...state,
+        sessions: state.sessions.filter(s => s.sessionId !== action.payload.sessionId),
+        error: null,
+      };
+    }
+
+    case ActionType.UPDATE_SESSION_DURATION: {
+      const session = state.sessions.find(s => s.sessionId === action.payload.sessionId);
+      if (!session) {
+        return {
+          ...state,
+          error: 'Session not found',
+        };
+      }
+      return {
+        ...state,
+        sessions: state.sessions.map(s =>
+          s.sessionId === action.payload.sessionId ? { ...s, duration: action.payload.duration } : s
+        ),
         error: null,
       };
     }

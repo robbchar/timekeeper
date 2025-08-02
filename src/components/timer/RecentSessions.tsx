@@ -1,7 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import styled from 'styled-components';
-import { formatDuration } from '@/utils/time';
+import { formatDate, formatDuration } from '@/utils/time';
 import type { Session } from '@/types/session';
+import { Button } from '@heroui/react';
+import { useSessions } from '@/state/hooks/useAppState';
+import { EditSessionsModal } from './EditSessionModal';
 
 const SessionList = styled.div`
   background-color: ${({ theme }) => theme.colors.background.secondary};
@@ -30,13 +33,16 @@ const SessionItem = styled.div`
 
 const SessionInfo = styled.div`
   display: flex;
-  flex-direction: column;
   gap: 0.25rem;
+  align-items: center;
+  width: 100%;
+  justify-content: flex-end;
 `;
 
 const SessionNotes = styled.span`
   color: ${({ theme }) => theme.colors.text.secondary};
   font-size: 0.875rem;
+  margin-right: auto;
 `;
 
 const SessionDuration = styled.span`
@@ -44,18 +50,65 @@ const SessionDuration = styled.span`
   font-size: 0.875rem;
 `;
 
+const SessionStartDate = styled.span`
+  color: ${({ theme }) => theme.colors.text.secondary};
+  font-size: 0.875rem;
+  margin-right: 1rem;
+`;
+
 const RecentSessions: React.FC<{
   sessions: Session[];
-}> = ({ sessions }) => {
+  sessionEdited: () => void;
+}> = ({ sessions, sessionEdited }) => {
+  const [selectedSession, setSelectedSession] = useState<Session | null>(null);
+  const { updateSessionNotes, updateSessionDuration, deleteSession } = useSessions();
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const handleEditClick = (sessionId: number) => {
+    setSelectedSession(sessions.find(s => s.sessionId === sessionId) || null);
+    setIsEditModalOpen(true);
+  };
+
+  const handleDeleteClick = (sessionId: number) => {
+    deleteSession(sessionId);
+    sessionEdited();
+  };
+
+  const handleEditSubmit = (notes: string, duration: number) => {
+    if (selectedSession) {
+      updateSessionNotes(selectedSession.sessionId, notes);
+      updateSessionDuration(selectedSession.sessionId, duration);
+      sessionEdited();
+    }
+  };
+
   return (
     <SessionList>
       <SessionListHeader>Recent Sessions</SessionListHeader>
       {sessions.map((session: Session) => (
-        <SessionItem key={session.id}>
+        <SessionItem key={session.sessionId}>
           <SessionInfo>
+            <SessionStartDate>{formatDate(session.startTime.toString())}</SessionStartDate>
             <SessionNotes>{session.notes || 'No notes'}</SessionNotes>
+            <SessionDuration>{formatDuration(session.duration)}</SessionDuration>
+            <Button
+              className="bg-transparent"
+              isIconOnly
+              aria-label="Edit Session"
+              onPress={() => handleEditClick(session.sessionId)}
+              title="Edit Session"
+            >
+              ✏️
+            </Button>
+            <Button
+              className="bg-transparent"
+              isIconOnly
+              onPress={() => handleDeleteClick(session.sessionId)}
+              title="Delete Session"
+              aria-label="Delete Session"
+            >
+              🗑️
+            </Button>
           </SessionInfo>
-          <SessionDuration>{formatDuration(session.duration)}</SessionDuration>
         </SessionItem>
       ))}
       {sessions.length === 0 && (
@@ -65,6 +118,15 @@ const RecentSessions: React.FC<{
           </SessionInfo>
         </SessionItem>
       )}
+
+      <EditSessionsModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        onSubmit={handleEditSubmit}
+        modalTitle={'Edit Session'}
+        initialNotes={selectedSession?.notes}
+        initialDuration={selectedSession?.duration}
+      />
     </SessionList>
   );
 };

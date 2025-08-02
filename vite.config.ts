@@ -39,7 +39,12 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@electron': path.resolve(__dirname, './electron'),
     },
+    preserveSymlinks: true,
+  },
+  optimizeDeps: {
+    include: ['@/types/state'],
   },
   server: {
     port: 5173,

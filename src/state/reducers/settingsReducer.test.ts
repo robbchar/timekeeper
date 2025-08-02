@@ -26,6 +26,7 @@ describe('settingsReducer', () => {
   it('should return initial state for unknown action', () => {
     const initialState: Settings = mockSettings;
     const action: Action = {
+      // @ts-expect-error - This is a test
       type: ActionType.ADD_PROJECT,
       payload: null,
     };
