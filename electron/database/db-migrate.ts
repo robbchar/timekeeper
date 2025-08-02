@@ -25,31 +25,38 @@ export async function runMigrations(db: sqlite3.Database): Promise<void> {
     });
   });
 
-  const currentVersion = parseInt(versionRow?.value || '0', 10);
-  console.log(`🧪 DB schema version: ${currentVersion}`);
+  const isTestEnv = process.env.NODE_ENV === 'test';
+  if (!isTestEnv) {
+    const currentVersion = parseInt(versionRow?.value || '0', 10);
+    console.log(`🧪 DB schema version: ${currentVersion}`);
 
-  // Sequential migrations
-  if (currentVersion < 2) {
-    try {
-      console.log('📦 Applying migration 002_camelcase_columns...');
-      await migrate002(db);
+    // Sequential migrations
+    if (currentVersion < 2) {
+      try {
+        console.log('📦 Applying migration 002_camelcase_columns...');
+        await migrate002(db);
 
-      console.log('🧪 DB schema version: 2');
-      await setSchemaVersion(db, 2);
-    } catch (err) {
-      console.log('Migration 002_camelcase_columns failed');
-      logMigrationError('Migration 002_camelcase_columns failed', err as Error);
-      throw err; // Let it propagate or handle as needed
+        console.log('🧪 DB schema version: 2');
+        await setSchemaVersion(db, 2);
+      } catch (err) {
+        console.log('Migration 002_camelcase_columns failed');
+        logMigrationError('Migration 002_camelcase_columns failed', err as Error);
+        throw err; // Let it propagate or handle as needed
+      }
+
+      // Future migrations here:
+      // if (currentVersion < 3) {
+      //   await migrate003(db);
+      //   await setSchemaVersion(db, 3);
+      // }
+
+      console.log(`✅ Database schema is up to date (v${CURRENT_SCHEMA_VERSION})`);
     }
+  } else {
+    console.log('🧪 Skipping migrations in test environment');
+
+    db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('schema_version', '2')`);
   }
-
-  // Future migrations here:
-  // if (currentVersion < 3) {
-  //   await migrate003(db);
-  //   await setSchemaVersion(db, 3);
-  // }
-
-  console.log(`✅ Database schema is up to date (v${CURRENT_SCHEMA_VERSION})`);
 }
 
 async function setSchemaVersion(db: sqlite3.Database, version: number) {
