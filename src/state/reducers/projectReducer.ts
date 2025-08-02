@@ -1,6 +1,5 @@
 import { ProjectCreate, ProjectUpdate } from '@/types/project';
-import type { Project } from '@/types/state';
-import type { Action } from '@/types/state';
+import type { Project, Action } from '@/types/state';
 import { ActionType } from '@/types/state';
 
 export const projectReducer = (projectsState: Project[], action: Action): Project[] => {
