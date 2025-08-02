@@ -1,4 +1,6 @@
 export const formatDuration = (seconds: number): string => {
+  if (!seconds) return '0s';
+
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
 

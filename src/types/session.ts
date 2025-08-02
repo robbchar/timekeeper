@@ -14,6 +14,10 @@ export interface Session {
   updatedAt?: Date;
 }
 
+// Type for database operations
+export type SessionCreate = Session;
+export type SessionUpdate = Pick<Session, 'sessionId' | 'notes' | 'duration'>;
+
 export interface SessionState {
   currentSession: Session | null;
   sessions: Session[];
@@ -22,6 +26,7 @@ export interface SessionState {
 }
 
 export interface CreateSessionParams {
+  sessionId?: number;
   projectId: number;
   notes?: string;
 }
@@ -34,11 +39,6 @@ export interface UpdateSessionParams {
 export interface CreateSessionAction {
   type: ActionType.CREATE_SESSION;
   payload: { sessionId: number; projectId: number; notes?: string };
-}
-
-export interface EndSessionAction {
-  type: ActionType.END_SESSION;
-  payload: { sessionId: number; duration: number };
 }
 
 export interface UpdateSessionNotesAction {

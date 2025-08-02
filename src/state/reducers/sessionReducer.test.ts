@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { sessionReducer } from './sessionReducer';
-import type { SessionState } from '@/types/session';
+import type { SessionState, SessionStatus } from '@/types/session';
 import { ActionType } from '@/types/state';
 import type { SessionAction } from '@/types/session';
 
@@ -56,7 +56,7 @@ describe('sessionReducer', () => {
     const action: SessionAction = {
       type: ActionType.CREATE_SESSION,
       payload: {
-        sessionId: 1,
+        sessionId: 2,
         projectId: 2,
       },
     };
@@ -137,9 +137,6 @@ describe('sessionReducer', () => {
       },
     };
 
-    // Advance time by 1 hour
-    vi.advanceTimersByTime(3600000);
-
     const action: SessionAction = {
       type: ActionType.END_SESSION,
       payload: { sessionId: 1, duration: 3600000 },
@@ -156,17 +153,18 @@ describe('sessionReducer', () => {
   });
 
   it('should update session notes', () => {
+    const testSession = {
+      sessionId: 1,
+      projectId: 1,
+      startTime: new Date(),
+      duration: 0,
+      status: 'active' as SessionStatus,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
     const stateWithActiveSession: SessionState = {
       ...initialState,
-      currentSession: {
-        sessionId: 1,
-        projectId: 1,
-        startTime: new Date(),
-        duration: 0,
-        status: 'active',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
+      sessions: [testSession],
     };
 
     const action: SessionAction = {
@@ -178,8 +176,7 @@ describe('sessionReducer', () => {
     };
 
     const newState = sessionReducer(stateWithActiveSession, action);
-
-    expect(newState.currentSession?.notes).toBe('Updated notes');
+    expect(newState.sessions[0].notes).toBe('Updated notes');
     expect(newState.error).toBeNull();
   });
 });

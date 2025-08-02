@@ -12,7 +12,7 @@ export enum Theme {
 
 export enum ActionType {
   // Project actions
-  ADD_PROJECT = 'ADD_PROJECT',
+  CREATE_PROJECT = 'CREATE_PROJECT',
   UPDATE_PROJECT = 'UPDATE_PROJECT',
   DELETE_PROJECT = 'DELETE_PROJECT',
 
@@ -77,6 +77,7 @@ export interface Action {
     | Settings
     | UIState
     | string
+    | number
     | boolean
     | null
     | Partial<Project>

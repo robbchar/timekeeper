@@ -15,11 +15,12 @@ describe('projectReducer', () => {
   it('should add a project with default stats', () => {
     const initialState: Project[] = [];
     const action = {
-      type: ActionType.ADD_PROJECT,
+      type: ActionType.CREATE_PROJECT,
       payload: {
         projectId: 1,
         name: 'Test Project',
         description: 'Test Description',
+        color: '#000000',
         createdAt: new Date(),
         updatedAt: new Date(),
       } as Project,

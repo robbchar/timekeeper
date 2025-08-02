@@ -92,6 +92,7 @@ export const sessionReducer = (
       const completedSession: Session = {
         ...state.currentSession,
         endTime,
+        duration: action.payload.duration,
         status: 'completed',
       };
 

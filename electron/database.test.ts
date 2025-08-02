@@ -9,7 +9,8 @@ describe('Database Operations', () => {
   let db: sqlite3.Database;
 
   beforeAll(async () => {
-    db = await initializeDatabase();
+    db = await initializeDatabase(true);
+    (window as unknown as { database: sqlite3.Database }).database = db;
   });
 
   afterAll(async () => {

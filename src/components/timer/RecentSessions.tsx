@@ -74,7 +74,6 @@ const RecentSessions: React.FC<{
   };
 
   const handleEditSubmit = (notes: string, duration: number) => {
-    console.log('edit', notes, duration);
     if (selectedSession) {
       updateSessionNotes(selectedSession.sessionId, notes);
       updateSessionDuration(selectedSession.sessionId, duration);
@@ -88,7 +87,7 @@ const RecentSessions: React.FC<{
       {sessions.map((session: Session) => (
         <SessionItem key={session.sessionId}>
           <SessionInfo>
-            <SessionStartDate>{formatDate(session.startTime)}</SessionStartDate>
+            <SessionStartDate>{formatDate(session.startTime.toString())}</SessionStartDate>
             <SessionNotes>{session.notes || 'No notes'}</SessionNotes>
             <SessionDuration>{formatDuration(session.duration)}</SessionDuration>
             <Button

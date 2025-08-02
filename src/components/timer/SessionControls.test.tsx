@@ -2,7 +2,6 @@ import React from 'react';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import SessionControls from './SessionControls';
-import { useAppContext } from '@/state/context/AppContext';
 import { useSessions } from '@/state/hooks/useAppState';
 import { useProjects } from '@/contexts/ProjectsContext';
 import { useDatabase } from '@/contexts/DatabaseContext';
@@ -10,12 +9,14 @@ import { ThemeProvider } from 'styled-components';
 import { theme } from '@/styles/theme';
 import { DatabaseProvider } from '@/contexts/DatabaseContext';
 import { ProjectsProvider } from '@/contexts/ProjectsContext';
-import { Project, Theme } from '@/types/state';
+import { AppState, Project, Theme } from '@/types/state';
 import type { Session } from '@/types/session';
 import type { AppContextType } from '@/state/context/AppContext';
+import { AppProvider } from '@/state/context/AppProvider';
+
 // Mock the hooks
-vi.mock('@/state/context/AppContext', () => ({
-  useAppContext: vi.fn(),
+vi.mock('@/state/context/AppProvider', () => ({
+  AppProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 const mockSessionsValue = {
@@ -73,29 +74,35 @@ const mockSessions: Session[] = [
   },
 ];
 
-const mockContextValue: AppContextType = {
-  state: {
-    projects: mockProjects,
-    sessions: {
-      currentSession: null,
-      sessions: [],
-      isLoading: false,
-      error: null,
-    },
-    tags: [],
-    settings: {
-      timeFormat: '24h',
-      defaultProject: undefined,
-    },
-    ui: {
-      theme: Theme.LIGHT,
-      error: undefined,
-      currentProject: undefined,
-      isTimerRunning: false,
-      isLoading: false,
-    },
+const mockState: AppState = {
+  projects: mockProjects,
+  sessions: {
+    currentSession: null,
+    sessions: [],
+    isLoading: false,
+    error: null,
   },
+  tags: [],
+  settings: {
+    timeFormat: '24h',
+    defaultProject: undefined,
+  },
+  ui: {
+    theme: Theme.LIGHT,
+    error: undefined,
+    currentProject: undefined,
+    isTimerRunning: false,
+    isLoading: false,
+  },
+};
+
+const mockContextValue: AppContextType = {
+  state: mockState,
   dispatch: vi.fn(),
+  getState: () => mockState,
+  createProject: vi.fn().mockResolvedValue(null),
+  updateProject: vi.fn().mockResolvedValue(undefined),
+  deleteProject: vi.fn().mockResolvedValue(undefined),
 };
 
 const mockProjectsValue = {
@@ -145,7 +152,7 @@ describe('SessionControls', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
-    (useAppContext as ReturnType<typeof vi.fn>).mockReturnValue(mockContextValue);
+    (AppProvider as ReturnType<typeof vi.fn>).mockReturnValue(mockContextValue);
     (useSessions as ReturnType<typeof vi.fn>).mockReturnValue(mockSessionsValue);
     (useProjects as ReturnType<typeof vi.fn>).mockReturnValue(mockProjectsValue);
     (useDatabase as ReturnType<typeof vi.fn>).mockReturnValue(mockDatabaseValue);
@@ -155,17 +162,14 @@ describe('SessionControls', () => {
     vi.useRealTimers();
   });
 
-  it('renders project selection and controls', () => {
+  it('renders no selected project initially', () => {
     renderWithTheme();
     expect(screen.getByLabelText('Select a project')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Add notes...')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Start Session' })).toBeInTheDocument();
   });
 
-  it('disables start button when no project is selected', () => {
-    renderWithTheme();
-    const startButton = screen.getByRole('button', { name: 'Start Session' });
-    expect(startButton).toBeDisabled();
+  it('renders start button when a project is selected', () => {
+    renderWithTheme(mockProjects, mockSessions, undefined, 1);
+    expect(screen.getByRole('button', { name: 'Start Session' })).toBeInTheDocument();
   });
 
   it('creates a new session when start button is clicked', async () => {
@@ -176,7 +180,7 @@ describe('SessionControls', () => {
     });
 
     await act(async () => {
-      renderWithTheme(undefined, undefined, undefined, 1);
+      renderWithTheme(mockProjects, mockSessions, undefined, 1);
     });
 
     // Add notes
@@ -206,7 +210,7 @@ describe('SessionControls', () => {
       updatedAt: new Date(),
     };
 
-    (useAppContext as ReturnType<typeof vi.fn>).mockReturnValue({
+    (AppProvider as ReturnType<typeof vi.fn>).mockReturnValue({
       ...mockContextValue,
       state: {
         ...mockContextValue.state,
@@ -240,7 +244,7 @@ describe('SessionControls', () => {
       stopSession: mockStopSession,
     });
 
-    (useAppContext as ReturnType<typeof vi.fn>).mockReturnValue({
+    (AppProvider as ReturnType<typeof vi.fn>).mockReturnValue({
       ...mockContextValue,
       state: {
         ...mockContextValue.state,
@@ -295,7 +299,7 @@ describe('SessionControls', () => {
       stopSession: mockStopSession,
     });
 
-    (useAppContext as ReturnType<typeof vi.fn>).mockReturnValue({
+    (AppProvider as ReturnType<typeof vi.fn>).mockReturnValue({
       ...mockContextValue,
       state: {
         ...mockContextValue.state,

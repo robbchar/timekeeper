@@ -1,7 +1,9 @@
 import type { Action } from '@/types/state';
-import type { Project, Tag, Settings, AppState } from '@/types/state';
+import type { Tag, Settings, AppState } from '@/types/state';
 import { ActionType } from '@/types/state';
 import { useDatabase } from '@/contexts/DatabaseContext';
+import { ProjectCreate, ProjectUpdate } from '@/types/project';
+import { CreateSessionParams, Session, SessionCreate, SessionUpdate } from '@/types/session';
 
 export class DatabaseError extends Error {
   constructor(
@@ -15,27 +17,31 @@ export class DatabaseError extends Error {
 
 export const createDatabaseService = (database: ReturnType<typeof useDatabase>) => {
   return {
-    async persistAction(action: Action, state: AppState): Promise<number | void> {
-      const oldState = state; // Take snapshot of entire state before any operations
+    async persistAction(
+      action: Action,
+      state: AppState
+    ): Promise<
+      ProjectUpdate | ProjectCreate | SessionCreate | { changes: number } | null | undefined
+    > {
+      const oldState = state;
 
       try {
         switch (action.type) {
-          case ActionType.ADD_PROJECT: {
-            const project = action.payload as Project;
-            if (!project?.name) {
+          case ActionType.CREATE_PROJECT: {
+            const { name, description, color } = action.payload as ProjectCreate;
+            if (!name) {
               throw new DatabaseError('Project name is required', oldState);
             }
-            await database.createProject(project.name, project.description, project.color);
-            break;
+            const project = await database.createProject(name, description, color);
+            return project;
           }
 
           case ActionType.UPDATE_PROJECT: {
-            const project = action.payload as Project;
-            if (!project?.projectId || !project?.name) {
+            const { projectId, name, description, color } = action.payload as ProjectUpdate;
+            if (!projectId || !name) {
               throw new DatabaseError('Project ID and name are required', oldState);
             }
-            await database.updateProject(project.projectId, project.name);
-            break;
+            return await database.updateProject(projectId, name, description, color);
           }
 
           case ActionType.DELETE_PROJECT: {
@@ -43,8 +49,7 @@ export const createDatabaseService = (database: ReturnType<typeof useDatabase>) 
             if (isNaN(id)) {
               throw new DatabaseError('Invalid project ID', oldState);
             }
-            await database.deleteProject(id);
-            break;
+            return await database.deleteProject(id);
           }
 
           case ActionType.ADD_TAG: {
@@ -86,21 +91,15 @@ export const createDatabaseService = (database: ReturnType<typeof useDatabase>) 
           }
 
           case ActionType.CREATE_SESSION: {
-            const { projectId, notes } = action.payload as {
-              projectId: number;
-              notes?: string;
-            };
+            const { projectId, notes } = action.payload as CreateSessionParams;
             if (!projectId) {
               throw new DatabaseError('Project ID is required', oldState);
             }
-            return await database.createSession(projectId, notes);
+            return (await database.createSession(projectId, notes)) as unknown as Session;
           }
 
           case ActionType.END_SESSION: {
-            const { sessionId, duration } = action.payload as {
-              sessionId: number;
-              duration: number;
-            };
+            const { sessionId, duration } = action.payload as SessionUpdate;
             if (!sessionId) {
               throw new DatabaseError('Session ID is required', oldState);
             }

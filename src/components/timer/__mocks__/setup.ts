@@ -1,6 +1,7 @@
-import { vi } from 'vitest';
+import { Mocked, vi } from 'vitest';
 import React from 'react';
 import { Theme } from '@/types/state';
+import type { DatabaseContextType } from '@/contexts/DatabaseContext';
 
 // Extend Window interface to include electron
 declare global {
@@ -55,7 +56,7 @@ const defaultProjects = createMockProjects();
 const defaultSessions = createMockSessions();
 
 // Keep track of current sessions for IPC mock
-let currentSessions = defaultSessions;
+const currentSessions = defaultSessions;
 
 // Mock window.electron for tests
 const mockIpcRenderer = {
@@ -69,15 +70,6 @@ const mockIpcRenderer = {
     }
   }),
 };
-
-// Set up the mock
-Object.defineProperty(window, 'electron', {
-  value: {
-    ipcRenderer: mockIpcRenderer,
-  },
-  writable: true,
-  configurable: true,
-});
 
 const createMockContextValue = () => ({
   state: {
@@ -107,43 +99,35 @@ const createMockContextValue = () => ({
 // Create a mock function for useDatabase
 const mockUseDatabase = vi.fn();
 
-// Function to set up the mock with specific sessions
-const setupMockDatabase = (sessions = defaultSessions) => {
-  // Update both the database mock and IPC mock
-  currentSessions = sessions;
-  mockUseDatabase.mockImplementation(() => ({
+function setupMockDatabase(): Mocked<DatabaseContextType> {
+  return {
     // Projects
-    createProject: vi.fn().mockResolvedValue(1),
-    getProject: vi
-      .fn()
-      .mockResolvedValue({ id: 1, name: 'Project 1', createdAt: new Date().toISOString() }),
-    getAllProjects: vi.fn().mockResolvedValue(defaultProjects),
+    createProject: vi.fn(),
+    getProject: vi.fn(),
+    getAllProjects: vi.fn(),
+    deleteProject: vi.fn(),
+    updateProject: vi.fn(),
+
     // Sessions
-    createSession: vi
-      .fn()
-      .mockImplementation((projectId: number, startTime: string, notes?: string) => {
-        const newSession = {
-          id: Date.now(),
-          projectId: projectId,
-          startTime: startTime,
-          endTime: '',
-          duration: 0,
-          notes: notes || '',
-        };
-        currentSessions = [...currentSessions, newSession];
-        return Promise.resolve({ lastInsertRowid: newSession.id, changes: 1 });
-      }),
-    endSession: vi.fn().mockResolvedValue(undefined),
-    getSessionsForProject: vi.fn().mockResolvedValue(sessions),
+    createSession: vi.fn(),
+    endSession: vi.fn(),
+    updateSessionNotes: vi.fn(),
+    updateSessionDuration: vi.fn(),
+    getSessions: vi.fn(),
+    getSessionsForProject: vi.fn(),
+    deleteSession: vi.fn(),
+
     // Tags
-    createTag: vi.fn().mockResolvedValue(1),
-    getAllTags: vi.fn().mockResolvedValue([]),
-    deleteTag: vi.fn().mockResolvedValue({ changes: 1 }),
+    createTag: vi.fn(),
+    getAllTags: vi.fn(),
+    updateTag: vi.fn(),
+    deleteTag: vi.fn(),
+
     // Settings
-    getSetting: vi.fn().mockResolvedValue(undefined),
-    setSetting: vi.fn().mockResolvedValue(undefined),
-  }));
-};
+    getSetting: vi.fn(),
+    setSetting: vi.fn(),
+  };
+}
 
 // Mock the hooks
 vi.mock('@/contexts/DatabaseContext', () => ({

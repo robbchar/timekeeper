@@ -41,11 +41,12 @@ const TimerPage = () => {
       console.log('SessionControls Finished fetching sessions');
       setIsSessionsLoading(false);
     }
-  }, [selectedProjectId, getSessionsForProject, setSessions, error]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProjectId]);
 
   useEffect(() => {
     fetchSessions();
-  }, [selectedProjectId]);
+  }, [selectedProjectId, fetchSessions]);
 
   const projectSelected = (projectId: number) => {
     setSelectedProjectId(projectId);

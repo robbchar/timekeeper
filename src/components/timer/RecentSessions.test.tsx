@@ -5,6 +5,8 @@ import RecentSessions from './RecentSessions';
 import { ThemeProvider } from 'styled-components';
 import { theme } from '@/styles/theme';
 import type { Session } from '@/types/session';
+import { DatabaseProvider } from '@/contexts/DatabaseContext';
+import { AppProvider } from '@/state/context/AppProvider';
 
 describe('RecentSessions', () => {
   beforeEach(() => {});
@@ -27,7 +29,11 @@ describe('RecentSessions', () => {
   const renderSessions = (sessions: Session[] = mockSessions) => {
     render(
       <ThemeProvider theme={theme}>
-        <RecentSessions sessions={sessions} sessionEdited={() => {}} />
+        <DatabaseProvider>
+          <AppProvider>
+            <RecentSessions sessions={sessions} sessionEdited={() => {}} />
+          </AppProvider>
+        </DatabaseProvider>
       </ThemeProvider>
     );
   };

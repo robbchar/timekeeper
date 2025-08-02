@@ -1,5 +1,12 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useDatabase } from './DatabaseContext';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+  useCallback,
+} from 'react';
+import { useDatabase } from '@/contexts/DatabaseContext';
 import type { Project } from '@/types/state';
 
 interface ProjectsContextType {
@@ -17,12 +24,10 @@ export const ProjectsProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const refreshProjects = async () => {
+  const refreshProjects = useCallback(async () => {
     try {
       setIsLoading(true);
-      console.log('Fetching projects from database...');
       const fetchedProjects = await getAllProjects();
-      console.log('Fetched projects:', fetchedProjects);
 
       if (!Array.isArray(fetchedProjects)) {
         throw new Error('Invalid response from database: expected an array of projects');
@@ -36,7 +41,6 @@ export const ProjectsProvider: React.FC<{ children: ReactNode }> = ({ children }
         updatedAt: new Date(project.createdAt),
       }));
 
-      console.log('Mapped projects:', mappedProjects);
       setProjects(mappedProjects);
       setError(null);
     } catch (err) {
@@ -46,11 +50,10 @@ export const ProjectsProvider: React.FC<{ children: ReactNode }> = ({ children }
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [getAllProjects]);
 
   useEffect(() => {
     let mounted = true;
-    console.log('ProjectsProvider mounted, refreshing projects...');
 
     const loadProjects = async () => {
       if (mounted) {
@@ -63,7 +66,7 @@ export const ProjectsProvider: React.FC<{ children: ReactNode }> = ({ children }
     return () => {
       mounted = false;
     };
-  }, []); // Remove getAllProjects from dependencies to prevent double fetching
+  }, [refreshProjects]);
 
   const value = {
     projects,
@@ -75,6 +78,7 @@ export const ProjectsProvider: React.FC<{ children: ReactNode }> = ({ children }
   return <ProjectsContext.Provider value={value}>{children}</ProjectsContext.Provider>;
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useProjects = (): ProjectsContextType => {
   const context = useContext(ProjectsContext);
   if (context === undefined) {

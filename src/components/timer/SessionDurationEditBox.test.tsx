@@ -5,21 +5,20 @@ import { SessionDurationEditBox } from './SessionDurationEditBox';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 describe('SessionDurationEditBox', () => {
-  let onChange: ReturnType<typeof vi.fn>;
+  const onChange = vi.fn();
 
   beforeEach(() => {
-    onChange = vi.fn();
+    onChange.mockClear();
   });
 
   it('renders initial value correctly', () => {
-    render(<SessionDurationEditBox initialSeconds={3661} onChange={onChange} />);
-    expect(screen.getByDisplayValue('01')).toBeInTheDocument(); // hours
-    expect(screen.getByDisplayValue('01')).toBeInTheDocument(); // minutes
-    expect(screen.getByDisplayValue('01')).toBeInTheDocument(); // seconds
+    render(<SessionDurationEditBox initialDuration={3661} onChange={onChange} />);
+    const inputs = screen.getAllByDisplayValue('01');
+    expect(inputs.length).toBe(3);
   });
 
   it('calls onChange when inputs change', async () => {
-    render(<SessionDurationEditBox initialSeconds={0} onChange={onChange} />);
+    render(<SessionDurationEditBox initialDuration={0} onChange={onChange} />);
     const inputs = screen.getAllByRole('spinbutton');
 
     await userEvent.clear(inputs[0]);
@@ -35,29 +34,38 @@ describe('SessionDurationEditBox', () => {
   });
 
   it('increments time using arrow buttons', async () => {
-    render(<SessionDurationEditBox initialSeconds={0} onChange={onChange} />);
-    const arrows = screen.getAllByText('▲');
+    render(<SessionDurationEditBox initialDuration={0} onChange={onChange} />);
 
-    await userEvent.click(arrows[0]); // increment hours
-    await userEvent.click(arrows[1]); // increment minutes
-    await userEvent.click(arrows[2]); // increment seconds
+    // RC no idea why this has to be done it seems as thought userEvent.click
+    // is changing the selected elements so they have to be re-selected
+    const [up0] = screen.getAllByText('▲');
+    await userEvent.click(up0); // increment hours
+    const [, up1] = screen.getAllByText('▲');
+    await userEvent.click(up1); // increment minutes
+    const [, , up2] = screen.getAllByText('▲');
+    await userEvent.click(up2); // increment seconds
 
     expect(onChange).toHaveBeenLastCalledWith(1 * 3600 + 1 * 60 + 1);
   });
 
   it('decrements time using arrow buttons', async () => {
-    render(<SessionDurationEditBox initialSeconds={0} onChange={onChange} />);
-    const downs = screen.getAllByText('▼');
+    render(<SessionDurationEditBox initialDuration={0} onChange={onChange} />);
 
-    await userEvent.click(downs[0]); // wrap to 99
-    await userEvent.click(downs[1]); // wrap to 59
-    await userEvent.click(downs[2]); // wrap to 59
+    // RC no idea why this has to be done it seems as thought userEvent.click
+    // is changing the selected elements so they have to be re-selected
+    const [down0] = screen.getAllByText('▼');
+    await userEvent.click(down0); // wrap to 99
+    const [, down1] = screen.getAllByText('▼');
+    await userEvent.click(down1); // wrap to 59
+    const [, , down2] = screen.getAllByText('▼');
+    await userEvent.click(down2); // wrap to 59
 
+    expect(onChange).toHaveBeenCalledTimes(4);
     expect(onChange).toHaveBeenLastCalledWith(99 * 3600 + 59 * 60 + 59);
   });
 
   it('prevents invalid input (negative or large numbers)', async () => {
-    render(<SessionDurationEditBox initialSeconds={0} onChange={onChange} />);
+    render(<SessionDurationEditBox initialDuration={0} onChange={onChange} />);
     const [minutesInput, secondsInput] = screen.getAllByRole('spinbutton');
 
     await userEvent.clear(minutesInput);

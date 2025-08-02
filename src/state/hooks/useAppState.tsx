@@ -1,6 +1,6 @@
 import { useContext } from 'react';
 import { AppContext } from '@/state/context/AppContext';
-import type { Project, Tag, Settings } from '@/types/state';
+import type { Tag, Settings } from '@/types/state';
 import type { CreateSessionParams, Session } from '@/types/session';
 import { ActionType } from '@/types/state';
 import { useDatabase } from '@/contexts/DatabaseContext';
@@ -8,49 +8,20 @@ import { createDatabaseService, DatabaseError } from '../services/databaseServic
 
 export const useProjects = () => {
   const context = useContext(AppContext);
-  const database = useDatabase();
   if (!context) throw new Error('useProjects must be used within an AppProvider');
-  const { state, dispatch } = context;
-  const dbService = createDatabaseService(database);
+
+  const {
+    state: { projects },
+    createProject,
+    updateProject,
+    deleteProject,
+  } = context;
 
   return {
-    projects: state.projects,
-    addProject: async (project: Project) => {
-      try {
-        await dbService.persistAction({ type: ActionType.ADD_PROJECT, payload: project }, state);
-        dispatch({ type: ActionType.ADD_PROJECT, payload: project });
-      } catch (error) {
-        if (error instanceof DatabaseError) {
-          dispatch({ type: ActionType.SET_ERROR, payload: error.message });
-          dispatch({ type: ActionType.RESTORE_STATE, payload: error.oldState });
-        }
-        throw error;
-      }
-    },
-    updateProject: async (project: Project) => {
-      try {
-        await dbService.persistAction({ type: ActionType.UPDATE_PROJECT, payload: project }, state);
-        dispatch({ type: ActionType.UPDATE_PROJECT, payload: project });
-      } catch (error) {
-        if (error instanceof DatabaseError) {
-          dispatch({ type: ActionType.SET_ERROR, payload: error.message });
-          dispatch({ type: ActionType.RESTORE_STATE, payload: error.oldState });
-        }
-        throw error;
-      }
-    },
-    deleteProject: async (id: string) => {
-      try {
-        await dbService.persistAction({ type: ActionType.DELETE_PROJECT, payload: id }, state);
-        dispatch({ type: ActionType.DELETE_PROJECT, payload: id });
-      } catch (error) {
-        if (error instanceof DatabaseError) {
-          dispatch({ type: ActionType.SET_ERROR, payload: error.message });
-          dispatch({ type: ActionType.RESTORE_STATE, payload: error.oldState });
-        }
-        throw error;
-      }
-    },
+    projects,
+    createProject,
+    updateProject,
+    deleteProject,
   };
 };
 
@@ -70,7 +41,7 @@ export const useSessions = () => {
     },
     startSession: async (params: CreateSessionParams) => {
       try {
-        const sessionId = await dbService.persistAction(
+        const session = (await dbService.persistAction(
           {
             type: ActionType.CREATE_SESSION,
             payload: {
@@ -79,12 +50,13 @@ export const useSessions = () => {
             },
           },
           state
-        );
-        if (sessionId) {
+        )) as Session;
+        // add to the state once session is created in the database
+        if (session?.sessionId) {
           dispatch({
             type: ActionType.CREATE_SESSION,
             payload: {
-              sessionId: Number(sessionId),
+              sessionId: Number(session.sessionId),
               projectId: Number(params.projectId),
               notes: params.notes,
             },

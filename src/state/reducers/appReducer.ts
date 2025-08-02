@@ -1,12 +1,13 @@
 import type { AppState } from '@/types/state';
 import { ActionType } from '@/types/state';
 import type { SessionAction } from '@/types/session';
-import type { AppAction } from '@/state/context/AppContext';
+import type { AppAction } from '@/state/context/AppAction';
 import { sessionReducer } from './sessionReducer';
 import { projectReducer } from './projectReducer';
 import { tagReducer } from './tagReducer';
 import { settingsReducer } from './settingsReducer';
 import { uiReducer } from './uiReducer';
+import { ProjectAction } from '@/types/project';
 
 export const appReducer = (state: AppState, action: AppAction): AppState => {
   switch (action.type) {
@@ -29,12 +30,12 @@ export const appReducer = (state: AppState, action: AppAction): AppState => {
         sessions: sessionReducer(state.sessions, action as SessionAction),
       };
 
-    case ActionType.ADD_PROJECT:
+    case ActionType.CREATE_PROJECT:
     case ActionType.UPDATE_PROJECT:
     case ActionType.DELETE_PROJECT:
       return {
         ...state,
-        projects: projectReducer(state.projects, action),
+        projects: projectReducer(state.projects, action as ProjectAction),
       };
 
     case ActionType.ADD_TAG:

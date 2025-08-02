@@ -50,7 +50,11 @@ export const SessionDurationEditBox: React.FC<SessionDurationEditBoxProps> = ({
       <div onClick={() => update(setter, value + 1, max)} style={{ cursor: 'pointer' }}>
         ▲
       </div>
-      <div onClick={() => update(setter, value - 1 + max, max)} style={{ cursor: 'pointer' }}>
+      <div
+        data-testid="down"
+        onClick={() => update(setter, value - 1 + max, max)}
+        style={{ cursor: 'pointer' }}
+      >
         ▼
       </div>
     </div>

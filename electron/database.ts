@@ -4,14 +4,18 @@ import type { Project } from '../src/types/project';
 import type { Session } from '../src/types/session';
 import type { TagDatabase } from '../src/types/tag';
 import type {
-  CreateResponse,
   UpdateResponse,
   DeleteResponse,
   DatabaseResponse,
 } from '../src/types/database-response';
 import { getDatabaseConfig } from './database-config';
-
-const { dbPath } = getDatabaseConfig();
+import {
+  getRecordAfterInsert,
+  getRecordAfterWrite,
+  getRecordBeforeDelete,
+  setDatabaseInstance,
+} from './helpers';
+import { runMigrations } from './db-migrate';
 
 let db: sqlite3.Database;
 export const createTablesSchema = `
@@ -30,13 +34,21 @@ export const createTablesSchema = `
       endTime DATETIME,
       duration INTEGER,
       notes TEXT,
-      FOREIGN KEY (projectId) REFERENCES projects(id)
+      FOREIGN KEY (projectId) REFERENCES projects(projectId) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS tags (
       tagId INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
       color TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS session_tags (
+      sessionTagId INTEGER PRIMARY KEY AUTOINCREMENT,
+      sessionId INTEGER NOT NULL,
+      tagId INTEGER NOT NULL,
+      FOREIGN KEY (sessionId) REFERENCES sessions(sessionId) ON DELETE CASCADE,
+      FOREIGN KEY (tagId) REFERENCES tags(tagId) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS settings (
@@ -46,7 +58,8 @@ export const createTablesSchema = `
   `;
 
 // Initialize database with proper error handling
-export function initializeDatabase(): Promise<sqlite3.Database> {
+export function initializeDatabase(memory = false): Promise<sqlite3.Database> {
+  const dbPath = memory ? ':memory:' : getDatabaseConfig().dbPath;
   return new Promise((resolve, reject) => {
     db = new sqlite3.Database(dbPath, (err: Error | null) => {
       if (err) {
@@ -65,12 +78,22 @@ export function initializeDatabase(): Promise<sqlite3.Database> {
 
         // Create tables if they don't exist
         console.log('Creating tables...');
-        db.exec(createTablesSchema, function (err) {
+        db.exec(createTablesSchema, async function (err) {
           if (err) {
             console.error('Failed to create tables:', err);
             reject(err);
             return;
           }
+
+          db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('schema_version', '1')`);
+
+          console.log('📤 Running migrations...');
+          await runMigrations(db).catch(err => {
+            console.error('Failed to run migrations:', err);
+            reject(err);
+          });
+
+          setDatabaseInstance(db);
           resolve(db);
         });
       });
@@ -80,29 +103,55 @@ export function initializeDatabase(): Promise<sqlite3.Database> {
 
 export async function closeDatabase() {
   await new Promise<DatabaseResponse>((resolve, reject) => {
-    db.close(function (err) {
-      if (err) reject(err);
-      else resolve({ changes: 0 });
-    });
+    if (db) {
+      db.close(function (err) {
+        if (err) reject(err);
+        else resolve({ changes: 0 });
+      });
+    } else {
+      resolve({ changes: 0 });
+      // reject(new Error('Database not initialized'));
+    }
   });
 }
 
+let handlersRegistered = false;
+
 // Set up IPC handlers
 export function setupDatabaseHandlers() {
+  if (handlersRegistered) return;
+  handlersRegistered = true;
+
   // Project operations
+  // Create Project
   ipcMain.handle(
     'database:createProject',
     (_, name: string, description?: string, color?: string) => {
-      return new Promise<CreateResponse>((resolve, reject) => {
+      return getRecordAfterInsert<Project>(function (cb) {
         db.run(
           'INSERT INTO projects (name, description, color) VALUES (?, ?, ?)',
           [name, description, color],
-          function (err) {
-            if (err) reject(err);
-            else resolve({ itemId: this.lastID, changes: this.changes });
-          }
+          cb
         );
-      });
+      }, 'SELECT * FROM projects WHERE projectId = ?');
+    }
+  );
+
+  // Update Project
+  ipcMain.handle(
+    'database:updateProject',
+    (_, projectId: number, name: string, description: string, color: string) => {
+      return getRecordAfterWrite<Project>(
+        function (cb) {
+          db.run(
+            'UPDATE projects SET name = ?, description = ?, color = ? WHERE projectId = ?',
+            [name, description, color, projectId],
+            cb
+          );
+        },
+        'SELECT * FROM projects WHERE projectId = ?',
+        [projectId]
+      );
     }
   );
 
@@ -115,70 +164,41 @@ export function setupDatabaseHandlers() {
     });
   });
 
-  ipcMain.handle('database:updateProject', (_, id: number, name: string) => {
-    return new Promise<UpdateResponse>((resolve, reject) => {
-      db.run('UPDATE projects SET name = ? WHERE projectId = ?', [name, id], function (err) {
+  ipcMain.handle('database:deleteProject', (_, id: number) => {
+    return new Promise<DeleteResponse>((resolve, reject) => {
+      db.run('DELETE FROM projects WHERE projectId = ?', [id], function (err) {
         if (err) reject(err);
         else resolve({ changes: this.changes });
       });
     });
   });
 
-  ipcMain.handle('database:deleteProject', (_, id: number) => {
-    return new Promise<DeleteResponse>((resolve, reject) => {
-      db.serialize(() => {
-        db.run('BEGIN TRANSACTION');
-        db.run('DELETE FROM sessions WHERE projectId = ?', [id], function (err) {
-          if (err) {
-            db.run('ROLLBACK');
-            reject(err);
-            return;
-          }
-          db.run('DELETE FROM projects WHERE projectId = ?', [id], function (err) {
-            if (err) {
-              db.run('ROLLBACK');
-              reject(err);
-              return;
-            }
-            db.run('COMMIT', function (err) {
-              if (err) reject(err);
-              else resolve({ changes: this.changes });
-            });
-          });
-        });
-      });
-    });
-  });
-
   // Session operations
   ipcMain.handle('database:createSession', (_, projectId: number, notes?: string) => {
-    return new Promise<CreateResponse>((resolve, reject) => {
+    return getRecordAfterInsert<Session>(function (cb) {
       db.run(
         'INSERT INTO sessions (projectId, startTime, notes) VALUES (?, ?, ?)',
         [projectId, new Date().toISOString(), notes],
-        function (err) {
-          if (err) reject(err);
-          else resolve({ itemId: this.lastID, changes: this.changes });
-        }
+        cb
       );
-    });
+    }, 'SELECT * FROM sessions WHERE sessionId = ?');
   });
 
   ipcMain.handle('database:endSession', (_, id: number, duration: number) => {
-    return new Promise<UpdateResponse>((resolve, reject) => {
-      db.run(
-        'UPDATE sessions SET endTime = ?, duration = ? WHERE sessionId = ?',
-        [new Date().toISOString(), duration, id],
-        function (err) {
-          if (err) reject(err);
-          else resolve({ changes: this.changes });
-        }
-      );
-    });
+    return getRecordAfterWrite<Session>(
+      function (cb) {
+        db.run(
+          'UPDATE sessions SET endTime = ?, duration = ? WHERE sessionId = ?',
+          [new Date().toISOString(), duration, id],
+          cb
+        );
+      },
+      'SELECT * FROM sessions WHERE sessionId = ?',
+      [id]
+    );
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  ipcMain.handle('database:getSessions', _ => {
+  ipcMain.handle('database:getSessions', () => {
     return new Promise<Session[]>((resolve, reject) => {
       let query = 'SELECT * FROM sessions';
       const params: string[] = [];
@@ -205,25 +225,23 @@ export function setupDatabaseHandlers() {
   });
 
   ipcMain.handle('database:updateSessionNotes', (_, id: number, notes: string) => {
-    return new Promise<UpdateResponse>((resolve, reject) => {
-      db.run('UPDATE sessions SET notes = ? WHERE sessionId = ?', [notes, id], function (err) {
-        if (err) reject(err);
-        else resolve({ changes: this.changes });
-      });
-    });
+    return getRecordAfterWrite<Session>(
+      function (cb) {
+        db.run('UPDATE sessions SET notes = ? WHERE sessionId = ?', [notes, id], cb);
+      },
+      'SELECT * FROM sessions WHERE sessionId = ?',
+      [id]
+    );
   });
 
   ipcMain.handle('database:updateSessionDuration', (_, id: number, duration: number) => {
-    return new Promise<UpdateResponse>((resolve, reject) => {
-      db.run(
-        'UPDATE sessions SET duration = ? WHERE sessionId = ?',
-        [duration, id],
-        function (err) {
-          if (err) reject(err);
-          else resolve({ changes: this.changes });
-        }
-      );
-    });
+    return getRecordAfterWrite<Session>(
+      function (cb) {
+        db.run('UPDATE sessions SET duration = ? WHERE sessionId = ?', [duration, id], cb);
+      },
+      'SELECT * FROM sessions WHERE sessionId = ?',
+      [id]
+    );
   });
 
   ipcMain.handle('database:deleteSession', (_, id: number) => {
@@ -237,12 +255,9 @@ export function setupDatabaseHandlers() {
 
   // Tag operations
   ipcMain.handle('database:createTag', (_, name: string, color?: string) => {
-    return new Promise<CreateResponse>((resolve, reject) => {
-      db.run('INSERT INTO tags (name, color) VALUES (?, ?)', [name, color], function (err) {
-        if (err) reject(err);
-        else resolve({ itemId: this.lastID, changes: this.changes });
-      });
-    });
+    return getRecordAfterInsert<TagDatabase>(function (cb) {
+      db.run('INSERT INTO tags (name, color) VALUES (?, ?)', [name, color], cb);
+    }, 'SELECT * FROM tags WHERE tagId = ?');
   });
 
   ipcMain.handle('database:getTags', () => {
@@ -252,6 +267,25 @@ export function setupDatabaseHandlers() {
         else resolve(rows as TagDatabase[]);
       });
     });
+  });
+
+  ipcMain.handle('database:updateTag', (_, tagId: number, name: string, color?: string) => {
+    return getRecordAfterWrite<TagDatabase>(
+      function (cb) {
+        db.run('UPDATE tags SET name = ?, color = ? WHERE tagId = ?', [name, color, tagId], cb);
+      },
+      'SELECT * FROM tags WHERE tagId = ?',
+      [tagId]
+    );
+  });
+
+  ipcMain.handle('database:deleteTag', (_, tagId: number) => {
+    return getRecordBeforeDelete<TagDatabase>(
+      'SELECT * FROM tags WHERE tagId = ?',
+      [tagId],
+      'DELETE FROM tags WHERE tagId = ?',
+      [tagId]
+    );
   });
 
   // Settings operations
