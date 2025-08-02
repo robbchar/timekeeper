@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { sessionReducer } from './sessionReducer';
-import type { SessionState, SessionStatus } from '@/types/session';
+import type { SessionState, SessionStatus, SessionAction } from '@/types/session';
 import { ActionType } from '@/types/state';
-import type { SessionAction } from '@/types/session';
 
 describe('sessionReducer', () => {
   const initialState: SessionState = {

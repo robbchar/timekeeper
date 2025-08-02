@@ -1,11 +1,10 @@
-import React from 'react';
+import React, { PropsWithChildren } from 'react';
 import { describe, it, expect, afterAll, beforeAll } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { TestProviders } from '@/test-utils/test-db-context';
 import { useProjects } from './useAppState';
 import { DatabaseProjectCreate } from '@/types/project';
 import { setupTestDatabase, teardownTestDatabase } from '@/test-utils/db-test-setup';
-import { PropsWithChildren } from 'react';
 import { actAsync } from '@/test-utils/helpers';
 
 const wrapper: React.FC<PropsWithChildren> = ({ children }) => (

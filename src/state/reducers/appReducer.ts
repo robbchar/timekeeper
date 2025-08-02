@@ -1,13 +1,13 @@
 import type { AppState } from '@/types/state';
 import { ActionType } from '@/types/state';
 import type { SessionAction } from '@/types/session';
+import type { ProjectAction } from '@/types/project';
 import type { AppAction } from '@/types/AppAction';
 import { sessionReducer } from './sessionReducer';
 import { projectReducer } from './projectReducer';
 import { tagReducer } from './tagReducer';
 import { settingsReducer } from './settingsReducer';
 import { uiReducer } from './uiReducer';
-import { ProjectAction } from '@/types/project';
 
 export const appReducer = (state: AppState, action: AppAction): AppState => {
   switch (action.type) {

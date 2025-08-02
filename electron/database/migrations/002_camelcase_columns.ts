@@ -22,14 +22,12 @@ export async function up(db: sqlite3.Database): Promise<void> {
           createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
         );
       `);
-      console.log('🧪 Migrating projects, inserting into projects');
       db.run(`
         INSERT INTO projects (projectId, name, description, color, createdAt)
         SELECT id, name, description, color, created_at FROM projects_old;
       `);
 
       // Step 2: Recreate sessions table with camelCase columns
-      console.log('🧪 Creating sessions table');
       db.run(
         `CREATE TABLE sessions (
           sessionId INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -43,7 +41,6 @@ export async function up(db: sqlite3.Database): Promise<void> {
       );
 
       // Step 3: Recreate session_tags table with camelCase columns
-      console.log('🧪 Creating session_tags table');
       db.run(
         `CREATE TABLE session_tags (
           sessionTagId INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,7 +52,6 @@ export async function up(db: sqlite3.Database): Promise<void> {
       );
 
       // Step 4: Copy data from sessions_old to sessions
-      console.log('🧪 Copying data from sessions_old to sessions');
       db.run(
         `INSERT INTO sessions (sessionId, projectId, startTime, endTime, duration, notes)
          SELECT id, project_id, start_time, end_time, duration, notes
@@ -63,7 +59,6 @@ export async function up(db: sqlite3.Database): Promise<void> {
       );
 
       // Step 5: Copy data from session_tags_old to session_tags
-      console.log('🧪 Copying data from session_tags_old to session_tags');
       db.run(
         `INSERT INTO session_tags (sessionTagId, sessionId, tagId)
          SELECT id, session_id, tag_id
@@ -71,7 +66,6 @@ export async function up(db: sqlite3.Database): Promise<void> {
       );
 
       // Step 6: Drop old tables
-      console.log('🧪 Dropping old tables');
       db.run(`DROP TABLE projects_old`);
       db.run(`DROP TABLE sessions_old`);
       db.run(`DROP TABLE session_tags_old`);

@@ -1,5 +1,4 @@
-import type { Tag } from '@/types/state';
-import type { Action } from '@/types/state';
+import type { Tag, Action } from '@/types/state';
 import { ActionType } from '@/types/state';
 
 export const tagReducer = (state: Tag[], action: Action): Tag[] => {

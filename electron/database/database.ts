@@ -1,13 +1,9 @@
 import * as sqlite3 from 'sqlite3';
 import { ipcMain } from 'electron';
-import type { Project } from '../../src/types/project';
-import type { Session } from '../../src/types/session';
-import type { TagDatabase } from '../../src/types/tag';
-import type {
-  UpdateResponse,
-  DeleteResponse,
-  DatabaseResponse,
-} from '../../src/types/database-response';
+import type { Project } from '@/types/project';
+import type { Session } from '@/types/session';
+import type { TagDatabase } from '@/types/tag';
+import type { UpdateResponse, DeleteResponse, DatabaseResponse } from '@/types/database-response';
 import { getDatabaseConfig } from './database-config';
 import {
   getRecordAfterInsert,

@@ -1,5 +1,4 @@
-import type { Action } from '@/types/state';
-import type { Tag, Settings, AppState } from '@/types/state';
+import type { Action, Tag, Settings, AppState } from '@/types/state';
 import { ActionType } from '@/types/state';
 import { useDatabase } from '@/contexts/DatabaseContext';
 import { ProjectCreate, ProjectUpdate } from '@/types/project';
