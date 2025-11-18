@@ -1,8 +1,9 @@
 import type sqlite3 from 'sqlite3';
 import { up as migrate002 } from './migrations/002_camelcase_columns';
+import { up as migrate003 } from './migrations/003_add_tag_timestamps';
 import { logMigrationError } from './logMigrationError';
 
-const CURRENT_SCHEMA_VERSION = 2;
+const CURRENT_SCHEMA_VERSION = 3;
 
 export async function runMigrations(db: sqlite3.Database): Promise<void> {
   // Ensure settings table exists (just in case)
@@ -43,19 +44,27 @@ export async function runMigrations(db: sqlite3.Database): Promise<void> {
         logMigrationError('Migration 002_camelcase_columns failed', err as Error);
         throw err; // Let it propagate or handle as needed
       }
-
-      // Future migrations here:
-      // if (currentVersion < 3) {
-      //   await migrate003(db);
-      //   await setSchemaVersion(db, 3);
-      // }
-
-      console.log(`✅ Database schema is up to date (v${CURRENT_SCHEMA_VERSION})`);
     }
+
+    if (currentVersion < 3) {
+      try {
+        console.log('📦 Applying migration 003_add_tag_timestamps...');
+        await migrate003(db);
+
+        console.log('🧪 DB schema version: 3');
+        await setSchemaVersion(db, 3);
+      } catch (err) {
+        console.log('Migration 003_add_tag_timestamps failed');
+        logMigrationError('Migration 003_add_tag_timestamps failed', err as Error);
+        throw err;
+      }
+    }
+
+    console.log(`✅ Database schema is up to date (v${CURRENT_SCHEMA_VERSION})`);
   } else {
     console.log('🧪 Skipping migrations in test environment');
 
-    db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('schema_version', '2')`);
+    db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('schema_version', '3')`);
   }
 }
 

@@ -174,9 +174,9 @@ The current database layer has grown organically and now has a few rough edges:
 
 - **Phase 2 – `DatabaseContext` mapping & queries**
 
-  - [ ] Make `DatabaseContext` the single mapping boundary (DB row ↔ domain) for projects, sessions, tags, and settings.
-  - [ ] Update `getSessionsForProject` to use the `database:getSessionsForProject` IPC handler instead of in-memory filtering.
-  - [ ] Fix tag mapping so `createdAt` / `updatedAt` come from the database, not `new Date()`.
+  - [x] Make `DatabaseContext` the single mapping boundary (DB row ↔ domain) for projects, sessions, tags, and settings.
+  - [x] Update `getSessionsForProject` to use the `database:getSessionsForProject` IPC handler instead of in-memory filtering.
+  - [x] Fix tag mapping so `createdAt` / `updatedAt` come from the database, not `new Date()`.
 
 - **Phase 3 – `databaseService.persistAction` return contracts**
 

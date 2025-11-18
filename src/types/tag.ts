@@ -13,6 +13,8 @@ export interface TagDatabase {
   tagId: number;
   name: string;
   color?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // Type for database operations
