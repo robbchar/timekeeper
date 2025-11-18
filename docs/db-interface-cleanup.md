@@ -181,9 +181,9 @@ The current database layer has grown organically and now has a few rough edges:
 - **Phase 3 – `databaseService.persistAction` return contracts**
 
   - [ ] For each `ActionType.*` handled in `persistAction`, implement a clear, per-action return type:
-    - [ ] `CREATE_PROJECT` → `Project`
-    - [ ] `UPDATE_PROJECT` → `Project`
-    - [ ] `DELETE_PROJECT` → `{ changes: number }`
+    - [x] `CREATE_PROJECT` → `Project`
+    - [x] `UPDATE_PROJECT` → `Project`
+    - [x] `DELETE_PROJECT` → `{ changes: number }`
     - [ ] `ADD_TAG` → `Tag` (or `void` if you decide the reducer payload is always the source of truth)
     - [ ] `UPDATE_TAG` → `Tag` or `{ changes: number }` (choose one and make it consistent)
     - [ ] `DELETE_TAG` → `{ changes: number }`
