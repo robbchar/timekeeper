@@ -27,7 +27,7 @@ export interface DatabaseContextType {
   // Tags
   createTag: (name: string, color?: string) => Promise<Tag>;
   getAllTags: () => Promise<Tag[]>;
-  updateTag: (tagId: number, name: string, color?: string) => Promise<{ changes: number }>;
+  updateTag: (tagId: number, name: string, color?: string) => Promise<Tag>;
   deleteTag: (tagId: number) => Promise<{ changes: number }>;
   // Settings
   getSetting: (key: string) => Promise<string | undefined>;
@@ -204,14 +204,17 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
     }
   };
 
-  const updateTag = async (
-    tagId: number,
-    name: string,
-    color?: string
-  ): Promise<{ changes: number }> => {
+  const updateTag = async (tagId: number, name: string, color?: string): Promise<Tag> => {
     try {
       const result = await window.database.updateTag(tagId, name, color);
-      return { changes: result.changes };
+      const dbTag = result.record;
+      return {
+        id: dbTag.tagId,
+        name: dbTag.name,
+        color: dbTag.color,
+        createdAt: new Date(dbTag.createdAt),
+        updatedAt: new Date(dbTag.updatedAt),
+      };
     } catch (error) {
       console.error('Error updating tag:', error);
       throw error;

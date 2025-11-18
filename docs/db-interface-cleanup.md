@@ -180,20 +180,20 @@ The current database layer has grown organically and now has a few rough edges:
 
 - **Phase 3 – `databaseService.persistAction` return contracts**
 
-  - [ ] For each `ActionType.*` handled in `persistAction`, implement a clear, per-action return type:
-    - [ ] `CREATE_PROJECT` → `Project`
-    - [ ] `UPDATE_PROJECT` → `Project`
-    - [ ] `DELETE_PROJECT` → `{ changes: number }`
-    - [ ] `ADD_TAG` → `Tag` (or `void` if you decide the reducer payload is always the source of truth)
-    - [ ] `UPDATE_TAG` → `Tag` or `{ changes: number }` (choose one and make it consistent)
-    - [ ] `DELETE_TAG` → `{ changes: number }`
-    - [ ] `UPDATE_SETTINGS` → `{ changes: number }` total over all `setSetting` calls
-    - [ ] `CREATE_SESSION` → `Session`
-    - [ ] `END_SESSION` → `{ changes: number }`
-    - [ ] `UPDATE_SESSION_NOTES` → `{ changes: number }`
-    - [ ] `UPDATE_SESSION_DURATION` → `{ changes: number }`
-    - [ ] `DELETE_SESSION` → `{ changes: number }`
-  - [ ] Update `useAppState` and `AppProvider` so they rely on these narrowed return types instead of the broad union.
+  - [x] For each `ActionType.*` handled in `persistAction`, implement a clear, per-action return type:
+    - [x] `CREATE_PROJECT` → `Project`
+    - [x] `UPDATE_PROJECT` → `Project`
+    - [x] `DELETE_PROJECT` → `{ changes: number }`
+    - [x] `ADD_TAG` → `Tag`
+    - [x] `UPDATE_TAG` → `Tag`
+    - [x] `DELETE_TAG` → `{ changes: number }`
+    - [x] `UPDATE_SETTINGS` → `{ changes: number }` total over all `setSetting` calls
+    - [x] `CREATE_SESSION` → `Session`
+    - [x] `END_SESSION` → `{ changes: number }`
+    - [x] `UPDATE_SESSION_NOTES` → `{ changes: number }`
+    - [x] `UPDATE_SESSION_DURATION` → `{ changes: number }`
+    - [x] `DELETE_SESSION` → `{ changes: number }`
+  - [x] Update `useAppState` and `AppProvider` so they rely on these narrowed return types instead of the broad union.
 
 - **Phase 4 – Tests & cleanup**
   - [ ] Add/extend tests for the Electron DB layer (e.g. `electron/database/database.test.ts`) to lock in IPC contracts.
