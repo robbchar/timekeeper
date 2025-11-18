@@ -18,21 +18,3 @@ export interface UpdateResponse<T = unknown> extends ChangesOnlyResponse {
 export interface DeleteResponse<T = unknown> extends ChangesOnlyResponse {
   deleted: T;
 }
-
-// Backwards-compatible aliases (to be removed in a later cleanup phase)
-export type DatabaseResponse<T = unknown> =
-  | CreateResponse<T>
-  | UpdateResponse<T>
-  | DeleteResponse<T>;
-export type ProjectDatabaseResponse<T = unknown> =
-  | CreateResponse<T>
-  | UpdateResponse<T>
-  | DeleteResponse<T>;
-export type TagDatabaseResponse<T = unknown> =
-  | CreateResponse<T>
-  | UpdateResponse<T>
-  | DeleteResponse<T>;
-export type SessionDatabaseResponse<T = unknown> =
-  | CreateResponse<T>
-  | UpdateResponse<T>
-  | DeleteResponse<T>;

@@ -33,10 +33,4 @@ export interface UpdateProjectAction {
   payload: ProjectUpdate;
 }
 
-// Type for database response
-export interface ProjectDatabaseResponse {
-  lastInsertRowid?: number;
-  changes?: number;
-}
-
 export type ProjectAction = CreateProjectAction | DeleteProjectAction | UpdateProjectAction;
