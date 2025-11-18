@@ -37,7 +37,10 @@ export const useSessions = () => {
     sessions: state.sessions.sessions,
     currentSession: state.sessions.currentSession,
     getSessions: async () => {
-      const sessions = await dbService.persistAction({ type: ActionType.GET_SESSIONS }, state);
+      const sessions = (await dbService.persistAction(
+        { type: ActionType.GET_SESSIONS },
+        state
+      )) as Session[];
       return sessions;
     },
     startSession: async (params: CreateSessionParams) => {
@@ -186,8 +189,11 @@ export const useTags = () => {
     tags: state.tags,
     addTag: async (tag: Tag) => {
       try {
-        await dbService.persistAction({ type: ActionType.ADD_TAG, payload: tag }, state);
-        dispatch({ type: ActionType.ADD_TAG, payload: tag });
+        const created = (await dbService.persistAction(
+          { type: ActionType.ADD_TAG, payload: tag },
+          state
+        )) as unknown as Tag;
+        dispatch({ type: ActionType.ADD_TAG, payload: created });
       } catch (error) {
         if (error instanceof DatabaseError) {
           dispatch({ type: ActionType.SET_ERROR, payload: error.message });
@@ -198,8 +204,11 @@ export const useTags = () => {
     },
     updateTag: async (tag: Tag) => {
       try {
-        await dbService.persistAction({ type: ActionType.UPDATE_TAG, payload: tag }, state);
-        dispatch({ type: ActionType.UPDATE_TAG, payload: tag });
+        const updated = (await dbService.persistAction(
+          { type: ActionType.UPDATE_TAG, payload: tag },
+          state
+        )) as unknown as Tag;
+        dispatch({ type: ActionType.UPDATE_TAG, payload: updated });
       } catch (error) {
         if (error instanceof DatabaseError) {
           dispatch({ type: ActionType.SET_ERROR, payload: error.message });
