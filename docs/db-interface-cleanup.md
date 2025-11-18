@@ -196,11 +196,11 @@ The current database layer has grown organically and now has a few rough edges:
   - [x] Update `useAppState` and `AppProvider` so they rely on these narrowed return types instead of the broad union.
 
 - **Phase 4 – Tests & cleanup**
-  - [ ] Add/extend tests for the Electron DB layer (e.g. `electron/database/database.test.ts`) to lock in IPC contracts.
-  - [ ] Add tests for `DatabaseContext` mapping (domain ↔ DB shape) for projects, sessions, tags, and settings.
-  - [ ] Remove any remaining client-side filtering that duplicates DB work.
-  - [ ] Remove outdated type aliases and any remaining references to the old `DatabaseResponse` unions where they are no longer needed.
-  - [ ] Revisit and update this document to reflect the final contract and any deviations made during implementation.
+  - [x] Add/extend tests for the Electron DB layer (e.g. `electron/database/database.test.ts`) to lock in IPC/helper response shapes.
+  - [x] Add tests for `DatabaseContext` mapping (domain ↔ DB shape) for projects, sessions, tags, and settings.
+  - [x] Remove any remaining client-side filtering that duplicates DB work (e.g. `getSessionsForProject` now calls the IPC handler).
+  - [x] Remove outdated type aliases and any remaining references to the old `DatabaseResponse` unions where they are no longer needed.
+  - [x] Revisit and update this document to reflect the final contract and any deviations made during implementation.
 
 ### Notes
 
