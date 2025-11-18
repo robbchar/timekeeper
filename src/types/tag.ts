@@ -8,9 +8,9 @@ export interface Tag {
   updatedAt: Date;
 }
 
-// Database-specific types
+// Database-specific types (shape of rows in the `tags` table)
 export interface TagDatabase {
-  id: number;
+  tagId: number;
   name: string;
   color?: string;
 }
