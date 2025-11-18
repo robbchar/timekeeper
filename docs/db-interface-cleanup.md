@@ -193,7 +193,7 @@ The current database layer has grown organically and now has a few rough edges:
     - [x] `UPDATE_SESSION_NOTES` → `{ changes: number }`
     - [x] `UPDATE_SESSION_DURATION` → `{ changes: number }`
     - [x] `DELETE_SESSION` → `{ changes: number }`
-  - [ ] Update `useAppState` and `AppProvider` so they rely on these narrowed return types instead of the broad union.
+  - [x] Update `useAppState` and `AppProvider` so they rely on these narrowed return types instead of the broad union.
 
 - **Phase 4 – Tests & cleanup**
   - [ ] Add/extend tests for the Electron DB layer (e.g. `electron/database/database.test.ts`) to lock in IPC contracts.
