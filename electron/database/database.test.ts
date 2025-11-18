@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import * as sqlite3 from 'sqlite3';
 import { closeDatabase, initializeDatabase } from './database';
+import { getRecordAfterInsert, getRecordAfterWrite, getRecordBeforeDelete } from '../helpers';
 import type { Project } from '@/types/project';
 import type { Session } from '@/types/session';
 import type { TagDatabase } from '@/types/tag';
@@ -249,6 +250,89 @@ describe('Database Operations', () => {
           }
         );
       });
+    });
+  });
+
+  describe('Database response helpers', () => {
+    it('getRecordAfterInsert returns itemId, changes, and record', async () => {
+      const result = await getRecordAfterInsert<Project>(
+        cb =>
+          db.run(
+            'INSERT INTO projects (name, description, color) VALUES (?, ?, ?)',
+            ['Helper Project', 'Project created via helper', '#abcdef'],
+            cb
+          ),
+        'SELECT * FROM projects WHERE projectId = ?'
+      );
+
+      expect(result.itemId).toBeDefined();
+      expect(result.changes).toBe(1);
+      expect(result.record).toBeDefined();
+      expect(result.record.name).toBe('Helper Project');
+    });
+
+    it('getRecordAfterWrite returns changes and updated record', async () => {
+      let projectId!: number;
+
+      await new Promise<void>((resolve, reject) => {
+        db.run(
+          'INSERT INTO projects (name, description, color) VALUES (?, ?, ?)',
+          ['Writable Project', 'Project to update via helper', '#123456'],
+          function (err: Error | null) {
+            if (err) {
+              reject(err);
+              return;
+            }
+            projectId = this.lastID;
+            resolve();
+          }
+        );
+      });
+
+      const result = await getRecordAfterWrite<Project>(
+        cb =>
+          db.run(
+            'UPDATE projects SET name = ? WHERE projectId = ?',
+            ['Updated Project via helper', projectId],
+            cb
+          ),
+        'SELECT * FROM projects WHERE projectId = ?',
+        [projectId]
+      );
+
+      expect(result.changes).toBe(1);
+      expect(result.record).toBeDefined();
+      expect(result.record.name).toBe('Updated Project via helper');
+    });
+
+    it('getRecordBeforeDelete returns changes and deleted record', async () => {
+      let tagId!: number;
+
+      await new Promise<void>((resolve, reject) => {
+        db.run(
+          'INSERT INTO tags (name, color) VALUES (?, ?)',
+          ['Helper Tag', '#fedcba'],
+          function (err: Error | null) {
+            if (err) {
+              reject(err);
+              return;
+            }
+            tagId = this.lastID;
+            resolve();
+          }
+        );
+      });
+
+      const result = await getRecordBeforeDelete<TagDatabase>(
+        'SELECT * FROM tags WHERE tagId = ?',
+        [tagId],
+        'DELETE FROM tags WHERE tagId = ?',
+        [tagId]
+      );
+
+      expect(result.changes).toBe(1);
+      expect(result.deleted).toBeDefined();
+      expect(result.deleted.name).toBe('Helper Tag');
     });
   });
 });
