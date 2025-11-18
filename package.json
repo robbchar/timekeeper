@@ -20,6 +20,7 @@
     "test": "vitest",
     "test:db": "vitest --config vitest.database.config.ts",
     "test:electron": "vitest --config vitest.electron.config.ts",
+    "test:all": "npm run test -- --run && npm run test:db -- --run && npm run test:electron -- --run",
     "test:coverage": "vitest run --coverage",
     "prepare": "husky",
     "postinstall": "electron-builder install-app-deps"

@@ -6,6 +6,7 @@ import { ProjectsPage } from './ProjectsPage';
 import { DatabaseContextType, useDatabase } from '@/contexts/DatabaseContext';
 import { useProjects } from '@/contexts/ProjectsContext';
 import { Project } from '@/types/project';
+import { TestProviders } from '@/test-utils/test-db-context';
 
 let mockDatabase: Mocked<DatabaseContextType>;
 
@@ -45,6 +46,14 @@ vi.mock('@/contexts/ProjectsContext', () => {
   };
 });
 
+// Mock sessions hook used by ProjectsPage so it doesn't depend on AppProvider
+vi.mock('@/state/hooks/useAppState', () => ({
+  useSessions: vi.fn().mockReturnValue({
+    sessions: [],
+    setSessions: vi.fn(),
+  }),
+}));
+
 describe('ProjectsPage', () => {
   beforeEach(() => {
     mockDatabase = setupMockDatabase();
@@ -52,22 +61,19 @@ describe('ProjectsPage', () => {
     // Reset all mocks
     vi.clearAllMocks();
 
-    // Mock the useDatabase hook
-    vi.mock('@/contexts/DatabaseContext', () => ({
-      useDatabase: vi.fn().mockReturnValue(mockDatabase),
-      DatabaseProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-    }));
+    // Have the mocked useDatabase hook return our mock database instance by default
+    (useDatabase as unknown as ReturnType<typeof vi.fn>).mockReturnValue(mockDatabase);
   });
 
   it('renders the projects page with title', async () => {
-    render(<ProjectsPage />);
+    render(<ProjectsPage />, { wrapper: TestProviders });
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Projects' })).toBeInTheDocument();
     });
   });
 
   it('shows add project modal when clicking add button', async () => {
-    render(<ProjectsPage />);
+    render(<ProjectsPage />, { wrapper: TestProviders });
     await waitFor(() => {
       expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
     });
@@ -109,7 +115,7 @@ describe('ProjectsPage', () => {
       getSessions: mockDatabase.getSessions,
     });
 
-    render(<ProjectsPage />);
+    render(<ProjectsPage />, { wrapper: TestProviders });
     await waitFor(() => {
       expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
     });
@@ -167,7 +173,7 @@ describe('ProjectsPage', () => {
       getSessions: mockDatabase.getSessions,
     });
 
-    render(<ProjectsPage />);
+    render(<ProjectsPage />, { wrapper: TestProviders });
 
     // Wait for loading to finish
     await waitFor(() => {
@@ -234,7 +240,7 @@ describe('ProjectsPage', () => {
       getSessions: mockDatabase.getSessions,
     });
 
-    render(<ProjectsPage />);
+    render(<ProjectsPage />, { wrapper: TestProviders });
 
     // Wait for loading to finish
     await waitFor(() => {
@@ -259,8 +265,9 @@ describe('ProjectsPage', () => {
     const editButton = screen.getByRole('button', { name: /edit project/i });
     fireEvent.click(editButton);
 
-    // Submit with same name
-    const editForm = screen.getByRole('form');
+    // Submit with same name - specifically target the Edit Project form
+    const editHeading = screen.getByRole('heading', { name: /edit project/i });
+    const editForm = editHeading.closest('form') as HTMLFormElement;
     const saveButton = within(editForm).getByRole('button', { name: /save changes/i });
     fireEvent.click(saveButton);
 
@@ -298,7 +305,7 @@ describe('ProjectsPage', () => {
       getSessions: mockDatabase.getSessions,
     });
 
-    render(<ProjectsPage />);
+    render(<ProjectsPage />, { wrapper: TestProviders });
 
     // Wait for loading to finish
     await waitFor(() => {
@@ -368,7 +375,7 @@ describe('ProjectsPage', () => {
     mockProjectsContext.isLoading = false;
     mockProjectsContext.error = null;
 
-    render(<ProjectsPage />);
+    render(<ProjectsPage />, { wrapper: TestProviders });
 
     await waitFor(() => {
       expect(screen.getByText('Project 1')).toBeInTheDocument();
@@ -408,7 +415,7 @@ describe('Project Stats', () => {
       getSessions: mockDatabase.getSessions,
     });
 
-    render(<ProjectsPage />);
+    render(<ProjectsPage />, { wrapper: TestProviders });
 
     // Wait for loading to finish
     await waitFor(() => {
@@ -467,7 +474,7 @@ describe('Project Stats', () => {
     mockProjectsContext.isLoading = false;
     mockProjectsContext.error = null;
 
-    render(<ProjectsPage />);
+    render(<ProjectsPage />, { wrapper: TestProviders });
 
     // Wait for loading to finish
     await waitFor(() => {
@@ -536,7 +543,7 @@ describe('Project Stats', () => {
       refreshProjects: vi.fn().mockResolvedValue(undefined),
     });
 
-    const { debug } = render(<ProjectsPage />);
+    const { debug } = render(<ProjectsPage />, { wrapper: TestProviders });
 
     // Wait for the new project to appear
     const newProjectTitle = screen.getByText('New Project');

@@ -1,13 +1,12 @@
-import React, { useEffect, useState, useRef, useContext } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
-import { AppContext } from '@/contexts/AppContext';
 import { useSessions } from '@/state/hooks/useAppState';
-import { ActionType } from '@/types/state';
 import type { Project } from '@/types/project';
 import type { Session } from '@/types/session';
 import TimerControls from './TimerControls';
 import { Select, SelectItem, Button, Textarea } from '@heroui/react';
 import RecentSessions from './RecentSessions';
+import { now } from '@/test-utils/time';
 
 const Container = styled.div`
   padding: 1.5rem;
@@ -46,24 +45,12 @@ const SessionControls: React.FC<{
   sessionCompleted,
   sessionEdited,
 }) => {
-  const context = useContext(AppContext);
-  if (!context) throw new Error('useSessions must be used within an AppProvider');
-  const { state, dispatch } = context;
-  const { startSession, stopSession } = useSessions();
+  const { startSession, stopSession, state } = useSessions();
   const [notes, setNotes] = useState<string>('');
-  const [isTiming, setIsTiming] = useState<boolean>(false);
-  const [elapsedTime, setElapsedTime] = useState<number>(0);
-  const timerRef = useRef<number | undefined>(undefined);
-  const startTimeRef = useRef<number | undefined>(undefined);
-
-  // Cleanup timer on unmount
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) {
-        window.clearInterval(timerRef.current);
-      }
-    };
-  }, []);
+  const [, setStartTime] = useState<number | null>(null);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [isTiming, setIsTiming] = useState(false);
+  const timerIdRef = useRef<NodeJS.Timeout | null>(null);
 
   // Handle window unload
   useEffect(() => {
@@ -87,58 +74,50 @@ const SessionControls: React.FC<{
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [state.sessions.currentSession, isTiming, stopSession]);
+  }, []);
 
   const handleStartSession = async () => {
     if (!selectedProjectId) return;
-
-    try {
-      await startSession({ projectId: selectedProjectId, notes });
-      setElapsedTime(0);
-    } catch {
-      dispatch({
-        type: ActionType.SET_ERROR,
-        payload: 'Failed to start session. Please try again.',
-      });
-    }
+    await startSession({ projectId: selectedProjectId, notes });
+    setElapsedTime(0);
   };
 
   const handleStopSession = async (totalDuration: number = 0) => {
     if (!state.sessions.currentSession) return;
 
-    try {
-      if (isTiming) {
-        handleStopTimer();
-      }
-
-      await stopSession(totalDuration);
-      setNotes('');
-      setElapsedTime(0);
-      sessionCompleted();
-    } catch {
-      dispatch({
-        type: ActionType.SET_ERROR,
-        payload: 'Failed to stop session. Please try again.',
-      });
+    if (isTiming) {
+      handleStopTimer();
     }
+
+    await stopSession(totalDuration);
+    setNotes('');
+    setElapsedTime(0);
+    sessionCompleted();
   };
 
   const handleStartTimer = () => {
+    console.log('handleStartTimer');
+    const nowTime = now();
+    setStartTime(nowTime);
     setIsTiming(true);
-    startTimeRef.current = Date.now() - elapsedTime;
-    timerRef.current = window.setInterval(() => {
-      if (startTimeRef.current) {
-        setElapsedTime(Date.now() - startTimeRef.current);
-      }
+
+    timerIdRef.current = setInterval(() => {
+      setElapsedTime(prev => {
+        const newVal = prev + 1;
+        console.log('⏱️ elapsed tick', newVal);
+        return newVal;
+      });
     }, 1000);
   };
 
-  const handleStopTimer = () => {
-    setIsTiming(false);
-    if (timerRef.current) {
-      window.clearInterval(timerRef.current);
+  const handleStopTimer = useCallback(() => {
+    console.log('handleStopTimer');
+    if (timerIdRef.current) {
+      clearInterval(timerIdRef.current);
+      timerIdRef.current = null;
     }
-  };
+    setIsTiming(false);
+  }, []);
 
   const isSessionActive = !!state.sessions.currentSession;
 
@@ -197,9 +176,12 @@ const SessionControls: React.FC<{
               onStopSession={handleStopSession}
             />
           )}
-          {!isSessionsLoading && !isSessionActive && !isTiming && selectedProjectId > 0 && (
-            <RecentSessions sessions={sessions} sessionEdited={sessionEdited} />
-          )}
+          {!isSessionsLoading &&
+            !isSessionActive &&
+            !timerIdRef.current &&
+            selectedProjectId > 0 && (
+              <RecentSessions sessions={sessions} sessionEdited={sessionEdited} />
+            )}
         </Controls>
       )}
     </Container>

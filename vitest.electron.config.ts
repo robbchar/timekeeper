@@ -5,8 +5,16 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['electron/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
-    exclude: ['node_modules', 'dist', '.idea', '.git', '.cache'],
+    include: ['electron/**/*.test.ts'],
+    exclude: [
+      'node_modules',
+      'dist',
+      'dist-electron',
+      '.idea',
+      '.git',
+      '.cache',
+      'electron/dist/**',
+    ],
   },
 
   resolve: {

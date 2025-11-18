@@ -27,8 +27,7 @@ const TimerDisplay = styled.div`
   margin-top: 1rem;
 `;
 
-const formatTime = (milliseconds: number): string => {
-  const totalSeconds = Math.floor(milliseconds / 1000);
+const formatTime = (totalSeconds: number): string => {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
@@ -68,11 +67,7 @@ const TimerControls: React.FC<TimerControlsProps> = ({
       </Button>
       <TimerDisplay>{formatTime(elapsedTime)}</TimerDisplay>
       {isSessionActive && (
-        <Button
-          className="bg-red-500"
-          radius="full"
-          onPress={() => onStopSession(Math.floor(elapsedTime / 1000))}
-        >
+        <Button className="bg-red-500" radius="full" onPress={() => onStopSession(elapsedTime)}>
           Stop Session
         </Button>
       )}

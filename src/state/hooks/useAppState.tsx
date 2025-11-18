@@ -27,12 +27,13 @@ export const useProjects = () => {
 
 export const useSessions = () => {
   const context = useContext(AppContext);
-  const database = useDatabase();
   if (!context) throw new Error('useSessions must be used within an AppProvider');
   const { state, dispatch } = context;
+  const database = useDatabase();
   const dbService = createDatabaseService(database);
 
   return {
+    state,
     sessions: state.sessions.sessions,
     currentSession: state.sessions.currentSession,
     getSessions: async () => {
