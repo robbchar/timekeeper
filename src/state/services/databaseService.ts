@@ -80,10 +80,12 @@ async function persistAction(
         if (!settings) {
           throw new DatabaseError('Settings are required', oldState);
         }
+        let totalChanges = 0;
         for (const [key, value] of Object.entries(settings)) {
-          await database.setSetting(key, JSON.stringify(value));
+          const result = await database.setSetting(key, JSON.stringify(value));
+          totalChanges += result.changes;
         }
-        break;
+        return { changes: totalChanges };
       }
 
       case ActionType.CREATE_SESSION: {

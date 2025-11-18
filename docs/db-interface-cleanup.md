@@ -180,14 +180,14 @@ The current database layer has grown organically and now has a few rough edges:
 
 - **Phase 3 – `databaseService.persistAction` return contracts**
 
-  - [ ] For each `ActionType.*` handled in `persistAction`, implement a clear, per-action return type:
+  - [x] For each `ActionType.*` handled in `persistAction`, implement a clear, per-action return type:
     - [x] `CREATE_PROJECT` → `Project`
     - [x] `UPDATE_PROJECT` → `Project`
     - [x] `DELETE_PROJECT` → `{ changes: number }`
     - [x] `ADD_TAG` → `Tag`
     - [x] `UPDATE_TAG` → `Tag`
     - [x] `DELETE_TAG` → `{ changes: number }`
-    - [ ] `UPDATE_SETTINGS` → `{ changes: number }` total over all `setSetting` calls
+    - [x] `UPDATE_SETTINGS` → `{ changes: number }` total over all `setSetting` calls
     - [x] `CREATE_SESSION` → `Session`
     - [x] `END_SESSION` → `{ changes: number }`
     - [x] `UPDATE_SESSION_NOTES` → `{ changes: number }`
