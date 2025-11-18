@@ -1,164 +1,207 @@
-// import React from 'react';
-// import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-// import { renderHook, act } from '@testing-library/react';
-// import { AppProvider } from '@/state/context/AppProvider';
-// import { DatabaseProvider } from '@/contexts/DatabaseContext';
-// import { useProjects, useSessions, useTags, useSettings, useUI } from './useAppState';
-// import { Theme } from '@/types/state';
-// import type { Project, Tag } from '@/types/state';
-// import type { CreateSessionParams } from '@/types/session';
-// import { setupMockDatabase } from '@/components/timer/__mocks__/setup';
-// import { mockDatabase } from '@/test-utils/mockDatabase';
+import React from 'react';
+import { describe, it, expect, vi } from 'vitest';
+import { renderHook, act } from '@testing-library/react';
+import { AppContext, type AppContextType } from '@/contexts/AppContext';
+import { initialState } from '@/state/initialState';
+import { useProjects, useSessions, useTags, useSettings, useUI } from './useAppState';
+import { ActionType, Theme } from '@/types/state';
+import type { AppState, Project, Tag } from '@/types/state';
+import type { CreateSessionParams, Session } from '@/types/session';
 
-// // Mock the database context
-// vi.mock('@/contexts/DatabaseContext', () => ({
-//   useDatabase: () => ({
-//     createSession: mockDatabase.createSession,
-//     endSession: mockDatabase.endSession,
-//     getSessionsForProject: mockDatabase.getSessions,
-//   }),
-//   DatabaseProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-// }));
+const mockPersistAction = vi.fn();
 
-// const wrapper = ({ children }: { children: React.ReactNode }) => (
-//   <AppProvider>
-//     <DatabaseProvider>{children}</DatabaseProvider>
-//   </AppProvider>
-// );
+vi.mock('@/contexts/DatabaseContext', () => ({
+  useDatabase: vi.fn().mockReturnValue({}),
+}));
 
-// describe('useProjects', () => {
-//   beforeEach(() => {
-//     setupMockDatabase();
-//   });
+vi.mock('../services/databaseService', () => ({
+  createDatabaseService: () => ({
+    persistAction: mockPersistAction,
+  }),
+  DatabaseError: class DatabaseError extends Error {
+    constructor(
+      message: string,
+      public oldState: AppState
+    ) {
+      super(message);
+      this.name = 'DatabaseError';
+    }
+  },
+}));
 
-//   it('should add a project', () => {
-//     const { result } = renderHook(() => useProjects(), { wrapper });
-//     const mockProject: Project = {
-//       projectId: 1,
-//       name: 'Test Project',
-//       description: 'Test Description',
-//       createdAt: new Date(),
-//       updatedAt: new Date(),
-//     };
+const createAppContextValue = (overrides: Partial<AppContextType> = {}): AppContextType => ({
+  state: initialState,
+  dispatch: vi.fn(),
+  getState: () => initialState,
+  createProject: vi.fn(),
+  updateProject: vi.fn(),
+  deleteProject: vi.fn(),
+  ...overrides,
+});
 
-//     act(() => {
-//       result.current.addProject(mockProject);
-//     });
+const createWrapper =
+  (valueOverrides: Partial<AppContextType> = {}) =>
+  ({ children }: { children: React.ReactNode }) => (
+    <AppContext.Provider value={createAppContextValue(valueOverrides)}>
+      {children}
+    </AppContext.Provider>
+  );
 
-//     expect(result.current.projects).toHaveLength(1);
-//     expect(result.current.projects[0]).toEqual(mockProject);
-//   });
-// });
+describe('useProjects', () => {
+  it('exposes projects and project actions from context', () => {
+    const projects: Project[] = [
+      {
+        projectId: 1,
+        name: 'Test Project',
+        description: 'Test',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+    const createProject = vi.fn();
+    const updateProject = vi.fn();
+    const deleteProject = vi.fn();
 
-// describe('useSessions', () => {
-//   beforeEach(() => {
-//     vi.useFakeTimers();
-//     setupMockDatabase();
-//   });
-//   afterEach(() => {
-//     vi.useRealTimers();
-//   });
-//   it('should start and stop a session', async () => {
-//     const { result } = renderHook(() => useSessions(), { wrapper });
-//     const startTime = new Date('2024-01-01T10:00:00');
-//     vi.setSystemTime(startTime);
+    const wrapper = createWrapper({
+      state: { ...initialState, projects },
+      createProject,
+      updateProject,
+      deleteProject,
+    });
 
-//     const sessionParams: CreateSessionParams = {
-//       projectId: 1,
-//       notes: 'Test session',
-//     };
+    const { result } = renderHook(() => useProjects(), { wrapper });
 
-//     await act(async () => {
-//       await result.current.startSession(sessionParams);
-//     });
+    expect(result.current.projects).toEqual(projects);
+    expect(result.current.createProject).toBe(createProject);
+    expect(result.current.updateProject).toBe(updateProject);
+    expect(result.current.deleteProject).toBe(deleteProject);
+  });
+});
 
-//     expect(result.current.currentSession).toBeTruthy();
-//     expect(result.current.currentSession?.projectId).toBe(1);
-//     expect(result.current.currentSession?.notes).toBe('Test session');
-//     expect(result.current.currentSession?.status).toBe('active');
+describe('useSessions', () => {
+  it('starts a session via db service and dispatches CREATE_SESSION', async () => {
+    const dispatch = vi.fn();
+    const state = initialState;
+    const wrapper = createWrapper({ state, dispatch });
 
-//     // Advance time by 1 hour
-//     vi.advanceTimersByTime(3600000);
+    const fakeSession: Session = {
+      sessionId: 1,
+      projectId: 1,
+      startTime: new Date(),
+      duration: 0,
+      status: 'active',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
 
-//     await act(async () => {
-//       await result.current.stopSession();
-//     });
+    mockPersistAction.mockResolvedValueOnce(fakeSession);
 
-//     expect(result.current.currentSession).toBeNull();
-//     expect(result.current.sessions).toHaveLength(1);
-//     expect(result.current.sessions[0].status).toBe('completed');
-//     expect(result.current.sessions[0].endTime).toBeDefined();
-//     expect(result.current.sessions[0].duration).toBe(3600000); // 1 hour in milliseconds
-//   });
-// });
+    const { result } = renderHook(() => useSessions(), { wrapper });
 
-// describe('useTags', () => {
-//   beforeEach(() => {
-//     setupMockDatabase();
-//   });
+    const params: CreateSessionParams = { projectId: 1, notes: 'Test session' };
 
-//   it('should add a tag', () => {
-//     const { result } = renderHook(() => useTags(), { wrapper });
-//     const mockTag: Tag = {
-//       id: 1,
-//       name: 'Test Tag',
-//       createdAt: new Date(),
-//       updatedAt: new Date(),
-//     };
+    await act(async () => {
+      await result.current.startSession(params);
+    });
 
-//     act(() => {
-//       result.current.addTag(mockTag);
-//     });
+    expect(mockPersistAction).toHaveBeenCalledWith(
+      {
+        type: ActionType.CREATE_SESSION,
+        payload: {
+          projectId: 1,
+          notes: 'Test session',
+        },
+      },
+      state
+    );
 
-//     expect(result.current.tags).toHaveLength(1);
-//     expect(result.current.tags[0]).toEqual(mockTag);
-//   });
-// });
+    expect(dispatch).toHaveBeenCalledWith({
+      type: ActionType.CREATE_SESSION,
+      payload: {
+        sessionId: 1,
+        projectId: 1,
+        notes: 'Test session',
+      },
+    });
+  });
+});
 
-// describe('useSettings', () => {
-//   beforeEach(() => {
-//     setupMockDatabase();
-//   });
+describe('useTags', () => {
+  it('dispatches ADD_TAG when addTag is called', async () => {
+    const dispatch = vi.fn();
+    const wrapper = createWrapper({ dispatch });
+    const { result } = renderHook(() => useTags(), { wrapper });
 
-//   it('should update settings', () => {
-//     const { result } = renderHook(() => useSettings(), { wrapper });
+    const tag: Tag = {
+      id: 1,
+      name: 'Test Tag',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
 
-//     act(() => {
-//       result.current.updateSettings({ timeFormat: '12h' });
-//     });
+    await act(async () => {
+      await result.current.addTag(tag);
+    });
 
-//     expect(result.current.settings.timeFormat).toBe('12h');
-//   });
-// });
+    expect(dispatch).toHaveBeenCalledWith({
+      type: ActionType.ADD_TAG,
+      payload: tag,
+    });
+  });
+});
 
-// describe('useUI', () => {
-//   beforeEach(() => {
-//     setupMockDatabase();
-//   });
+describe('useSettings', () => {
+  it('dispatches UPDATE_SETTINGS when updateSettings is called', async () => {
+    const dispatch = vi.fn();
+    const wrapper = createWrapper({ dispatch });
+    const { result } = renderHook(() => useSettings(), { wrapper });
 
-//   it('should toggle theme', () => {
-//     const { result } = renderHook(() => useUI(), { wrapper });
+    await act(async () => {
+      await result.current.updateSettings({ timeFormat: '12h' });
+    });
 
-//     act(() => {
-//       result.current.toggleTheme();
-//     });
+    expect(dispatch).toHaveBeenCalledWith({
+      type: ActionType.UPDATE_SETTINGS,
+      payload: { timeFormat: '12h' },
+    });
+  });
+});
 
-//     expect(result.current.ui.theme).toBe(Theme.DARK);
+describe('useUI', () => {
+  it('toggles theme via dispatch', () => {
+    const dispatch = vi.fn();
+    const wrapper = createWrapper({
+      state: {
+        ...initialState,
+        ui: {
+          ...initialState.ui,
+          theme: Theme.LIGHT,
+        },
+      },
+      dispatch,
+    });
 
-//     act(() => {
-//       result.current.toggleTheme();
-//     });
+    const { result } = renderHook(() => useUI(), { wrapper });
 
-//     expect(result.current.ui.theme).toBe(Theme.LIGHT);
-//   });
+    act(() => {
+      result.current.toggleTheme();
+    });
 
-//   it('should set error state', () => {
-//     const { result } = renderHook(() => useUI(), { wrapper });
+    expect(dispatch).toHaveBeenCalledWith({ type: ActionType.TOGGLE_THEME });
+  });
 
-//     act(() => {
-//       result.current.setError('Test error');
-//     });
+  it('sets error via dispatch', () => {
+    const dispatch = vi.fn();
+    const wrapper = createWrapper({ dispatch });
+    const { result } = renderHook(() => useUI(), { wrapper });
 
-//     expect(result.current.ui.error).toBe('Test error');
-//   });
-// });
+    act(() => {
+      result.current.setError('Test error');
+    });
+
+    expect(dispatch).toHaveBeenCalledWith({
+      type: ActionType.SET_ERROR,
+      payload: 'Test error',
+    });
+  });
+});

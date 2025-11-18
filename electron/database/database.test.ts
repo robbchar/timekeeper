@@ -10,7 +10,6 @@ describe('Database Operations', () => {
 
   beforeAll(async () => {
     db = await initializeDatabase(true);
-    (window as unknown as { database: sqlite3.Database }).database = db;
   });
 
   afterAll(async () => {
@@ -101,17 +100,39 @@ describe('Database Operations', () => {
   });
 
   describe('Session Operations', () => {
+    let projectId: number;
+    let sessionId: number;
+
+    beforeAll(async () => {
+      // Ensure there is a project to attach sessions to
+      await new Promise<void>((resolve, reject) => {
+        db.run(
+          'INSERT INTO projects (name, description, color) VALUES (?, ?, ?)',
+          ['Session Project', 'Project for session tests', '#00ff00'],
+          function (err: Error | null) {
+            if (err) {
+              reject(err);
+              return;
+            }
+            projectId = this.lastID;
+            resolve();
+          }
+        );
+      });
+    });
+
     it('should create a session', async () => {
       return new Promise<void>((resolve, reject) => {
         db.run(
           'INSERT INTO sessions (projectId, startTime, notes) VALUES (?, ?, ?)',
-          [1, new Date().toISOString(), 'Test session'],
+          [projectId, new Date().toISOString(), 'Test session'],
           function (err: Error | null) {
             if (err) {
               reject(err);
               return;
             }
             expect(this.lastID).toBeDefined();
+            sessionId = this.lastID;
             resolve();
           }
         );
@@ -124,7 +145,7 @@ describe('Database Operations', () => {
         const duration = 3600;
         db.run(
           'UPDATE sessions SET endTime = ?, duration = ? WHERE sessionId = ?',
-          [endTime, duration, 1],
+          [endTime, duration, sessionId],
           function (err: Error | null) {
             if (err) {
               reject(err);
@@ -141,7 +162,7 @@ describe('Database Operations', () => {
       return new Promise<void>((resolve, reject) => {
         db.all(
           'SELECT * FROM sessions WHERE projectId = ? ORDER BY startTime DESC',
-          [1],
+          [projectId],
           (err: Error | null, rows: Session[]) => {
             if (err) {
               reject(err);

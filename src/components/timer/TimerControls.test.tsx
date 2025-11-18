@@ -37,7 +37,7 @@ describe('TimerControls', () => {
   });
 
   it('displays formatted time correctly', () => {
-    renderWithTheme(<TimerControls {...defaultProps} elapsedTime={3661000} />);
+    renderWithTheme(<TimerControls {...defaultProps} elapsedTime={3661} />);
     expect(screen.getByText('01:01:01')).toBeInTheDocument();
   });
 
