@@ -1,22 +1,38 @@
-// Base response type for database operations
-export interface DatabaseResponse<T = unknown> {
-  itemId?: number;
+// Base "changes only" response type used for simple write operations
+export interface ChangesOnlyResponse {
   changes: number;
-  record?: T;
 }
 
-// Response type for create operations
-export type CreateResponse<T = unknown> = DatabaseResponse<T>;
-
-// Response type for update operations
-export type UpdateResponse<T = unknown> = DatabaseResponse<T>;
-
-// Response type for delete operations
-export interface DeleteResponse<T = unknown> extends DatabaseResponse {
-  deleted?: T;
+// Response type for create operations that return the inserted record
+export interface CreateResponse<T = unknown> extends ChangesOnlyResponse {
+  itemId: number;
+  record: T;
 }
 
-// Specific response types that extend the base
-export type ProjectDatabaseResponse<T = unknown> = DatabaseResponse<T>;
-export type TagDatabaseResponse<T = unknown> = DatabaseResponse<T>;
-export type SessionDatabaseResponse<T = unknown> = DatabaseResponse<T>;
+// Response type for update operations that return the updated record
+export interface UpdateResponse<T = unknown> extends ChangesOnlyResponse {
+  record: T;
+}
+
+// Response type for delete operations that return the deleted record
+export interface DeleteResponse<T = unknown> extends ChangesOnlyResponse {
+  deleted: T;
+}
+
+// Backwards-compatible aliases (to be removed in a later cleanup phase)
+export type DatabaseResponse<T = unknown> =
+  | CreateResponse<T>
+  | UpdateResponse<T>
+  | DeleteResponse<T>;
+export type ProjectDatabaseResponse<T = unknown> =
+  | CreateResponse<T>
+  | UpdateResponse<T>
+  | DeleteResponse<T>;
+export type TagDatabaseResponse<T = unknown> =
+  | CreateResponse<T>
+  | UpdateResponse<T>
+  | DeleteResponse<T>;
+export type SessionDatabaseResponse<T = unknown> =
+  | CreateResponse<T>
+  | UpdateResponse<T>
+  | DeleteResponse<T>;

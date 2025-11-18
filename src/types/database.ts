@@ -1,38 +1,47 @@
 import type { Project } from './project';
 import type { Session } from './session';
 import type { TagDatabase } from './tag';
-import type { CreateResponse, DeleteResponse, UpdateResponse } from './database-response';
+import type {
+  CreateResponse,
+  DeleteResponse,
+  UpdateResponse,
+  ChangesOnlyResponse,
+} from './database-response';
 
 // Define the window.database interface
 export interface DatabaseAPI {
   // Project operations
-  createProject: (name: string, description?: string, color?: string) => Promise<CreateResponse>;
+  createProject: (
+    name: string,
+    description?: string,
+    color?: string
+  ) => Promise<CreateResponse<Project>>;
   getProjects: () => Promise<Project[]>;
-  deleteProject: (projectId: number) => Promise<DeleteResponse>;
+  deleteProject: (projectId: number) => Promise<ChangesOnlyResponse>;
   updateProject: (
     projectId: number,
     name: string,
     description?: string,
     color?: string
-  ) => Promise<UpdateResponse>;
+  ) => Promise<UpdateResponse<Project>>;
   // Session operations
-  createSession: (projectId: number, notes?: string) => Promise<CreateResponse>;
-  endSession: (sessionId: number, duration: number) => Promise<UpdateResponse>;
+  createSession: (projectId: number, notes?: string) => Promise<CreateResponse<Session>>;
+  endSession: (sessionId: number, duration: number) => Promise<UpdateResponse<Session>>;
   getSessions: () => Promise<Session[]>;
   getSessionsForProject: (projectId: number) => Promise<Session[]>;
-  updateSessionNotes: (sessionId: number, notes: string) => Promise<UpdateResponse>;
-  updateSessionDuration: (sessionId: number, duration: number) => Promise<UpdateResponse>;
-  deleteSession: (sessionId: number) => Promise<DeleteResponse>;
+  updateSessionNotes: (sessionId: number, notes: string) => Promise<UpdateResponse<Session>>;
+  updateSessionDuration: (sessionId: number, duration: number) => Promise<UpdateResponse<Session>>;
+  deleteSession: (sessionId: number) => Promise<ChangesOnlyResponse>;
   // Tag operations
-  createTag: (name: string, color?: string) => Promise<CreateResponse>;
+  createTag: (name: string, color?: string) => Promise<CreateResponse<TagDatabase>>;
   getTags: () => Promise<TagDatabase[]>;
-  updateTag: (tagId: number, name: string, color?: string) => Promise<UpdateResponse>;
-  deleteTag: (tagId: number) => Promise<UpdateResponse>;
+  updateTag: (tagId: number, name: string, color?: string) => Promise<UpdateResponse<TagDatabase>>;
+  deleteTag: (tagId: number) => Promise<DeleteResponse<TagDatabase>>;
   // Settings operations
   getSetting: (key: string) => Promise<string | undefined>;
-  setSetting: (key: string, value: string) => Promise<UpdateResponse>;
+  setSetting: (key: string, value: string) => Promise<ChangesOnlyResponse>;
   // Test helper
-  reset: () => Promise<void>;
+  reset: () => Promise<ChangesOnlyResponse>;
 }
 
 // Extend Window interface

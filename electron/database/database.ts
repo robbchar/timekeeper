@@ -3,7 +3,6 @@ import { ipcMain } from 'electron';
 import type { Project } from '@/types/project';
 import type { Session } from '@/types/session';
 import type { TagDatabase } from '@/types/tag';
-import type { UpdateResponse, DeleteResponse, DatabaseResponse } from '@/types/database-response';
 import { getDatabaseConfig } from './database-config';
 import {
   getRecordAfterInsert,
@@ -98,7 +97,7 @@ export function initializeDatabase(memory = false): Promise<sqlite3.Database> {
 }
 
 export async function closeDatabase() {
-  await new Promise<DatabaseResponse>((resolve, reject) => {
+  await new Promise<{ changes: number }>((resolve, reject) => {
     if (db) {
       db.close(function (err) {
         if (err) reject(err);
@@ -106,7 +105,6 @@ export async function closeDatabase() {
       });
     } else {
       resolve({ changes: 0 });
-      // reject(new Error('Database not initialized'));
     }
   });
 }
@@ -161,7 +159,7 @@ export function setupDatabaseHandlers() {
   });
 
   ipcMain.handle('database:deleteProject', (_, id: number) => {
-    return new Promise<DeleteResponse>((resolve, reject) => {
+    return new Promise<{ changes: number }>((resolve, reject) => {
       db.run('DELETE FROM projects WHERE projectId = ?', [id], function (err) {
         if (err) reject(err);
         else resolve({ changes: this.changes });
@@ -241,7 +239,7 @@ export function setupDatabaseHandlers() {
   });
 
   ipcMain.handle('database:deleteSession', (_, id: number) => {
-    return new Promise<UpdateResponse>((resolve, reject) => {
+    return new Promise<{ changes: number }>((resolve, reject) => {
       db.run('DELETE FROM sessions WHERE sessionId = ?', [id], function (err) {
         if (err) reject(err);
         else resolve({ changes: this.changes });
@@ -295,7 +293,7 @@ export function setupDatabaseHandlers() {
   });
 
   ipcMain.handle('database:setSetting', (_, key: string, value: string) => {
-    return new Promise<UpdateResponse>((resolve, reject) => {
+    return new Promise<{ changes: number }>((resolve, reject) => {
       db.run(
         'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
         [key, value],
@@ -309,7 +307,7 @@ export function setupDatabaseHandlers() {
 
   // Test helper
   ipcMain.handle('database:reset', () => {
-    return new Promise<DeleteResponse>((resolve, reject) => {
+    return new Promise<{ changes: number }>((resolve, reject) => {
       db.serialize(() => {
         db.run('BEGIN TRANSACTION');
         db.run('DELETE FROM session_tags', function (err) {
