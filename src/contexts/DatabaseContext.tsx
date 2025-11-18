@@ -126,8 +126,8 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   const getSessionsForProject = async (projectId: number): Promise<Session[]> => {
     try {
-      const sessions = await window.database.getSessions();
-      return sessions.filter(s => s.projectId === projectId);
+      const sessions = await window.database.getSessionsForProject(projectId);
+      return sessions;
     } catch (error) {
       console.error('Error getting sessions for project:', error);
       throw error;
@@ -174,7 +174,14 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   const createTag = async (name: string, color?: string): Promise<Tag> => {
     try {
       const result = await window.database.createTag(name, color);
-      return result.record as Tag;
+      const dbTag = result.record;
+      return {
+        id: dbTag.tagId,
+        name: dbTag.name,
+        color: dbTag.color,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
     } catch (error) {
       console.error('Error creating tag:', error);
       throw error;
@@ -185,9 +192,10 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
     try {
       const tags = await window.database.getTags();
       return tags.map(t => ({
-        id: t.id,
+        id: t.tagId,
         name: t.name,
         color: t.color,
+        // We don't yet store tag timestamps in the DB; for now we default them.
         createdAt: new Date(),
         updatedAt: new Date(),
       }));
