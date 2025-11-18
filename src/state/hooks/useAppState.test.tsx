@@ -139,6 +139,8 @@ describe('useTags', () => {
       updatedAt: new Date(),
     };
 
+    mockPersistAction.mockResolvedValueOnce(tag);
+
     await act(async () => {
       await result.current.addTag(tag);
     });
