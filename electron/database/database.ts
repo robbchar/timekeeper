@@ -35,7 +35,9 @@ export const createTablesSchema = `
     CREATE TABLE IF NOT EXISTS tags (
       tagId INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
-      color TEXT
+      color TEXT,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS session_tags (

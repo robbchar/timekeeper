@@ -179,8 +179,8 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
         id: dbTag.tagId,
         name: dbTag.name,
         color: dbTag.color,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: new Date(dbTag.createdAt),
+        updatedAt: new Date(dbTag.updatedAt),
       };
     } catch (error) {
       console.error('Error creating tag:', error);
@@ -195,9 +195,8 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
         id: t.tagId,
         name: t.name,
         color: t.color,
-        // We don't yet store tag timestamps in the DB; for now we default them.
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: new Date(t.createdAt),
+        updatedAt: new Date(t.updatedAt),
       }));
     } catch (error) {
       console.error('Error getting all tags:', error);
