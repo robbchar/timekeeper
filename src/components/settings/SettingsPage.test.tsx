@@ -35,6 +35,8 @@ describe('SettingsPage', () => {
       getAllTags: vi.fn(),
       updateTag: vi.fn(),
       deleteTag: vi.fn(),
+      getTagsForProject: vi.fn(),
+      setProjectTags: vi.fn(),
       // Settings (unused)
       getSetting: vi.fn(),
       setSetting: vi.fn(),

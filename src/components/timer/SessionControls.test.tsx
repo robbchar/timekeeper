@@ -3,6 +3,7 @@ import { render, screen, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import SessionControls from './SessionControls';
 import { AppState, Project } from '@/types/state';
+import type { Tag } from '@/types/tag';
 import type { Session } from '@/types/session';
 import { TestProviders } from '@/test-utils/test-db-context';
 import userEvent, { UserEvent } from '@testing-library/user-event';
@@ -55,7 +56,7 @@ type RenderWithThemeOptions = {
   isSessionsLoading?: boolean;
   sessionCompleted?: () => void;
   sessionEdited?: () => void;
-  projectTags?: { id: number; name: string; color?: string }[];
+  projectTags?: Tag[];
 };
 
 const renderWithTheme = (
@@ -200,9 +201,9 @@ describe('SessionControls', () => {
   });
 
   it('displays project tags when provided', () => {
-    const tags = [
-      { id: 1, name: 'Frontend', color: '#007bff' },
-      { id: 2, name: 'Backend', color: '#22c55e' },
+    const tags: Tag[] = [
+      { id: 1, name: 'Frontend', color: '#007bff', createdAt: new Date(), updatedAt: new Date() },
+      { id: 2, name: 'Backend', color: '#22c55e', createdAt: new Date(), updatedAt: new Date() },
     ];
 
     renderWithTheme({ selectedProjectId: 1, projectTags: tags });
