@@ -105,6 +105,11 @@ export const makeDbShape = (invoke: (channel: string, ...args: any[]) => any): D
 
   deleteTag: (id: number) => invoke('database:deleteTag', id),
 
+  // Project–Tag relationship operations
+  getTagsForProject: (projectId: number) => invoke('database:getTagsForProject', projectId),
+  setProjectTags: (projectId: number, tagIds: number[]) =>
+    invoke('database:setProjectTags', projectId, tagIds),
+
   // Settings operations
   getSetting: (key: string) => invoke('database:getSetting', key),
 

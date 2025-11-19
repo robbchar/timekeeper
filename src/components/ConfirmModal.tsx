@@ -34,6 +34,8 @@ interface ConfirmModalProps {
   onConfirm: () => void;
   title: string;
   message: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
 }
 
 export const ConfirmModal: React.FC<ConfirmModalProps> = ({
@@ -42,6 +44,8 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   onConfirm,
   title,
   message,
+  confirmLabel = 'Delete',
+  cancelLabel = 'Cancel',
 }) => {
   if (!isOpen) return null;
 
@@ -52,10 +56,10 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
         <p>{message}</p>
         <ButtonGroup>
           <Button color="primary" onPress={onClose}>
-            Cancel
+            {cancelLabel}
           </Button>
           <Button color="primary" onPress={onConfirm}>
-            Delete
+            {confirmLabel}
           </Button>
         </ButtonGroup>
       </ModalContent>

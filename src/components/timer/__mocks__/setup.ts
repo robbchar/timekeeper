@@ -123,6 +123,10 @@ function setupMockDatabase(): Mocked<DatabaseContextType> {
     updateTag: vi.fn(),
     deleteTag: vi.fn(),
 
+    // Project–Tag relationships
+    getTagsForProject: vi.fn(),
+    setProjectTags: vi.fn(),
+
     // Settings
     getSetting: vi.fn(),
     setSetting: vi.fn(),

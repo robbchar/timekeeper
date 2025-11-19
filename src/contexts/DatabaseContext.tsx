@@ -29,6 +29,9 @@ export interface DatabaseContextType {
   getAllTags: () => Promise<Tag[]>;
   updateTag: (tagId: number, name: string, color?: string) => Promise<Tag>;
   deleteTag: (tagId: number) => Promise<{ changes: number }>;
+  // Project–Tag relationships
+  getTagsForProject: (projectId: number) => Promise<Tag[]>;
+  setProjectTags: (projectId: number, tagIds: number[]) => Promise<{ changes: number }>;
   // Settings
   getSetting: (key: string) => Promise<string | undefined>;
   setSetting: (key: string, value: string) => Promise<{ changes: number }>;
@@ -231,6 +234,35 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
     }
   };
 
+  const getTagsForProject = async (projectId: number): Promise<Tag[]> => {
+    try {
+      const tags = await window.database.getTagsForProject(projectId);
+      return tags.map(t => ({
+        id: t.tagId,
+        name: t.name,
+        color: t.color,
+        createdAt: new Date(t.createdAt),
+        updatedAt: new Date(t.updatedAt),
+      }));
+    } catch (error) {
+      console.error('Error getting tags for project:', error);
+      throw error;
+    }
+  };
+
+  const setProjectTags = async (
+    projectId: number,
+    tagIds: number[]
+  ): Promise<{ changes: number }> => {
+    try {
+      const result = await window.database.setProjectTags(projectId, tagIds);
+      return { changes: result.changes };
+    } catch (error) {
+      console.error('Error setting project tags:', error);
+      throw error;
+    }
+  };
+
   // Settings
   const getSetting = async (key: string): Promise<string | undefined> => {
     try {
@@ -268,6 +300,8 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
     getAllTags,
     updateTag,
     deleteTag,
+    getTagsForProject,
+    setProjectTags,
     getSetting,
     setSetting,
   };

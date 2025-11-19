@@ -37,6 +37,9 @@ export interface DatabaseAPI {
   getTags: () => Promise<TagDatabase[]>;
   updateTag: (tagId: number, name: string, color?: string) => Promise<UpdateResponse<TagDatabase>>;
   deleteTag: (tagId: number) => Promise<DeleteResponse<TagDatabase>>;
+  // Project–Tag relationship operations
+  getTagsForProject: (projectId: number) => Promise<TagDatabase[]>;
+  setProjectTags: (projectId: number, tagIds: number[]) => Promise<ChangesOnlyResponse>;
   // Settings operations
   getSetting: (key: string) => Promise<string | undefined>;
   setSetting: (key: string, value: string) => Promise<ChangesOnlyResponse>;

@@ -48,6 +48,14 @@ export const createTablesSchema = `
       FOREIGN KEY (tagId) REFERENCES tags(tagId) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS project_tags (
+      projectTagId INTEGER PRIMARY KEY AUTOINCREMENT,
+      projectId INTEGER NOT NULL,
+      tagId INTEGER NOT NULL,
+      FOREIGN KEY (projectId) REFERENCES projects(projectId) ON DELETE CASCADE,
+      FOREIGN KEY (tagId) REFERENCES tags(tagId) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
@@ -284,6 +292,99 @@ export function setupDatabaseHandlers() {
     );
   });
 
+  // Project–Tag relationship operations
+  ipcMain.handle('database:getTagsForProject', (_, projectId: number) => {
+    return new Promise<TagDatabase[]>((resolve, reject) => {
+      db.all(
+        `SELECT t.*
+         FROM tags t
+         INNER JOIN project_tags pt ON pt.tagId = t.tagId
+         WHERE pt.projectId = ?
+         ORDER BY t.name`,
+        [projectId],
+        (err, rows) => {
+          if (err) reject(err);
+          else resolve(rows as TagDatabase[]);
+        }
+      );
+    });
+  });
+
+  ipcMain.handle('database:setProjectTags', (_, projectId: number, tagIds: number[]) => {
+    return new Promise<{ changes: number }>((resolve, reject) => {
+      db.serialize(() => {
+        db.run('BEGIN TRANSACTION');
+
+        db.run('DELETE FROM project_tags WHERE projectId = ?', [projectId], function (err) {
+          if (err) {
+            db.run('ROLLBACK');
+            reject(err);
+            return;
+          }
+
+          const deleteChanges = this.changes ?? 0;
+
+          if (!tagIds.length) {
+            db.run('COMMIT', commitErr => {
+              if (commitErr) {
+                reject(commitErr);
+              } else {
+                resolve({ changes: deleteChanges });
+              }
+            });
+            return;
+          }
+
+          const stmt = db.prepare(
+            'INSERT INTO project_tags (projectId, tagId) VALUES (?, ?)',
+            err2 => {
+              if (err2) {
+                db.run('ROLLBACK');
+                reject(err2);
+              }
+            }
+          );
+
+          let insertChanges = 0;
+
+          const insertNext = (index: number) => {
+            if (index >= tagIds.length) {
+              stmt.finalize(errFinalize => {
+                if (errFinalize) {
+                  db.run('ROLLBACK');
+                  reject(errFinalize);
+                  return;
+                }
+
+                db.run('COMMIT', commitErr => {
+                  if (commitErr) {
+                    reject(commitErr);
+                  } else {
+                    resolve({ changes: deleteChanges + insertChanges });
+                  }
+                });
+              });
+              return;
+            }
+
+            stmt.run([projectId, tagIds[index]], function (errRun) {
+              if (errRun) {
+                db.run('ROLLBACK');
+                reject(errRun);
+                return;
+              }
+
+              insertChanges += this.changes ?? 0;
+              insertNext(index + 1);
+            });
+          };
+
+          insertNext(0);
+        });
+      });
+    });
+  });
+
   // Settings operations
   ipcMain.handle('database:getSetting', (_, key: string) => {
     return new Promise<string | undefined>((resolve, reject) => {
@@ -318,33 +419,40 @@ export function setupDatabaseHandlers() {
             reject(err);
             return;
           }
-          db.run('DELETE FROM sessions', function (err) {
+          db.run('DELETE FROM project_tags', function (err) {
             if (err) {
               db.run('ROLLBACK');
               reject(err);
               return;
             }
-            db.run('DELETE FROM tags', function (err) {
+            db.run('DELETE FROM sessions', function (err) {
               if (err) {
                 db.run('ROLLBACK');
                 reject(err);
                 return;
               }
-              db.run('DELETE FROM projects', function (err) {
+              db.run('DELETE FROM tags', function (err) {
                 if (err) {
                   db.run('ROLLBACK');
                   reject(err);
                   return;
                 }
-                db.run('DELETE FROM settings', function (err) {
+                db.run('DELETE FROM projects', function (err) {
                   if (err) {
                     db.run('ROLLBACK');
                     reject(err);
                     return;
                   }
-                  db.run('COMMIT', function (err) {
-                    if (err) reject(err);
-                    else resolve({ changes: this.changes });
+                  db.run('DELETE FROM settings', function (err) {
+                    if (err) {
+                      db.run('ROLLBACK');
+                      reject(err);
+                      return;
+                    }
+                    db.run('COMMIT', function (err) {
+                      if (err) reject(err);
+                      else resolve({ changes: this.changes });
+                    });
                   });
                 });
               });

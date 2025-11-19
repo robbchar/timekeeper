@@ -5,6 +5,7 @@ import type { Session } from '@/types/session';
 import { Button } from '@heroui/react';
 import { useSessions } from '@/state/hooks/useAppState';
 import { EditSessionsModal } from './EditSessionModal';
+import { ConfirmModal } from '@/components/ConfirmModal';
 
 const SessionList = styled.div`
   background-color: ${({ theme }) => theme.colors.background.secondary};
@@ -63,14 +64,16 @@ const RecentSessions: React.FC<{
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
   const { updateSessionNotes, updateSessionDuration, deleteSession } = useSessions();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
   const handleEditClick = (sessionId: number) => {
     setSelectedSession(sessions.find(s => s.sessionId === sessionId) || null);
     setIsEditModalOpen(true);
   };
 
   const handleDeleteClick = (sessionId: number) => {
-    deleteSession(sessionId);
-    sessionEdited();
+    setSessionToDelete(sessions.find(s => s.sessionId === sessionId) || null);
+    setIsDeleteModalOpen(true);
   };
 
   const handleEditSubmit = (notes: string, duration: number) => {
@@ -78,6 +81,8 @@ const RecentSessions: React.FC<{
       updateSessionNotes(selectedSession.sessionId, notes);
       updateSessionDuration(selectedSession.sessionId, duration);
       sessionEdited();
+      setIsEditModalOpen(false);
+      setSelectedSession(null);
     }
   };
 
@@ -126,6 +131,22 @@ const RecentSessions: React.FC<{
         modalTitle={'Edit Session'}
         initialNotes={selectedSession?.notes}
         initialDuration={selectedSession?.duration}
+      />
+      <ConfirmModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={async () => {
+          if (sessionToDelete) {
+            await deleteSession(sessionToDelete.sessionId);
+            sessionEdited();
+          }
+          setIsDeleteModalOpen(false);
+          setSessionToDelete(null);
+        }}
+        title="Delete Session"
+        message="Are you sure you want to delete this session? This action cannot be undone."
+        cancelLabel="Cancel"
+        confirmLabel="Delete"
       />
     </SessionList>
   );

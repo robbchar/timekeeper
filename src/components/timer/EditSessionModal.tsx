@@ -63,18 +63,12 @@ export const EditSessionsModal: React.FC<ModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmedNotes = sessionNotes.trim();
-    if (!trimmedNotes) {
-      setError('Session notes are required');
-      return;
-    }
-
     if (currentDuration < 0) {
       setError('Session duration is required');
       return;
     }
 
-    onSubmit(trimmedNotes, currentDuration);
+    onSubmit(sessionNotes.trim(), currentDuration);
   };
 
   if (!isOpen) return null;
