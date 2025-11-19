@@ -2,6 +2,7 @@ import styled from 'styled-components';
 import SessionControls from './SessionControls';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useDatabase } from '@/contexts/DatabaseContext';
+import type { Tag } from '@/types/tag';
 import { useProjects } from '@/contexts/ProjectsContext';
 import { useSessions } from '@/state/hooks/useAppState';
 
@@ -17,7 +18,7 @@ const PageContainer = styled.div`
 const TimerPage = () => {
   const [isSessionsLoading, setIsSessionsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const { getSessionsForProject } = useDatabase();
+  const { getSessionsForProject, getTagsForProject } = useDatabase();
   const {
     projects,
     isLoading: projectsLoading,
@@ -25,19 +26,25 @@ const TimerPage = () => {
     setSelectedProjectId,
   } = useProjects();
   const { sessions, setSessions } = useSessions();
+  const [projectTags, setProjectTags] = useState<Tag[]>([]);
 
   const fetchSessions = useCallback(async () => {
     if (!selectedProjectId || selectedProjectId <= 0) {
       console.log('SessionControls No currentProjectId, skipping fetch');
+      setProjectTags([]);
       return;
     }
 
     setIsSessionsLoading(true);
     setError(null);
     try {
-      const dbSessions = await getSessionsForProject(selectedProjectId);
+      const [dbSessions, tagsForProject] = await Promise.all([
+        getSessionsForProject(selectedProjectId),
+        getTagsForProject(selectedProjectId),
+      ]);
       console.log('SessionControls Mapped sessions:', dbSessions);
       setSessions(dbSessions);
+      setProjectTags(tagsForProject);
     } catch {
       console.log('SessionControls Error fetching sessions:', error);
       setError('Failed to load sessions');
@@ -77,6 +84,7 @@ const TimerPage = () => {
           isSessionsLoading={isSessionsLoading}
           isProjectsLoading={projectsLoading}
           sessionEdited={sessionEdited}
+          projectTags={projectTags}
         />
       )}
     </PageContainer>

@@ -55,6 +55,7 @@ type RenderWithThemeOptions = {
   isSessionsLoading?: boolean;
   sessionCompleted?: () => void;
   sessionEdited?: () => void;
+  projectTags?: { id: number; name: string; color?: string }[];
 };
 
 const renderWithTheme = (
@@ -70,6 +71,7 @@ const renderWithTheme = (
     isSessionsLoading = false,
     sessionCompleted = vi.fn(),
     sessionEdited = vi.fn(),
+    projectTags = [],
   } = props;
 
   return render(
@@ -82,6 +84,7 @@ const renderWithTheme = (
       isSessionsLoading={isSessionsLoading}
       sessionCompleted={sessionCompleted}
       sessionEdited={sessionEdited}
+      projectTags={projectTags}
     />,
     { wrapper }
   );
@@ -194,6 +197,18 @@ describe('SessionControls', () => {
     await user.click(startButton);
 
     expect(startSession).toHaveBeenCalledWith({ projectId: 1, notes: 'Test session' });
+  });
+
+  it('displays project tags when provided', () => {
+    const tags = [
+      { id: 1, name: 'Frontend', color: '#007bff' },
+      { id: 2, name: 'Backend', color: '#22c55e' },
+    ];
+
+    renderWithTheme({ selectedProjectId: 1, projectTags: tags });
+
+    expect(screen.getByText('Frontend')).toBeInTheDocument();
+    expect(screen.getByText('Backend')).toBeInTheDocument();
   });
 
   it('shows timer controls when session is active', async () => {

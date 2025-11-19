@@ -63,6 +63,11 @@ describe('ProjectsPage', () => {
 
     // Have the mocked useDatabase hook return our mock database instance by default
     (useDatabase as unknown as ReturnType<typeof vi.fn>).mockReturnValue(mockDatabase);
+
+    (mockDatabase.getAllTags as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (mockDatabase.getSessions as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (mockDatabase.getTagsForProject as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (mockDatabase.setProjectTags as ReturnType<typeof vi.fn>).mockResolvedValue({ changes: 0 });
   });
 
   it('renders the projects page with title', async () => {
@@ -496,31 +501,114 @@ describe('ProjectsPage', () => {
       expect(screen.getByText('Project 2')).toBeInTheDocument();
     });
   });
-});
 
-describe('Project Stats', () => {
-  it('shows stats when expanded', async () => {
-    // Create a variable to store our projects
-    let projects: Array<{ id: number; name: string; description: string; createdAt: string }> = [];
+  it('displays tags on project cards', async () => {
+    const mockProjectsContext = useProjects();
+    mockProjectsContext.projects = [
+      {
+        projectId: 1,
+        name: 'Project 1',
+        description: '',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        projectId: 2,
+        name: 'Project 2',
+        description: '',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+    mockProjectsContext.isLoading = false;
+    mockProjectsContext.error = null;
 
-    // Set up both database mocks to use the same projects array
-    (mockDatabase.getAllProjects as ReturnType<typeof vi.fn>).mockImplementation(
-      async () => projects
+    (mockDatabase.getAllProjects as ReturnType<typeof vi.fn>).mockResolvedValue(
+      mockProjectsContext.projects as unknown as Project[]
     );
-    (mockDatabase.createProject as ReturnType<typeof vi.fn>).mockImplementation(
-      async (name: string) => {
-        const newProject = {
-          id: 1,
-          name,
-          description: '',
-          createdAt: new Date().toISOString(),
-        };
-        projects = [newProject];
-        return newProject.id;
+
+    (mockDatabase.getTagsForProject as ReturnType<typeof vi.fn>).mockImplementation(
+      async (projectId: number) => {
+        if (projectId === 1) {
+          return [
+            {
+              id: 1,
+              name: 'Frontend',
+              color: '#007bff',
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+          ];
+        }
+        if (projectId === 2) {
+          return [
+            {
+              id: 2,
+              name: 'Backend',
+              color: '#22c55e',
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+          ];
+        }
+        return [];
       }
     );
 
-    // Mock the database context to use our mock
+    render(<ProjectsPage />, { wrapper: TestProviders });
+
+    await waitFor(() => {
+      const card1 = screen.getByTestId('project-card-1');
+      const card2 = screen.getByTestId('project-card-2');
+      expect(within(card1).getByText('Frontend')).toBeInTheDocument();
+      expect(within(card2).getByText('Backend')).toBeInTheDocument();
+    });
+  });
+
+  it('updates project tags when editing a project', async () => {
+    const availableTags = [
+      { id: 1, name: 'Frontend', color: '#007bff', createdAt: new Date(), updatedAt: new Date() },
+      { id: 2, name: 'Backend', color: '#22c55e', createdAt: new Date(), updatedAt: new Date() },
+    ];
+
+    (mockDatabase.getAllTags as ReturnType<typeof vi.fn>).mockResolvedValue(availableTags);
+
+    const project: Project = {
+      projectId: 1,
+      name: 'Tagged Project',
+      description: '',
+      color: undefined,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const mockProjectsContext = useProjects();
+    mockProjectsContext.projects = [project];
+    mockProjectsContext.isLoading = false;
+    mockProjectsContext.error = null;
+
+    (mockDatabase.getAllProjects as ReturnType<typeof vi.fn>).mockResolvedValue([
+      project,
+    ] as unknown as Project[]);
+
+    (mockDatabase.getTagsForProject as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: 1, name: 'Frontend', color: '#007bff', createdAt: new Date(), updatedAt: new Date() },
+    ]);
+
+    (mockDatabase.updateProject as ReturnType<typeof vi.fn>).mockImplementation(
+      async (projectId: number, name: string) =>
+        ({
+          projectId,
+          name,
+          description: '',
+          color: undefined,
+          createdAt: project.createdAt,
+          updatedAt: new Date(),
+        }) as Project
+    );
+
+    (mockDatabase.setProjectTags as ReturnType<typeof vi.fn>).mockResolvedValue({ changes: 2 });
+
     (useDatabase as ReturnType<typeof vi.fn>).mockReturnValue({
       getAllProjects: mockDatabase.getAllProjects,
       createProject: mockDatabase.createProject,
@@ -528,35 +616,63 @@ describe('Project Stats', () => {
       deleteProject: mockDatabase.deleteProject,
       getSessions: mockDatabase.getSessions,
       getAllTags: mockDatabase.getAllTags,
-    });
+      getTagsForProject: mockDatabase.getTagsForProject,
+      setProjectTags: mockDatabase.setProjectTags,
+    } as unknown as DatabaseContextType);
 
     render(<ProjectsPage />, { wrapper: TestProviders });
 
-    // Wait for loading to finish
     await waitFor(() => {
-      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+      expect(screen.getByText('Tagged Project')).toBeInTheDocument();
     });
 
-    // Add a project first
-    const addButton = screen.getByRole('button', { name: /add project/i });
-    fireEvent.click(addButton);
+    // Card should initially show existing tag
+    const card = screen.getByTestId('project-card-1');
+    expect(within(card).getByText('Frontend')).toBeInTheDocument();
 
-    // Fill in the form
-    fireEvent.change(screen.getByLabelText(/project name/i), {
-      target: { value: 'Test Project2' },
-    });
+    // Open edit modal
+    const editButton = within(card).getByRole('button', { name: /edit project/i });
+    fireEvent.click(editButton);
 
-    // Submit the form
-    const form = screen.getByRole('form');
-    const submitButton = within(form).getByRole('button', { name: /add project/i });
-    fireEvent.click(submitButton);
+    const editHeading = await screen.findByRole('heading', { name: /edit project/i });
+    const editForm = editHeading.closest('form') as HTMLFormElement;
 
-    // Wait for the project to appear
+    // Select an additional tag
+    const backendChip = screen.getByText('Backend');
+    fireEvent.click(backendChip);
+
+    const saveButton = within(editForm).getByRole('button', { name: /save changes/i });
+    fireEvent.click(saveButton);
+
     await waitFor(() => {
-      expect(screen.getByText('Test Project2')).toBeInTheDocument();
+      expect(mockDatabase.setProjectTags).toHaveBeenCalledWith(1, [1, 2]);
+    });
+  });
+});
+
+describe('Project Stats', () => {
+  it('shows stats when expanded', async () => {
+    // Configure projects via the ProjectsContext instead of using the add modal
+    const mockProjectsContext = useProjects();
+    mockProjectsContext.projects = [
+      {
+        projectId: 1,
+        name: 'Stats Project',
+        description: '',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+    mockProjectsContext.isLoading = false;
+    mockProjectsContext.error = null;
+
+    render(<ProjectsPage />, { wrapper: TestProviders });
+
+    await waitFor(() => {
+      expect(screen.getByText('Stats Project')).toBeInTheDocument();
     });
 
-    // Find the Test Project card and get the toggle button within it
+    // Find the project card and get the toggle button within it
     const toggleButton = screen
       .getAllByRole('button')
       .find(btn => btn.textContent === '▶' || btn.textContent === '▼') as HTMLButtonElement;
@@ -576,36 +692,24 @@ describe('Project Stats', () => {
   });
 
   it('hides stats when collapsed', async () => {
-    // Start with a clean state - no projects
+    // Configure a single project in the ProjectsContext
     const mockProjectsContext = useProjects();
-    mockProjectsContext.projects = [];
+    mockProjectsContext.projects = [
+      {
+        projectId: 1,
+        name: 'Stats Project',
+        description: '',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
     mockProjectsContext.isLoading = false;
     mockProjectsContext.error = null;
 
     render(<ProjectsPage />, { wrapper: TestProviders });
 
-    // Wait for loading to finish
     await waitFor(() => {
-      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
-    });
-
-    // Add a project first
-    const addButton = screen.getByRole('button', { name: /add project/i });
-    fireEvent.click(addButton);
-
-    // Fill in the form
-    fireEvent.change(screen.getByLabelText(/project name/i), {
-      target: { value: 'Test Project2' },
-    });
-
-    // Submit the form
-    const form = screen.getByRole('form');
-    const submitButton = within(form).getByRole('button', { name: /add project/i });
-    fireEvent.click(submitButton);
-
-    // Wait for the project to appear
-    await waitFor(() => {
-      expect(screen.getByText('Test Project2')).toBeInTheDocument();
+      expect(screen.getByText('Stats Project')).toBeInTheDocument();
     });
 
     // Find and click the stats toggle button

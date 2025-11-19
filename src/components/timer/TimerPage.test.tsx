@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import TimerPage from './TimerPage';
 import SessionControls from './SessionControls';
@@ -48,6 +48,7 @@ describe('TimerPage', () => {
     vi.mocked(useProjects).mockReturnValue(mockProjectsContext);
     vi.mocked(useDatabase).mockReturnValue({
       getSessionsForProject: vi.fn().mockResolvedValue([]),
+      getTagsForProject: vi.fn().mockResolvedValue([]),
     } as unknown as ReturnType<typeof useDatabase>);
     vi.mocked(useSessions).mockReturnValue({
       state: {} as AppState,
@@ -77,6 +78,28 @@ describe('TimerPage', () => {
     expect(mockSessionControls).toHaveBeenCalled();
     const props = mockSessionControls.mock.calls[0][0];
     expect(props.selectedProjectId).toBe(1);
+  });
+
+  it('passes project tags from database into SessionControls', async () => {
+    const tags = [
+      { id: 1, name: 'Frontend', color: '#007bff', createdAt: new Date(), updatedAt: new Date() },
+    ];
+
+    vi.mocked(useDatabase).mockReturnValue({
+      getSessionsForProject: vi.fn().mockResolvedValue([]),
+      getTagsForProject: vi.fn().mockResolvedValue(tags),
+    } as unknown as ReturnType<typeof useDatabase>);
+
+    render(<TimerPage />);
+
+    const mockSessionControls = SessionControls as unknown as Mock;
+
+    await waitFor(() => {
+      expect(mockSessionControls).toHaveBeenCalled();
+      const calls = mockSessionControls.mock.calls;
+      const lastProps = calls[calls.length - 1][0];
+      expect(lastProps.projectTags).toEqual(tags);
+    });
   });
 
   it('updates selectedProjectId when projectSelected is called', () => {

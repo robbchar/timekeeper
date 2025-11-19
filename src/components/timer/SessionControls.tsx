@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import { useSessions } from '@/state/hooks/useAppState';
+import type { Tag } from '@/types/tag';
 import type { Project } from '@/types/project';
 import type { Session } from '@/types/session';
 import TimerControls from './TimerControls';
@@ -35,6 +36,7 @@ const SessionControls: React.FC<{
   isSessionsLoading: boolean;
   sessionCompleted: () => void;
   sessionEdited: () => void;
+  projectTags: Tag[];
 }> = ({
   projects,
   sessions,
@@ -44,6 +46,7 @@ const SessionControls: React.FC<{
   isSessionsLoading,
   sessionCompleted,
   sessionEdited,
+  projectTags,
 }) => {
   const { startSession, stopSession, state } = useSessions();
   const [notes, setNotes] = useState<string>('');
@@ -146,6 +149,19 @@ const SessionControls: React.FC<{
               <SelectItem key={project.projectId}>{project.name}</SelectItem>
             ))}
           </Select>
+          {projectTags.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {projectTags.map(tag => (
+                <span
+                  key={tag.id}
+                  className="inline-flex items-center rounded-full bg-gray-700 px-2 py-0.5 text-xs text-white"
+                  style={tag.color ? { backgroundColor: tag.color, color: '#ffffff' } : undefined}
+                >
+                  {tag.name}
+                </span>
+              ))}
+            </div>
+          )}
           {isSessionActive && notes !== '' && <input type="text" value={notes} disabled />}
           {!isSessionsLoading && !isSessionActive && selectedProjectId > 0 && (
             <>

@@ -314,6 +314,7 @@ export const ProjectsPage: React.FC = () => {
   const { projects, isLoading, error, refreshProjects } = useProjects();
   const { sessions, setSessions } = useSessions();
   const [tags, setTags] = useState<Tag[]>([]);
+  const [projectTagsById, setProjectTagsById] = useState<Record<number, Tag[]>>({});
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -331,6 +332,31 @@ export const ProjectsPage: React.FC = () => {
     // We intentionally run this once on mount to avoid an update loop with setSessions/addTag
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Load tags for each project so we can display them on the cards
+  useEffect(() => {
+    const loadProjectTags = async () => {
+      if (!projects.length) {
+        setProjectTagsById({});
+        return;
+      }
+
+      try {
+        const entries = await Promise.all(
+          projects.map(async project => {
+            const tagsForProject = await getTagsForProject(project.projectId);
+            return [project.projectId, tagsForProject] as const;
+          })
+        );
+        setProjectTagsById(Object.fromEntries(entries));
+      } catch (err) {
+        console.error('Failed to load tags for projects:', err);
+      }
+    };
+
+    void loadProjectTags();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projects]);
 
   const handleAddSubmit = async (name: string, tagIds: number[]) => {
     try {
@@ -447,6 +473,24 @@ export const ProjectsPage: React.FC = () => {
                 </ProjectActions>
               </ProjectHeaderRight>
             </ProjectHeader>
+            {projectTagsById[project.projectId] &&
+              projectTagsById[project.projectId].length > 0 && (
+                <TagRow aria-label="Project tags">
+                  {projectTagsById[project.projectId].map(tag => (
+                    <Chip
+                      key={tag.id}
+                      color="default"
+                      variant="flat"
+                      className="cursor-default"
+                      style={
+                        tag.color ? { backgroundColor: tag.color, color: '#ffffff' } : undefined
+                      }
+                    >
+                      {tag.name}
+                    </Chip>
+                  ))}
+                </TagRow>
+              )}
             <StatsContent
               $isExpanded={expandedStats.has(project.projectId)}
               data-testid={`stats-section-${project.projectId}`}
