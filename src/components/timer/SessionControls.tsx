@@ -153,7 +153,7 @@ const SessionControls: React.FC<{
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
                 className="max-w-full bg-white"
-                placeholder="Add notes..."
+                placeholder="Add notes for session..."
               />
               <ButtonContainer>
                 <Button

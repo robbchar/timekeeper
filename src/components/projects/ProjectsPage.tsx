@@ -3,7 +3,8 @@ import styled from 'styled-components';
 import { useProjects } from '@/contexts/ProjectsContext';
 import type { Project } from '@/types/project';
 import { formatDuration } from '@/utils/time';
-import { Button } from '@heroui/react';
+import { Button, Chip } from '@heroui/react';
+import type { Tag } from '@/types/tag';
 import { ConfirmModal } from '@/components/ConfirmModal';
 import { useSessions } from '@/state/hooks/useAppState';
 import { useDatabase } from '@/contexts/DatabaseContext';
@@ -59,10 +60,28 @@ const ProjectDate = styled.p`
   font-size: 0.875rem;
 `;
 
+const ProjectHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+`;
+
+const ProjectHeaderLeft = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+`;
+
+const ProjectHeaderRight = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
 const ProjectActions = styled.div`
   display: flex;
   gap: 0.5rem;
-  margin-top: 1rem;
 `;
 
 const Form = styled.form`
@@ -96,12 +115,6 @@ const ErrorMessage = styled.p`
   margin-top: 0.5rem;
 `;
 
-const StatsSection = styled.div`
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid ${({ theme }) => theme.colors.border};
-`;
-
 const StatsToggle = styled.button`
   background: none;
   border: none;
@@ -122,7 +135,7 @@ const StatsToggle = styled.button`
 
 const StatsContent = styled.div<{ $isExpanded: boolean }>`
   display: ${({ $isExpanded }) => ($isExpanded ? 'block' : 'none')};
-  padding: 0.5rem;
+  margin-top: 0.75rem;
 `;
 
 const StatRow = styled.div`
@@ -130,6 +143,13 @@ const StatRow = styled.div`
   justify-content: space-between;
   margin-bottom: 0.5rem;
   font-size: 0.9rem;
+`;
+
+const TagRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
 `;
 
 const Modal = styled.div`
@@ -165,6 +185,8 @@ interface ModalProps {
   initialName?: string;
   title: string;
   existingProjects?: Project[];
+  availableTags: Tag[];
+  currentProjectId?: number;
 }
 
 const ProjectModal: React.FC<ModalProps> = ({
@@ -174,13 +196,17 @@ const ProjectModal: React.FC<ModalProps> = ({
   initialName = '',
   title,
   existingProjects = [],
+  availableTags,
+  currentProjectId,
 }) => {
   const [projectName, setProjectName] = useState(initialName);
   const [error, setError] = useState<string | null>(null);
+  const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
 
   React.useEffect(() => {
     setProjectName(initialName);
     setError(null);
+    setSelectedTagIds([]);
   }, [initialName, isOpen]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -191,15 +217,20 @@ const ProjectModal: React.FC<ModalProps> = ({
     }
 
     const trimmedName = projectName.trim();
-    const isDuplicate = existingProjects.some(
-      project => project.name.toLowerCase() === trimmedName.toLowerCase()
-    );
+    const isDuplicate = existingProjects.some(project => {
+      if (currentProjectId && project.projectId === currentProjectId) {
+        // Allow keeping the same name on the project being edited
+        return false;
+      }
+      return project.name.toLowerCase() === trimmedName.toLowerCase();
+    });
 
     if (isDuplicate) {
       setError('A project with this name already exists');
       return;
     }
 
+    // For now tags are visual metadata only, so we ignore selectedTagIds here.
     onSubmit(trimmedName);
   };
 
@@ -223,6 +254,33 @@ const ProjectModal: React.FC<ModalProps> = ({
             aria-invalid={!!error}
             aria-describedby={error ? 'project-name-error' : undefined}
           />
+          {availableTags.length > 0 && (
+            <TagRow>
+              {availableTags.map(tag => {
+                const isSelected = selectedTagIds.includes(tag.id);
+                return (
+                  <Chip
+                    key={tag.id}
+                    className="cursor-pointer"
+                    color="default"
+                    variant={isSelected ? 'flat' : 'bordered'}
+                    style={
+                      isSelected && tag.color
+                        ? { backgroundColor: tag.color, color: '#ffffff' }
+                        : undefined
+                    }
+                    onClick={() =>
+                      setSelectedTagIds(prev =>
+                        prev.includes(tag.id) ? prev.filter(id => id !== tag.id) : [...prev, tag.id]
+                      )
+                    }
+                  >
+                    {tag.name}
+                  </Chip>
+                );
+              })}
+            </TagRow>
+          )}
           {error && (
             <ErrorMessage id="project-name-error" role="alert">
               {error}
@@ -243,9 +301,10 @@ const ProjectModal: React.FC<ModalProps> = ({
 };
 
 export const ProjectsPage: React.FC = () => {
-  const { createProject, deleteProject, updateProject, getSessions } = useDatabase();
+  const { createProject, deleteProject, updateProject, getSessions, getAllTags } = useDatabase();
   const { projects, isLoading, error, refreshProjects } = useProjects();
   const { sessions, setSessions } = useSessions();
+  const [tags, setTags] = useState<Tag[]>([]);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -253,17 +312,21 @@ export const ProjectsPage: React.FC = () => {
   const [expandedStats, setExpandedStats] = useState<Set<number>>(new Set());
 
   useEffect(() => {
-    const fetchSessions = async () => {
-      const sessions = await getSessions();
-      setSessions(sessions);
+    const fetchSessionsAndTags = async () => {
+      const [allSessions, allTags] = await Promise.all([getSessions(), getAllTags()]);
+      setSessions(allSessions);
+      setTags(allTags);
     };
-    fetchSessions();
-  }, [getSessions, setSessions]);
+    void fetchSessionsAndTags();
+    // We intentionally run this once on mount to avoid an update loop with setSessions/addTag
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleAddSubmit = async (name: string) => {
     try {
       await createProject(name);
       await refreshProjects();
+      // tag-to-project linking can be added here in a future iteration
       setIsAddModalOpen(false);
     } catch (error) {
       console.error('Failed to create project:', error);
@@ -329,51 +392,60 @@ export const ProjectsPage: React.FC = () => {
       <ProjectList>
         {projects.map(project => (
           <ProjectCard key={project.projectId} data-testid={`project-card-${project.projectId}`}>
-            <ProjectName>{project.name}</ProjectName>
-            <ProjectDate>Created {new Date(project.createdAt).toLocaleDateString()}</ProjectDate>
-            <ProjectActions>
-              <Button
-                className="bg-transparent"
-                isIconOnly
-                aria-label="Edit Project"
-                onPress={() => handleEditClick(project)}
-                title="Edit Project"
-              >
-                ✏️
-              </Button>
-              <Button
-                className="bg-transparent"
-                isIconOnly
-                onPress={() => handleDeleteClick(project)}
-                title="Delete Project"
-                aria-label="Delete Project"
-              >
-                🗑️
-              </Button>
-            </ProjectActions>
-            <StatsSection data-testid={`stats-section-${project.projectId}`}>
-              <StatsToggle onClick={() => toggleProjectStats(project.projectId)}>
-                {expandedStats.has(project.projectId) ? '▼' : '▶'} Project Stats
-              </StatsToggle>
-              <StatsContent $isExpanded={expandedStats.has(project.projectId)}>
-                <StatRow>
-                  <span>Total Time:</span>
-                  <span>
-                    {formatDuration(
-                      sessions
-                        .filter(session => session.projectId === project.projectId)
-                        .reduce((acc, session) => acc + session.duration, 0)
-                    )}
-                  </span>
-                </StatRow>
-                <StatRow>
-                  <span>Sessions:</span>
-                  <span>
-                    {sessions.filter(session => session.projectId === project.projectId).length}
-                  </span>
-                </StatRow>
-              </StatsContent>
-            </StatsSection>
+            <ProjectHeader>
+              <ProjectHeaderLeft>
+                <ProjectName>{project.name}</ProjectName>
+                <ProjectDate>
+                  Created {new Date(project.createdAt).toLocaleDateString()}
+                </ProjectDate>
+              </ProjectHeaderLeft>
+              <ProjectHeaderRight>
+                <StatsToggle onClick={() => toggleProjectStats(project.projectId)}>
+                  {expandedStats.has(project.projectId) ? '▼' : '▶'}
+                </StatsToggle>
+                <ProjectActions>
+                  <Button
+                    className="bg-transparent"
+                    isIconOnly
+                    aria-label="Edit Project"
+                    onPress={() => handleEditClick(project)}
+                    title="Edit Project"
+                  >
+                    ✏️
+                  </Button>
+                  <Button
+                    className="bg-transparent"
+                    isIconOnly
+                    onPress={() => handleDeleteClick(project)}
+                    title="Delete Project"
+                    aria-label="Delete Project"
+                  >
+                    🗑️
+                  </Button>
+                </ProjectActions>
+              </ProjectHeaderRight>
+            </ProjectHeader>
+            <StatsContent
+              $isExpanded={expandedStats.has(project.projectId)}
+              data-testid={`stats-section-${project.projectId}`}
+            >
+              <StatRow>
+                <span>Total Time:</span>
+                <span>
+                  {formatDuration(
+                    sessions
+                      .filter(session => session.projectId === project.projectId)
+                      .reduce((acc, session) => acc + session.duration, 0)
+                  )}
+                </span>
+              </StatRow>
+              <StatRow>
+                <span>Sessions:</span>
+                <span>
+                  {sessions.filter(session => session.projectId === project.projectId).length}
+                </span>
+              </StatRow>
+            </StatsContent>
           </ProjectCard>
         ))}
       </ProjectList>
@@ -384,6 +456,7 @@ export const ProjectsPage: React.FC = () => {
         onSubmit={handleAddSubmit}
         title="Add New Project"
         existingProjects={projects}
+        availableTags={tags}
       />
 
       <ProjectModal
@@ -393,6 +466,8 @@ export const ProjectsPage: React.FC = () => {
         initialName={selectedProject?.name}
         title="Edit Project"
         existingProjects={projects}
+        availableTags={tags}
+        currentProjectId={selectedProject?.projectId}
       />
 
       <ConfirmModal

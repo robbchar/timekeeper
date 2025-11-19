@@ -3,6 +3,7 @@ import { HashRouter as Router, Routes, Route } from 'react-router-dom';
 import Layout from '@/components/layout/Layout';
 import { ProjectsPage } from '@/components/projects/ProjectsPage';
 import TimerPage from '@/components/timer/TimerPage';
+import { SettingsPage } from '@/components/settings/SettingsPage';
 
 const App: React.FC = () => {
   return (
@@ -11,7 +12,7 @@ const App: React.FC = () => {
         <Route path="/" element={<Layout />}>
           <Route index element={<TimerPage />} />
           <Route path="projects" element={<ProjectsPage />} />
-          <Route path="settings" element={<div>Settings Page</div>} />
+          <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>
     </Router>

@@ -63,7 +63,7 @@ export const SessionDurationEditBox: React.FC<SessionDurationEditBoxProps> = ({
     <div className="flex items-center gap-1 font-mono text-2xl">
       <div className="flex items-center">
         <input
-          type="number"
+          type="text"
           value={pad(hours)}
           onChange={e => handleInputChange(e, setHours, 100)}
           className="w-10 text-center"
@@ -73,7 +73,7 @@ export const SessionDurationEditBox: React.FC<SessionDurationEditBoxProps> = ({
       :
       <div className="flex items-center">
         <input
-          type="number"
+          type="text"
           value={pad(minutes)}
           onChange={e => handleInputChange(e, setMinutes, 60)}
           className="w-10 text-center"
@@ -83,7 +83,7 @@ export const SessionDurationEditBox: React.FC<SessionDurationEditBoxProps> = ({
       :
       <div className="flex items-center">
         <input
-          type="number"
+          type="text"
           value={pad(seconds)}
           onChange={e => handleInputChange(e, setSeconds, 60)}
           className="w-10 text-center"

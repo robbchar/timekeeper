@@ -1,6 +1,6 @@
 import styled from 'styled-components';
 import SessionControls from './SessionControls';
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useDatabase } from '@/contexts/DatabaseContext';
 import { useProjects } from '@/contexts/ProjectsContext';
 import { useSessions } from '@/state/hooks/useAppState';
@@ -15,11 +15,15 @@ const PageContainer = styled.div`
 `;
 
 const TimerPage = () => {
-  const [selectedProjectId, setSelectedProjectId] = useState<number>(-1);
   const [isSessionsLoading, setIsSessionsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const { getSessionsForProject } = useDatabase();
-  const { projects, isLoading: projectsLoading } = useProjects();
+  const {
+    projects,
+    isLoading: projectsLoading,
+    selectedProjectId,
+    setSelectedProjectId,
+  } = useProjects();
   const { sessions, setSessions } = useSessions();
 
   const fetchSessions = useCallback(async () => {
@@ -50,7 +54,6 @@ const TimerPage = () => {
 
   const projectSelected = (projectId: number) => {
     setSelectedProjectId(projectId);
-    fetchSessions();
   };
 
   const sessionCompleted = () => {

@@ -14,6 +14,8 @@ interface ProjectsContextType {
   isLoading: boolean;
   error: string | null;
   refreshProjects: () => Promise<void>;
+  selectedProjectId: number;
+  setSelectedProjectId: (projectId: number) => void;
 }
 
 const ProjectsContext = createContext<ProjectsContextType | undefined>(undefined);
@@ -23,6 +25,7 @@ export const ProjectsProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<number>(-1);
 
   const refreshProjects = useCallback(async () => {
     try {
@@ -73,6 +76,8 @@ export const ProjectsProvider: React.FC<{ children: ReactNode }> = ({ children }
     isLoading,
     error,
     refreshProjects,
+    selectedProjectId,
+    setSelectedProjectId,
   };
 
   return <ProjectsContext.Provider value={value}>{children}</ProjectsContext.Provider>;
