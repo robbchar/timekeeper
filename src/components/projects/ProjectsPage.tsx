@@ -254,7 +254,7 @@ const ProjectModal: React.FC<ModalProps> = ({
             aria-invalid={!!error}
             aria-describedby={error ? 'project-name-error' : undefined}
           />
-          {availableTags.length > 0 && (
+          {availableTags && availableTags.length > 0 && (
             <TagRow>
               {availableTags.map(tag => {
                 const isSelected = selectedTagIds.includes(tag.id);

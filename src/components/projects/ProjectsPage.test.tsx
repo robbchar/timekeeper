@@ -113,6 +113,7 @@ describe('ProjectsPage', () => {
       updateProject: mockDatabase.updateProject,
       deleteProject: mockDatabase.deleteProject,
       getSessions: mockDatabase.getSessions,
+      getAllTags: mockDatabase.getAllTags,
     });
 
     render(<ProjectsPage />, { wrapper: TestProviders });
@@ -171,6 +172,7 @@ describe('ProjectsPage', () => {
       updateProject: mockDatabase.updateProject,
       deleteProject: mockDatabase.deleteProject,
       getSessions: mockDatabase.getSessions,
+      getAllTags: mockDatabase.getAllTags,
     });
 
     render(<ProjectsPage />, { wrapper: TestProviders });
@@ -238,6 +240,7 @@ describe('ProjectsPage', () => {
       updateProject: mockDatabase.updateProject,
       deleteProject: mockDatabase.deleteProject,
       getSessions: mockDatabase.getSessions,
+      getAllTags: mockDatabase.getAllTags,
     });
 
     render(<ProjectsPage />, { wrapper: TestProviders });
@@ -303,6 +306,7 @@ describe('ProjectsPage', () => {
       updateProject: mockDatabase.updateProject,
       deleteProject: mockDatabase.deleteProject,
       getSessions: mockDatabase.getSessions,
+      getAllTags: mockDatabase.getAllTags,
     });
 
     render(<ProjectsPage />, { wrapper: TestProviders });
@@ -413,6 +417,7 @@ describe('Project Stats', () => {
       updateProject: mockDatabase.updateProject,
       deleteProject: mockDatabase.deleteProject,
       getSessions: mockDatabase.getSessions,
+      getAllTags: mockDatabase.getAllTags,
     });
 
     render(<ProjectsPage />, { wrapper: TestProviders });
@@ -448,23 +453,22 @@ describe('Project Stats', () => {
     });
 
     // Find the Test Project card and get the toggle button within it
-    const testProjectCard = screen.getByText('Test Project2').closest('div');
-    if (!testProjectCard) {
-      throw new Error('Test Project card not found');
+    const toggleButton = screen
+      .getAllByRole('button')
+      .find(btn => btn.textContent === '▶' || btn.textContent === '▼') as HTMLButtonElement;
+    if (!toggleButton) {
+      throw new Error('Stats toggle button not found');
     }
-    const toggleButton = within(testProjectCard).getByRole('button', {
-      name: /project stats/i,
-    });
-    expect(toggleButton).toHaveTextContent('▶ Project Stats');
-
+    expect(toggleButton).toHaveTextContent('▶');
     fireEvent.click(toggleButton);
-    expect(toggleButton).toHaveTextContent('▼ Project Stats');
+    expect(toggleButton).toHaveTextContent('▼');
 
     // Check if stats are displayed
-    expect(within(testProjectCard).getByText('Total Time:')).toBeInTheDocument();
-    expect(within(testProjectCard).getByText('0s')).toBeInTheDocument();
-    expect(within(testProjectCard).getByText('Sessions:')).toBeInTheDocument();
-    expect(within(testProjectCard).getByText('0')).toBeInTheDocument();
+    const statsSection = screen.getByTestId(/stats-section-/);
+    expect(within(statsSection).getByText('Total Time:')).toBeInTheDocument();
+    expect(within(statsSection).getByText('0s')).toBeInTheDocument();
+    expect(within(statsSection).getByText('Sessions:')).toBeInTheDocument();
+    expect(within(statsSection).getByText('0')).toBeInTheDocument();
   });
 
   it('hides stats when collapsed', async () => {
@@ -507,22 +511,23 @@ describe('Project Stats', () => {
     });
 
     // Find and click the stats toggle button
-    const projectCard = screen.getByText('Test Project2').closest('div');
-    if (!projectCard) {
-      throw new Error('Test Project card not found');
+    const toggleButton = screen
+      .getAllByRole('button')
+      .find(btn => btn.textContent === '▶' || btn.textContent === '▼') as HTMLButtonElement;
+    if (!toggleButton) {
+      throw new Error('Stats toggle button not found');
     }
-    const toggleButton = within(projectCard).getByRole('button', { name: /project stats/i });
 
     // Check initial state (collapsed)
-    expect(toggleButton).toHaveTextContent('▶ Project Stats');
+    expect(toggleButton).toHaveTextContent('▶');
 
     // Click to expand
     fireEvent.click(toggleButton);
-    expect(toggleButton).toHaveTextContent('▼ Project Stats');
+    expect(toggleButton).toHaveTextContent('▼');
 
     // Click to collapse
     fireEvent.click(toggleButton);
-    expect(toggleButton).toHaveTextContent('▶ Project Stats');
+    expect(toggleButton).toHaveTextContent('▶');
   });
 
   it('shows zero time for new projects', async () => {
@@ -553,15 +558,13 @@ describe('Project Stats', () => {
 
     // Expand stats
     expect(newProjectTitle).toBeInTheDocument();
-    const toggleButton = within(newProjectTitle.parentElement as HTMLElement).getByText(
-      /▶ project stats/i
-    );
+    const toggleButton = screen
+      .getAllByRole('button')
+      .find(btn => btn.textContent === '▶' || btn.textContent === '▼') as HTMLButtonElement;
     fireEvent.click(toggleButton);
     debug();
     // Check if zero stats are displayed
-    const statsSection = within(newProjectTitle.parentElement as HTMLElement)
-      .getByText('Total Time:')
-      .closest('[data-testid="stats-section-1"]');
+    const statsSection = screen.getByTestId('stats-section-1');
     expect(statsSection).toBeInTheDocument();
 
     expect(within(statsSection as HTMLElement).getByText('Total Time:')).toBeInTheDocument();

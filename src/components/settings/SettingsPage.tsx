@@ -140,7 +140,7 @@ export const SettingsPage: React.FC = () => {
     <PageContainer>
       <Section>
         <SectionTitle>Tags</SectionTitle>
-        <NewTagForm onSubmit={handleAddTag}>
+        <NewTagForm onSubmit={handleAddTag} role="form">
           <Input
             label="New tag name"
             value={name}

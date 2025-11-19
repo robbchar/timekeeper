@@ -184,7 +184,7 @@ describe('SessionControls', () => {
     renderWithTheme({ selectedProjectId: 1 });
 
     // Add notes
-    const notesInput = screen.getByPlaceholderText('Add notes...');
+    const notesInput = screen.getByPlaceholderText('Add notes for session...');
     expect(notesInput).toBeInTheDocument();
     await user.type(notesInput, 'Test session');
 
