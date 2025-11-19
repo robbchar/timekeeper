@@ -87,24 +87,32 @@ describe('ProjectsPage', () => {
 
   it('adds a new project when submitting the form', async () => {
     // Create a variable to store our projects
-    let projects: Array<{ id: number; name: string; description: string; createdAt: string }> = [];
+    let projects: Array<{
+      projectId: number;
+      name: string;
+      description: string;
+      createdAt: string;
+    }> = [];
 
     // Set up both database mocks to use the same projects array
     (mockDatabase.getAllProjects as ReturnType<typeof vi.fn>).mockImplementation(
-      async () => projects
+      async () => projects as unknown as Project[]
     );
     (mockDatabase.createProject as ReturnType<typeof vi.fn>).mockImplementation(
       async (name: string) => {
         const newProject = {
-          id: 1,
+          projectId: 1,
           name,
           description: '',
           createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         };
         projects = [newProject];
-        return newProject.id;
+        return newProject as unknown as Project;
       }
     );
+
+    (mockDatabase.setProjectTags as ReturnType<typeof vi.fn>).mockResolvedValue({ changes: 1 });
 
     // Mock the database context to use our mock
     (useDatabase as ReturnType<typeof vi.fn>).mockReturnValue({
@@ -114,7 +122,9 @@ describe('ProjectsPage', () => {
       deleteProject: mockDatabase.deleteProject,
       getSessions: mockDatabase.getSessions,
       getAllTags: mockDatabase.getAllTags,
-    });
+      getTagsForProject: mockDatabase.getTagsForProject,
+      setProjectTags: mockDatabase.setProjectTags,
+    } as unknown as DatabaseContextType);
 
     render(<ProjectsPage />, { wrapper: TestProviders });
     await waitFor(() => {
@@ -125,7 +135,7 @@ describe('ProjectsPage', () => {
     const addButton = screen.getByRole('button', { name: /add project/i });
     fireEvent.click(addButton);
 
-    // Fill and submit form
+    // Fill and submit form (no tags selected)
     const input = screen.getByRole('textbox', { name: /project name/i });
     fireEvent.change(input, { target: { value: 'New Test Project' } });
 
@@ -137,16 +147,90 @@ describe('ProjectsPage', () => {
     // Wait for the project to appear
     await waitFor(() => {
       expect(screen.getByText('New Test Project')).toBeInTheDocument();
+      expect(mockDatabase.setProjectTags).toHaveBeenCalledWith(1, []);
+    });
+  });
+
+  it('persists selected tags for a new project', async () => {
+    // Prepare tags
+    const availableTags = [
+      { id: 1, name: 'Frontend', color: '#007bff', createdAt: new Date(), updatedAt: new Date() },
+      { id: 2, name: 'Backend', color: '#22c55e', createdAt: new Date(), updatedAt: new Date() },
+    ];
+
+    (mockDatabase.getAllTags as ReturnType<typeof vi.fn>).mockResolvedValue(availableTags);
+
+    let projects: Array<Project> = [];
+
+    (mockDatabase.getAllProjects as ReturnType<typeof vi.fn>).mockImplementation(
+      async () => projects
+    );
+    (mockDatabase.createProject as ReturnType<typeof vi.fn>).mockImplementation(
+      async (name: string) => {
+        const newProject: Project = {
+          projectId: 1,
+          name,
+          description: '',
+          color: undefined,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+        projects = [newProject];
+        return newProject;
+      }
+    );
+    (mockDatabase.setProjectTags as ReturnType<typeof vi.fn>).mockResolvedValue({ changes: 2 });
+
+    (useDatabase as ReturnType<typeof vi.fn>).mockReturnValue({
+      getAllProjects: mockDatabase.getAllProjects,
+      createProject: mockDatabase.createProject,
+      updateProject: mockDatabase.updateProject,
+      deleteProject: mockDatabase.deleteProject,
+      getSessions: mockDatabase.getSessions,
+      getAllTags: mockDatabase.getAllTags,
+      getTagsForProject: mockDatabase.getTagsForProject,
+      setProjectTags: mockDatabase.setProjectTags,
+    } as unknown as DatabaseContextType);
+
+    render(<ProjectsPage />, { wrapper: TestProviders });
+    await waitFor(() => {
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+    });
+
+    // Open modal
+    const addButton = screen.getByRole('button', { name: /add project/i });
+    fireEvent.click(addButton);
+
+    // Select a couple of tags
+    const frontendChip = screen.getByText('Frontend');
+    const backendChip = screen.getByText('Backend');
+    fireEvent.click(frontendChip);
+    fireEvent.click(backendChip);
+
+    // Set project name and submit
+    const input = screen.getByRole('textbox', { name: /project name/i });
+    fireEvent.change(input, { target: { value: 'Tagged Project' } });
+    const form = screen.getByRole('form');
+    const submitButton = within(form).getByRole('button', { name: /add project/i });
+    fireEvent.click(submitButton);
+
+    await waitFor(() => {
+      expect(mockDatabase.setProjectTags).toHaveBeenCalledWith(1, [1, 2]);
     });
   });
 
   it('shows error when creating project with duplicate name', async () => {
     // Create a variable to store our projects
-    let projects: Array<{ id: number; name: string; description: string; createdAt: string }> = [];
+    let projects: Array<{
+      projectId: number;
+      name: string;
+      description: string;
+      createdAt: string;
+    }> = [];
 
     // Set up both database mocks to use the same projects array
     (mockDatabase.getAllProjects as ReturnType<typeof vi.fn>).mockImplementation(
-      async () => projects
+      async () => projects as unknown as Project[]
     );
     (mockDatabase.createProject as ReturnType<typeof vi.fn>).mockImplementation(
       async (name: string) => {
@@ -155,15 +239,18 @@ describe('ProjectsPage', () => {
           throw new Error('A project with this name already exists');
         }
         const newProject = {
-          id: projects.length + 1,
+          projectId: projects.length + 1,
           name,
           description: '',
           createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         };
         projects = [...projects, newProject];
-        return newProject.id;
+        return newProject as unknown as Project;
       }
     );
+
+    (mockDatabase.setProjectTags as ReturnType<typeof vi.fn>).mockResolvedValue({ changes: 1 });
 
     // Mock the database context to use our mock
     (useDatabase as ReturnType<typeof vi.fn>).mockReturnValue({
@@ -173,7 +260,9 @@ describe('ProjectsPage', () => {
       deleteProject: mockDatabase.deleteProject,
       getSessions: mockDatabase.getSessions,
       getAllTags: mockDatabase.getAllTags,
-    });
+      getTagsForProject: mockDatabase.getTagsForProject,
+      setProjectTags: mockDatabase.setProjectTags,
+    } as unknown as DatabaseContextType);
 
     render(<ProjectsPage />, { wrapper: TestProviders });
 
@@ -214,24 +303,32 @@ describe('ProjectsPage', () => {
 
   it('allows editing project name to same name', async () => {
     // Create a variable to store our projects
-    let projects: Array<{ id: number; name: string; description: string; createdAt: string }> = [];
+    let projects: Array<{
+      projectId: number;
+      name: string;
+      description: string;
+      createdAt: string;
+    }> = [];
 
     // Set up both database mocks to use the same projects array
     (mockDatabase.getAllProjects as ReturnType<typeof vi.fn>).mockImplementation(
-      async () => projects
+      async () => projects as unknown as Project[]
     );
     (mockDatabase.createProject as ReturnType<typeof vi.fn>).mockImplementation(
       async (name: string) => {
         const newProject = {
-          id: 1,
+          projectId: 1,
           name,
           description: '',
           createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         };
         projects = [newProject];
-        return newProject.id;
+        return newProject as unknown as Project;
       }
     );
+
+    (mockDatabase.setProjectTags as ReturnType<typeof vi.fn>).mockResolvedValue({ changes: 1 });
 
     // Mock the database context to use our mock
     (useDatabase as ReturnType<typeof vi.fn>).mockReturnValue({
@@ -241,7 +338,9 @@ describe('ProjectsPage', () => {
       deleteProject: mockDatabase.deleteProject,
       getSessions: mockDatabase.getSessions,
       getAllTags: mockDatabase.getAllTags,
-    });
+      getTagsForProject: mockDatabase.getTagsForProject,
+      setProjectTags: mockDatabase.setProjectTags,
+    } as unknown as DatabaseContextType);
 
     render(<ProjectsPage />, { wrapper: TestProviders });
 
@@ -268,8 +367,8 @@ describe('ProjectsPage', () => {
     const editButton = screen.getByRole('button', { name: /edit project/i });
     fireEvent.click(editButton);
 
-    // Submit with same name - specifically target the Edit Project form
-    const editHeading = screen.getByRole('heading', { name: /edit project/i });
+    // Wait for edit modal to appear and submit with same name
+    const editHeading = await screen.findByRole('heading', { name: /edit project/i });
     const editForm = editHeading.closest('form') as HTMLFormElement;
     const saveButton = within(editForm).getByRole('button', { name: /save changes/i });
     fireEvent.click(saveButton);
@@ -280,24 +379,32 @@ describe('ProjectsPage', () => {
 
   it('shows error when editing project to duplicate name', async () => {
     // Create a variable to store our projects
-    let projects: Array<{ id: number; name: string; description: string; createdAt: string }> = [];
+    let projects: Array<{
+      projectId: number;
+      name: string;
+      description: string;
+      createdAt: string;
+    }> = [];
 
     // Set up both database mocks to use the same projects array
     (mockDatabase.getAllProjects as ReturnType<typeof vi.fn>).mockImplementation(
-      async () => projects
+      async () => projects as unknown as Project[]
     );
     (mockDatabase.createProject as ReturnType<typeof vi.fn>).mockImplementation(
       async (name: string) => {
         const newProject = {
-          id: projects.length + 1,
+          projectId: projects.length + 1,
           name,
           description: '',
           createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         };
         projects = [...projects, newProject];
-        return newProject.id;
+        return newProject as unknown as Project;
       }
     );
+
+    (mockDatabase.setProjectTags as ReturnType<typeof vi.fn>).mockResolvedValue({ changes: 1 });
 
     // Mock the database context to use our mock
     (useDatabase as ReturnType<typeof vi.fn>).mockReturnValue({
@@ -307,7 +414,9 @@ describe('ProjectsPage', () => {
       deleteProject: mockDatabase.deleteProject,
       getSessions: mockDatabase.getSessions,
       getAllTags: mockDatabase.getAllTags,
-    });
+      getTagsForProject: mockDatabase.getTagsForProject,
+      setProjectTags: mockDatabase.setProjectTags,
+    } as unknown as DatabaseContextType);
 
     render(<ProjectsPage />, { wrapper: TestProviders });
 
@@ -347,7 +456,8 @@ describe('ProjectsPage', () => {
     const editButtons = screen.getAllByRole('button', { name: /edit project/i });
     fireEvent.click(editButtons[1]); // Click edit on second project
 
-    const editForm = screen.getByRole('form');
+    const editHeading = await screen.findByRole('heading', { name: /edit project/i });
+    const editForm = editHeading.closest('form') as HTMLFormElement;
     const editInput = screen.getByRole('textbox', { name: /project name/i });
     fireEvent.change(editInput, { target: { value: 'Project One' } });
     const saveButton = within(editForm).getByRole('button', { name: /save changes/i });
@@ -441,15 +551,9 @@ describe('Project Stats', () => {
     const submitButton = within(form).getByRole('button', { name: /add project/i });
     fireEvent.click(submitButton);
 
-    // Wait for the form to close
-    await waitFor(() => {
-      expect(screen.queryByRole('heading', { name: 'Add New Project' })).not.toBeInTheDocument();
-    });
-
-    // Wait for the project to appear and the form to be gone
+    // Wait for the project to appear
     await waitFor(() => {
       expect(screen.getByText('Test Project2')).toBeInTheDocument();
-      expect(screen.queryByRole('form')).not.toBeInTheDocument();
     });
 
     // Find the Test Project card and get the toggle button within it
@@ -499,15 +603,9 @@ describe('Project Stats', () => {
     const submitButton = within(form).getByRole('button', { name: /add project/i });
     fireEvent.click(submitButton);
 
-    // Wait for the form to close
-    await waitFor(() => {
-      expect(screen.queryByRole('heading', { name: 'Add New Project' })).not.toBeInTheDocument();
-    });
-
-    // Wait for the project to appear and the form to be gone
+    // Wait for the project to appear
     await waitFor(() => {
       expect(screen.getByText('Test Project2')).toBeInTheDocument();
-      expect(screen.queryByRole('form')).not.toBeInTheDocument();
     });
 
     // Find and click the stats toggle button

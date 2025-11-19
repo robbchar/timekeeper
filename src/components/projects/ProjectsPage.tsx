@@ -181,12 +181,13 @@ const ModalTitle = styled.h2`
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (name: string) => void;
+  onSubmit: (name: string, tagIds: number[]) => void;
   initialName?: string;
   title: string;
   existingProjects?: Project[];
   availableTags: Tag[];
   currentProjectId?: number;
+  initialTagIds?: number[];
 }
 
 const ProjectModal: React.FC<ModalProps> = ({
@@ -198,16 +199,17 @@ const ProjectModal: React.FC<ModalProps> = ({
   existingProjects = [],
   availableTags,
   currentProjectId,
+  initialTagIds = [],
 }) => {
   const [projectName, setProjectName] = useState(initialName);
   const [error, setError] = useState<string | null>(null);
-  const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
+  const [selectedTagIds, setSelectedTagIds] = useState<number[]>(initialTagIds);
 
   React.useEffect(() => {
     setProjectName(initialName);
     setError(null);
-    setSelectedTagIds([]);
-  }, [initialName, isOpen]);
+    setSelectedTagIds(initialTagIds);
+  }, [initialName, initialTagIds, isOpen]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -230,8 +232,7 @@ const ProjectModal: React.FC<ModalProps> = ({
       return;
     }
 
-    // For now tags are visual metadata only, so we ignore selectedTagIds here.
-    onSubmit(trimmedName);
+    onSubmit(trimmedName, selectedTagIds);
   };
 
   if (!isOpen) return null;
@@ -301,7 +302,15 @@ const ProjectModal: React.FC<ModalProps> = ({
 };
 
 export const ProjectsPage: React.FC = () => {
-  const { createProject, deleteProject, updateProject, getSessions, getAllTags } = useDatabase();
+  const {
+    createProject,
+    deleteProject,
+    updateProject,
+    getSessions,
+    getAllTags,
+    getTagsForProject,
+    setProjectTags,
+  } = useDatabase();
   const { projects, isLoading, error, refreshProjects } = useProjects();
   const { sessions, setSessions } = useSessions();
   const [tags, setTags] = useState<Tag[]>([]);
@@ -309,6 +318,7 @@ export const ProjectsPage: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [editingTagIds, setEditingTagIds] = useState<number[]>([]);
   const [expandedStats, setExpandedStats] = useState<Set<number>>(new Set());
 
   useEffect(() => {
@@ -322,21 +332,26 @@ export const ProjectsPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleAddSubmit = async (name: string) => {
+  const handleAddSubmit = async (name: string, tagIds: number[]) => {
     try {
-      await createProject(name);
+      const project = await createProject(name);
+      if (tagIds.length > 0) {
+        await setProjectTags(project.projectId, tagIds);
+      } else {
+        await setProjectTags(project.projectId, []);
+      }
       await refreshProjects();
-      // tag-to-project linking can be added here in a future iteration
       setIsAddModalOpen(false);
     } catch (error) {
       console.error('Failed to create project:', error);
     }
   };
 
-  const handleEditSubmit = async (name: string) => {
+  const handleEditSubmit = async (name: string, tagIds: number[]) => {
     if (!selectedProject) return;
     try {
-      await updateProject(selectedProject.projectId, name);
+      const updated = await updateProject(selectedProject.projectId, name);
+      await setProjectTags(updated.projectId, tagIds);
       await refreshProjects();
       setIsEditModalOpen(false);
     } catch (error) {
@@ -344,8 +359,15 @@ export const ProjectsPage: React.FC = () => {
     }
   };
 
-  const handleEditClick = (project: Project) => {
+  const handleEditClick = async (project: Project) => {
     setSelectedProject(project);
+    try {
+      const tagsForProject = await getTagsForProject(project.projectId);
+      setEditingTagIds(tagsForProject.map(t => t.id));
+    } catch (err) {
+      console.error('Failed to load tags for project:', err);
+      setEditingTagIds([]);
+    }
     setIsEditModalOpen(true);
   };
 
@@ -457,6 +479,7 @@ export const ProjectsPage: React.FC = () => {
         title="Add New Project"
         existingProjects={projects}
         availableTags={tags}
+        initialTagIds={[]}
       />
 
       <ProjectModal
@@ -468,6 +491,7 @@ export const ProjectsPage: React.FC = () => {
         existingProjects={projects}
         availableTags={tags}
         currentProjectId={selectedProject?.projectId}
+        initialTagIds={editingTagIds}
       />
 
       <ConfirmModal
