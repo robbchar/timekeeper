@@ -1,4 +1,3 @@
-import { describe, it, expect } from 'vitest';
 import { uiReducer } from './uiReducer';
 import { ActionType, Theme } from '@/types/state';
 

@@ -1,6 +1,5 @@
 import React from 'react';
 import { render, screen, act } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import SessionControls from './SessionControls';
 import { AppState, Project } from '@/types/state';
 import type { Tag } from '@/types/tag';

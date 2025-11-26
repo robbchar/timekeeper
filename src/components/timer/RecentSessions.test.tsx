@@ -1,6 +1,5 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import RecentSessions from './RecentSessions';
 import { ThemeProvider } from 'styled-components';
 import { theme } from '@/styles/theme';

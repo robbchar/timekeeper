@@ -1,5 +1,5 @@
 import React from 'react';
-import { describe, it, expect, vi, beforeEach, Mocked } from 'vitest';
+import type { Mocked } from 'vitest';
 import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import { setupMockDatabase } from '@/components/timer/__mocks__/setup';
 import { ProjectsPage } from './ProjectsPage';

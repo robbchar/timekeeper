@@ -1,5 +1,4 @@
 import React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { DatabaseProvider, useDatabase } from './DatabaseContext';
 import type { Project } from '@/types/project';

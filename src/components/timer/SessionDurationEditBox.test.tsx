@@ -2,7 +2,6 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SessionDurationEditBox } from './SessionDurationEditBox';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 describe('SessionDurationEditBox', () => {
   const onChange = vi.fn();
