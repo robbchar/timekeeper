@@ -7,7 +7,7 @@
   },
   "main": "dist-electron/main.js",
   "scripts": {
-    "dev": "vite",
+    "dev": "cross-env NODE_ENV=development vite",
     "build": "tsc && vite build",
     "build:installer": "npm run clean && npm run build && electron-builder --win",
     "app:install": "bash ./scripts/backup-db.sh && npm run build:installer && bash ./scripts/run-latest-installer.sh",
@@ -15,7 +15,7 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,scss,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,scss,md}\"",
-    "start": "cross-env BROWSER=none npm run dev",
+    "start": "cross-env NODE_ENV=development BROWSER=none npm run dev",
     "clean": "rimraf dist dist-electron release",
     "test": "vitest",
     "test:db": "vitest --config vitest.database.config.ts",

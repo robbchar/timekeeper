@@ -53,14 +53,16 @@ This will start both the Vite development server and the Electron app. The Elect
 
 ### Available Scripts
 
-- `npm start` - Start both Vite dev server and Electron app
-- `npm run dev` - Start Vite dev server only
-- `npm run electron:dev` - Start Electron app (requires Vite server to be running)
-- `npm run build` - Build the app for production
-- `npm run electron:build` - Build the Electron app
+- `npm start` - Start the Vite dev server (and Electron via `vite-plugin-electron`)
+- `npm run dev` - Start the Vite dev server (development mode)
+- `npm run build` - Typecheck + build the renderer and Electron bundles to `dist/` and `dist-electron/`
+- `npm run build:installer` - Build a Windows installer with `electron-builder`
 - `npm run lint` - Run ESLint
-- `npm run preview` - Preview production build
-- `npm test` - Run tests
+- `npm run type-check` - Typecheck only (`tsc --noEmit`)
+- `npm test` - Run renderer tests (Vitest watch mode)
+- `npm run test:db` - Run db-focused tests
+- `npm run test:electron` - Run Electron main-process tests (Node environment)
+- `npm run test:all` - Run all test suites once (CI-style)
 
 ## 📁 Project Structure
 
@@ -69,8 +71,9 @@ timekeeper/
 ├── src/                    # React source files
 │   ├── components/        # React components
 │   ├── contexts/         # React contexts
-│   ├── hooks/           # Custom hooks
-│   ├── pages/          # Page components
+│   ├── state/           # Reducers + state services
+│   ├── test-utils/      # Test helpers
+│   ├── types/           # Shared domain and contract types
 │   ├── styles/        # Global styles
 │   └── utils/        # Utility functions
 ├── electron/          # Electron main process
@@ -90,10 +93,10 @@ npm test
 
 The main process database logic is covered by unit tests in [`electron/database.test.ts`](electron/database.test.ts). These tests use Vitest and run in a Node environment. They cover CRUD operations for projects, sessions, tags, and settings using a temporary SQLite database file for isolation.
 
-To run all tests (including main process and React tests):
+To run all tests (renderer + db-focused + main process tests), once:
 
 ```bash
-npm test
+npm run test:all
 ```
 
 **Tips:**
@@ -107,13 +110,19 @@ npm test
 
 ## 📦 Building for Production
 
-To build the app for production:
+To build the app bundles (renderer + Electron entry points):
 
 ```bash
-npm run electron:build
+npm run build
 ```
 
-The built application will be available in the `release` directory.
+To build a Windows installer, use:
+
+```bash
+npm run build:installer
+```
+
+Installer output will be available in the `release` directory.
 
 ## 🤝 Contributing
 
