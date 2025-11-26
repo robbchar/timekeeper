@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+/// <reference types="vitest/globals" />
+
 import * as sqlite3 from 'sqlite3';
 import { closeDatabase, initializeDatabase } from './database';
 import { getRecordAfterInsert, getRecordAfterWrite, getRecordBeforeDelete } from '../helpers';

@@ -1,5 +1,4 @@
 import '@testing-library/jest-dom';
-import { expect, afterEach, afterAll, beforeAll, vi, beforeEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import * as matchers from '@testing-library/jest-dom/matchers';
 import { mockIpcMain } from './ipc-test-helper';
