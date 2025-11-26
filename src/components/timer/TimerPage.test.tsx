@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
-import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
+import type { Mock } from 'vitest';
 import TimerPage from './TimerPage';
 import SessionControls from './SessionControls';
 import { useProjects } from '@/contexts/ProjectsContext';

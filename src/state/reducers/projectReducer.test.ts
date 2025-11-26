@@ -1,4 +1,3 @@
-import { describe, it, expect } from 'vitest';
 import { projectReducer } from './projectReducer';
 import { ActionType } from '@/types/state';
 import type { Project, Action } from '@/types/state';

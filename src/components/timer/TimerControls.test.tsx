@@ -1,6 +1,5 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
 import TimerControls from './TimerControls';
 import { ThemeProvider } from 'styled-components';
 import { theme } from '@/styles/theme';

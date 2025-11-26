@@ -1,4 +1,3 @@
-import { describe, it, expect } from 'vitest';
 import { settingsReducer } from './settingsReducer';
 import { ActionType } from '@/types/state';
 import type { Settings, Action } from '@/types/state';
