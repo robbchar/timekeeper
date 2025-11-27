@@ -6,6 +6,7 @@ import { runMigrations } from './db-migrate';
 import { registerProjectHandlers } from './handlers/projects.handlers';
 import { registerSessionHandlers } from './handlers/sessions.handlers';
 import { registerTagHandlers } from './handlers/tags.handlers';
+import { registerSettingsHandlers } from './handlers/settings.handlers';
 
 let db: sqlite3.Database;
 export const createTablesSchema = `
@@ -124,29 +125,7 @@ export function setupDatabaseHandlers() {
   registerProjectHandlers(db);
   registerSessionHandlers(db);
   registerTagHandlers(db);
-
-  // Settings operations
-  ipcMain.handle('database:getSetting', (_, key: string) => {
-    return new Promise<string | undefined>((resolve, reject) => {
-      db.get('SELECT value FROM settings WHERE key = ?', [key], (err, row) => {
-        if (err) reject(err);
-        else resolve(row ? (row as { value: string }).value : undefined);
-      });
-    });
-  });
-
-  ipcMain.handle('database:setSetting', (_, key: string, value: string) => {
-    return new Promise<{ changes: number }>((resolve, reject) => {
-      db.run(
-        'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
-        [key, value],
-        function (err) {
-          if (err) reject(err);
-          else resolve({ changes: this.changes });
-        }
-      );
-    });
-  });
+  registerSettingsHandlers(db);
 
   // Test helper
   ipcMain.handle('database:reset', () => {
