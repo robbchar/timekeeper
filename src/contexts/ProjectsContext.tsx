@@ -40,8 +40,8 @@ export const ProjectsProvider: React.FC<{ children: ReactNode }> = ({ children }
         projectId: project.projectId,
         name: project.name,
         description: project.description || '',
-        createdAt: new Date(project.createdAt),
-        updatedAt: new Date(project.createdAt),
+        createdAt: project.createdAt,
+        updatedAt: project.updatedAt,
       }));
 
       setProjects(mappedProjects);

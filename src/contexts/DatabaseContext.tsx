@@ -4,6 +4,10 @@ import type { Session } from '@/types/session';
 import type { Tag } from '@/types/tag';
 import type { ChangesOnlyResponse } from '@/types/database-response';
 import { toDomainTag } from '@/contexts/mappers/tagMapping';
+import type { ProjectDatabase } from '@/types/project';
+import type { SessionDatabase } from '@/types/session';
+import { toDomainProject } from '@/contexts/mappers/projectMapping';
+import { toDomainSession } from '@/contexts/mappers/sessionMapping';
 
 const pickChanges = (result: { changes: number }): ChangesOnlyResponse => ({
   changes: result.changes,
@@ -54,13 +58,13 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
     if (!project) {
       throw new Error(`Project with id ${projectId} not found`);
     }
-    return project;
+    return toDomainProject(project as ProjectDatabase);
   };
 
   const getAllProjects = async (): Promise<Project[]> => {
     try {
       const projects = await window.database.getProjects();
-      return projects;
+      return (projects as ProjectDatabase[]).map(toDomainProject);
     } catch (error) {
       console.error('Error getting projects:', error);
       throw error;
@@ -73,7 +77,7 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
     color?: string
   ): Promise<Project> => {
     const result = await window.database.createProject(name, description, color);
-    return result.record as Project;
+    return toDomainProject(result.record as ProjectDatabase);
   };
 
   const deleteProject = async (projectId: number): Promise<ChangesOnlyResponse> => {
@@ -94,7 +98,7 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   ): Promise<Project> => {
     try {
       const result = await window.database.updateProject(projectId, name, description, color);
-      return result.record as Project;
+      return toDomainProject(result.record as ProjectDatabase);
     } catch (error) {
       console.error('Error updating project:', error);
       throw error;
@@ -105,7 +109,7 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   const getSessions = async (): Promise<Session[]> => {
     try {
       const sessions = await window.database.getSessions();
-      return sessions;
+      return (sessions as SessionDatabase[]).map(toDomainSession);
     } catch (error) {
       console.error('Error getting sessions:', error);
       throw error;
@@ -115,7 +119,7 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   const createSession = async (projectId: number, notes?: string): Promise<Session> => {
     try {
       const result = await window.database.createSession(projectId, notes);
-      return result.record as Session;
+      return toDomainSession(result.record as SessionDatabase);
     } catch (error) {
       console.error('Error creating session:', error);
       throw error;
@@ -135,7 +139,7 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   const getSessionsForProject = async (projectId: number): Promise<Session[]> => {
     try {
       const sessions = await window.database.getSessionsForProject(projectId);
-      return sessions;
+      return (sessions as SessionDatabase[]).map(toDomainSession);
     } catch (error) {
       console.error('Error getting sessions for project:', error);
       throw error;
