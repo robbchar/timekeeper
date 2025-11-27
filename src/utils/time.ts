@@ -1,3 +1,5 @@
+export const now = (): number => Date.now();
+
 export const formatDuration = (seconds: number): string => {
   if (!seconds) return '0s';
 
@@ -11,6 +13,14 @@ export const formatDuration = (seconds: number): string => {
     return `${minutes}m ${seconds % 60}s`;
   }
   return `${seconds}s`;
+};
+
+export const formatClockTime = (totalSeconds: number): string => {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return [hours, minutes, seconds].map(num => num.toString().padStart(2, '0')).join(':');
 };
 
 export const formatDate = (date: string): string => {
