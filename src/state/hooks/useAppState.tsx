@@ -37,15 +37,12 @@ export const useSessions = () => {
     sessions: state.sessions.sessions,
     currentSession: state.sessions.currentSession,
     getSessions: async () => {
-      const sessions = (await dbService.persistAction(
-        { type: ActionType.GET_SESSIONS },
-        state
-      )) as Session[];
+      const sessions = await dbService.persistAction({ type: ActionType.GET_SESSIONS }, state);
       return sessions;
     },
     startSession: async (params: CreateSessionParams) => {
       try {
-        const session = (await dbService.persistAction(
+        const session = await dbService.persistAction(
           {
             type: ActionType.CREATE_SESSION,
             payload: {
@@ -54,7 +51,7 @@ export const useSessions = () => {
             },
           },
           state
-        )) as Session;
+        );
         // add to the state once session is created in the database
         if (session?.sessionId) {
           dispatch({
@@ -189,10 +186,10 @@ export const useTags = () => {
     tags: state.tags,
     addTag: async (tag: Tag) => {
       try {
-        const created = (await dbService.persistAction(
+        const created = await dbService.persistAction(
           { type: ActionType.ADD_TAG, payload: tag },
           state
-        )) as unknown as Tag;
+        );
         dispatch({ type: ActionType.ADD_TAG, payload: created });
       } catch (error) {
         if (error instanceof DatabaseError) {
@@ -204,10 +201,10 @@ export const useTags = () => {
     },
     updateTag: async (tag: Tag) => {
       try {
-        const updated = (await dbService.persistAction(
+        const updated = await dbService.persistAction(
           { type: ActionType.UPDATE_TAG, payload: tag },
           state
-        )) as unknown as Tag;
+        );
         dispatch({ type: ActionType.UPDATE_TAG, payload: updated });
       } catch (error) {
         if (error instanceof DatabaseError) {

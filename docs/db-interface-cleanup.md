@@ -62,6 +62,7 @@ The current database layer has grown organically and now has a few rough edges:
   - Operation naming follows a consistent pattern: `getX`, `getXById`, `getXsForY`, `createX`, `updateX`, `deleteX`.
   - IDs in domain types are explicit and descriptive where helpful (e.g. `projectId`, `tagId`), while DB/IPC can use the conventional column naming for the schema.
   - `databaseService.persistAction` is kept as the orchestration layer for state + DB side effects, but its **return type is narrowed per action**, rather than a single broad union.
+  - `databaseService.persistAction` uses a **local action→result mapping type** so call sites can rely on inference (avoiding `as unknown as ...`).
 
 ### Goals
 
