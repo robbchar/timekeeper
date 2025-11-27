@@ -92,7 +92,7 @@ const RecentSessions: React.FC<{
       {sessions.map((session: Session) => (
         <SessionItem key={session.sessionId}>
           <SessionInfo>
-            <SessionStartDate>{formatDate(session.startTime.toString())}</SessionStartDate>
+            <SessionStartDate>{formatDate(session.startTime.toISOString())}</SessionStartDate>
             <SessionNotes>{session.notes || 'No notes'}</SessionNotes>
             <SessionDuration>{formatDuration(session.duration)}</SessionDuration>
             <Button
