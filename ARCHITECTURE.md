@@ -10,4 +10,6 @@ On the main-process side, `electron/main.ts` initializes the database and regist
 - **Source of truth: preload boundary (what renderer can call)**: `electron/preload.ts` (`contextBridge.exposeInMainWorld('database', ...)`)
 - **Source of truth: main-process handler registration**: `electron/main.ts`, `electron/database/database.ts` (`setupDatabaseHandlers` → `electron/database/handlers/*`)
 - **Source of truth: SQLite schema + migrations**: `electron/database/database.ts` (`createTablesSchema`), `electron/database/db-migrate.ts`, `electron/database/migrations/`
+- **Source of truth: production time utilities**: `src/utils/time.ts` (production-safe helpers; renderer code must not import from `src/test-utils/*`)
+- **Test-only time helpers**: `src/test-utils/time.ts` (may re-export production helpers and/or provide explicit test helpers)
 - **Not canonical (build outputs)**: `dist/`, `dist-electron/`, `electron/dist/`
