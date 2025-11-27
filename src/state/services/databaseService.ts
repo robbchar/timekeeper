@@ -159,7 +159,7 @@ async function persistAction(
       }
 
       case ActionType.END_SESSION: {
-        const { sessionId, duration } = action.payload as SessionUpdate;
+        const { sessionId, duration } = action.payload as { sessionId: number; duration: number };
         if (!sessionId) {
           throw new DatabaseError('Session ID is required', oldState);
         }
@@ -207,7 +207,18 @@ async function persistAction(
 }
 
 export const createDatabaseService = (database: ReturnType<typeof useDatabase>) => {
+  type PersistActionBound = {
+    <T extends DatabasePersistAction>(
+      action: T,
+      state: AppState
+    ): Promise<DatabasePersistResultMap[T['type']]>;
+    (action: Action, state: AppState): Promise<PersistActionReturn>;
+  };
+
+  const persistActionBound: PersistActionBound = (action: Action, state: AppState) =>
+    persistAction(action, state, database);
+
   return {
-    persistAction: (action: Action, state: AppState) => persistAction(action, state, database),
+    persistAction: persistActionBound,
   };
 };
