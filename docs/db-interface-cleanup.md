@@ -36,6 +36,10 @@ The current database layer has grown organically and now has a few rough edges:
   - IPC/SQLite layer and `window.database` stay in **DB shape** (e.g. `project_id`, `tag_id`, snake_case as appropriate).
   - `DatabaseContext` is the **single mapping boundary**: DB rows ↔ domain models.
   - Domain models and state always use **explicit, domain-friendly naming** (e.g. `projectId`, `tagId`, `createdAt`, `updatedAt`) rather than ambiguous `id`.
+  - **Time fields convention**:
+    - DB/IPC row types (`*Database`) represent SQLite `DATETIME` values as **strings**.
+    - Domain/UI types represent time fields as **`Date`**.
+    - Conversion happens in one place via `src/contexts/mappers/*Mapping.ts`, called by `DatabaseContext`.
 
 - **`DatabaseContext` contract**
 
