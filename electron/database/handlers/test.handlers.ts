@@ -1,9 +1,10 @@
 import { ipcMain } from 'electron';
 import type { Database } from 'sqlite3';
+import { IPC_CHANNELS } from '@/types/ipcChannels';
 
 export function registerTestHandlers(db: Database) {
   // Test helper
-  ipcMain.handle('database:reset', () => {
+  ipcMain.handle(IPC_CHANNELS.database.reset, () => {
     return new Promise<{ changes: number }>((resolve, reject) => {
       db.serialize(() => {
         db.run('BEGIN TRANSACTION');
