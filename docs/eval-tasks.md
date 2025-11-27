@@ -27,7 +27,7 @@ We’re working in a **single-package, multi-layer TypeScript codebase** (Electr
 
 **Methodology:**
 
-- **Git**: create a new branch for your work using branch `eval-2` as the base; commit in small, focused commits.
+- **Git**: create a new branch for your work using branch `eval-2` as the base; commit in small, focused commits. Don't worry about creating a PR I can do that.
 - **Before edits**: list the files you will inspect first (**max 8**) and where you think the source-of-truth is.
 - **Design**: propose a **3–5 step plan** and call out suspected near-duplicates.
 - **During implementation**: make small, focused changes; avoid sweeping rewrites.
@@ -83,7 +83,7 @@ Success criteria:
 - Type-level / contracts: <replace>
 
 Methodology:
-- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits.
+- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits. Don't worry about creating a PR I can do that.
 - Before edits: list the files you will inspect first (max 8) and where you think the source-of-truth is.
 - Design: propose a 3–5 step plan and call out suspected near-duplicates.
 - During implementation: make small, focused changes; avoid sweeping rewrites.
@@ -124,7 +124,7 @@ Success criteria:
 - Type-level / contracts: N/A (docs-only)
 
 Methodology:
-- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits.
+- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits. Don't worry about creating a PR I can do that.
 - Before edits: list the files you will inspect first (max 8) and where you think the source-of-truth is.
 - Design: propose a 3–5 step plan and call out suspected near-duplicates.
 - During implementation: make small, focused changes; avoid sweeping rewrites.
@@ -162,7 +162,7 @@ Success criteria:
 - Type-level / contracts: mapping is type-safe and lives in one place.
 
 Methodology:
-- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits.
+- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits. Don't worry about creating a PR I can do that.
 - Before edits: list the files you will inspect first (max 8) and where you think the source-of-truth is.
 - Design: propose a 3–5 step plan and call out suspected near-duplicates.
 - During implementation: make small, focused changes; avoid sweeping rewrites.
@@ -200,7 +200,7 @@ Success criteria:
 - Type-level / contracts: fewer ad-hoc { changes: result.changes } conversions; no any.
 
 Methodology:
-- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits.
+- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits. Don't worry about creating a PR I can do that.
 - Before edits: list the files you will inspect first (max 8) and where you think the source-of-truth is.
 - Design: propose a 3–5 step plan and call out suspected near-duplicates.
 - During implementation: make small, focused changes; avoid sweeping rewrites.
@@ -238,7 +238,7 @@ Success criteria:
 - Type-level / contracts: src/types/database.ts matches electron/helpers.ts exposed shape and electron/database/database.ts handlers.
 
 Methodology:
-- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits.
+- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits. Don't worry about creating a PR I can do that.
 - Before edits: list the files you will inspect first (max 8) and where you think the source-of-truth is.
 - Design: propose a 3–5 step plan and call out suspected near-duplicates.
 - During implementation: make small, focused changes; avoid sweeping rewrites.
@@ -276,7 +276,7 @@ Success criteria:
 - Type-level / contracts: boundaries are clearer (each module exports a registerXHandlers(...) function; setupDatabaseHandlers() remains the single entry point).
 
 Methodology:
-- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits.
+- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits. Don't worry about creating a PR I can do that.
 - Before edits: list the files you will inspect first (max 8) and where you think the source-of-truth is.
 - Design: propose a 3–5 step plan and call out suspected near-duplicates.
 - During implementation: make small, focused changes; avoid sweeping rewrites.
@@ -314,7 +314,7 @@ Success criteria:
 - Type-level / contracts: channel names are referenced from one place; fewer typos possible.
 
 Methodology:
-- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits.
+- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits. Don't worry about creating a PR I can do that.
 - Before edits: list the files you will inspect first (max 8) and where you think the source-of-truth is.
 - Design: propose a 3–5 step plan and call out suspected near-duplicates.
 - During implementation: make small, focused changes; avoid sweeping rewrites.
@@ -352,7 +352,7 @@ Success criteria:
 - Type-level / contracts: clear split between production utilities and test-only helpers (no accidental coupling).
 
 Methodology:
-- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits.
+- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits. Don't worry about creating a PR I can do that.
 - Before edits: list the files you will inspect first (max 8) and where you think the source-of-truth is.
 - Design: propose a 3–5 step plan and call out suspected near-duplicates.
 - During implementation: make small, focused changes; avoid sweeping rewrites.
@@ -390,7 +390,7 @@ Success criteria:
 - Type-level / contracts: less unknown-as and fewer broad unions.
 
 Methodology:
-- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits.
+- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits. Don't worry about creating a PR I can do that.
 - Before edits: list the files you will inspect first (max 8) and where you think the source-of-truth is.
 - Design: propose a 3–5 step plan and call out suspected near-duplicates.
 - During implementation: make small, focused changes; avoid sweeping rewrites.
@@ -428,7 +428,7 @@ Success criteria:
 - Type-level / contracts: no ambiguous Date | string types leaking across layers.
 
 Methodology:
-- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits.
+- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits. Don't worry about creating a PR I can do that.
 - Before edits: list the files you will inspect first (max 8) and where you think the source-of-truth is.
 - Design: propose a 3–5 step plan and call out suspected near-duplicates.
 - During implementation: make small, focused changes; avoid sweeping rewrites.
