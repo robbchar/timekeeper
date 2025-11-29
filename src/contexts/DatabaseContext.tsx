@@ -3,11 +3,15 @@ import type { Project } from '@/types/project';
 import type { Session } from '@/types/session';
 import type { Tag } from '@/types/tag';
 import type { ChangesOnlyResponse } from '@/types/database-response';
+import { toDomainTag } from '@/contexts/mappers/tagMapping';
 import type { ProjectDatabase } from '@/types/project';
 import type { SessionDatabase } from '@/types/session';
 import { toDomainProject } from '@/contexts/mappers/projectMapping';
 import { toDomainSession } from '@/contexts/mappers/sessionMapping';
-import { mapDbTagToTag, mapDbTagsToTags } from '@/utils/tagMapping';
+
+const pickChanges = (result: { changes: number }): ChangesOnlyResponse => ({
+  changes: result.changes,
+});
 
 // Define the shape of the database context
 export interface DatabaseContextType {
@@ -48,10 +52,6 @@ const DatabaseContext = createContext<DatabaseContextType | undefined>(undefined
 
 // Provider component
 export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const toChangesOnly = (result: ChangesOnlyResponse): ChangesOnlyResponse => ({
-    changes: result.changes,
-  });
-
   // Projects
   const getProject = async (projectId: number): Promise<Project> => {
     const project = await window.database.getProject(projectId);
@@ -129,7 +129,7 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   const endSession = async (id: number, duration: number): Promise<ChangesOnlyResponse> => {
     try {
       const result = await window.database.endSession(id, duration);
-      return toChangesOnly(result);
+      return pickChanges(result);
     } catch (error) {
       console.error('Error ending session:', error);
       throw error;
@@ -152,7 +152,7 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   ): Promise<ChangesOnlyResponse> => {
     try {
       const result = await window.database.updateSessionNotes(sessionId, notes || '');
-      return toChangesOnly(result);
+      return pickChanges(result);
     } catch (error) {
       console.error('Error updating session notes:', error);
       throw error;
@@ -165,7 +165,7 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   ): Promise<ChangesOnlyResponse> => {
     try {
       const result = await window.database.updateSessionDuration(sessionId, duration);
-      return toChangesOnly(result);
+      return pickChanges(result);
     } catch (error) {
       console.error('Error updating session duration:', error);
       throw error;
@@ -186,7 +186,7 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   const createTag = async (name: string, color?: string): Promise<Tag> => {
     try {
       const result = await window.database.createTag(name, color);
-      return mapDbTagToTag(result.record);
+      return toDomainTag(result.record);
     } catch (error) {
       console.error('Error creating tag:', error);
       throw error;
@@ -196,7 +196,7 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   const getAllTags = async (): Promise<Tag[]> => {
     try {
       const tags = await window.database.getTags();
-      return mapDbTagsToTags(tags);
+      return tags.map(toDomainTag);
     } catch (error) {
       console.error('Error getting all tags:', error);
       throw error;
@@ -206,7 +206,7 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   const updateTag = async (tagId: number, name: string, color?: string): Promise<Tag> => {
     try {
       const result = await window.database.updateTag(tagId, name, color);
-      return mapDbTagToTag(result.record);
+      return toDomainTag(result.record);
     } catch (error) {
       console.error('Error updating tag:', error);
       throw error;
@@ -216,7 +216,7 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   const deleteTag = async (tagId: number): Promise<ChangesOnlyResponse> => {
     try {
       const result = await window.database.deleteTag(tagId);
-      return toChangesOnly(result);
+      return pickChanges(result);
     } catch (error) {
       console.error('Error deleting tag:', error);
       throw error;
@@ -226,7 +226,7 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   const getTagsForProject = async (projectId: number): Promise<Tag[]> => {
     try {
       const tags = await window.database.getTagsForProject(projectId);
-      return mapDbTagsToTags(tags);
+      return tags.map(toDomainTag);
     } catch (error) {
       console.error('Error getting tags for project:', error);
       throw error;
