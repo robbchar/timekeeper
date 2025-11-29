@@ -70,7 +70,9 @@ The key boundary is that the renderer never imports or uses Node/Electron/SQLite
   - Initializes the database, registers IPC handlers, and creates the BrowserWindow.
 - `electron/database/database.ts`
   - `initializeDatabase()` opens SQLite, enables foreign keys, creates tables, and runs migrations.
-  - `setupDatabaseHandlers()` registers all `ipcMain.handle('database:…')` handlers.
+  - `setupDatabaseHandlers()` is the single entry point that registers all `ipcMain.handle('database:…')` handlers (composed from `electron/database/handlers/*`).
+- `electron/database/handlers/*`
+  - Focused IPC registration modules (projects/sessions/tags/settings/test) exporting `register*Handlers({ db })`.
 - `electron/database/migrations/**`, `electron/database/db-migrate.ts`
   - Migration execution and schema versioning.
 
@@ -98,7 +100,7 @@ IPC handlers follow a `database:*` naming convention. Examples include:
 - `database:getSessionsForProject`
 - `database:setSetting`
 
-The authoritative mapping of method → channel lives in `electron/helpers.ts` (`makeDbShape`), and the authoritative handler registrations live in `electron/database/database.ts` (`setupDatabaseHandlers`).
+The authoritative mapping of method → channel lives in `electron/helpers.ts` (`makeDbShape`), and the authoritative handler registrations are composed by `electron/database/database.ts` (`setupDatabaseHandlers`) from modules in `electron/database/handlers/*`.
 
 ## Error/response conventions
 
