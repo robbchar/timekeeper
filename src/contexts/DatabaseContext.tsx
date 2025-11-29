@@ -3,6 +3,10 @@ import type { Project } from '@/types/project';
 import type { Session } from '@/types/session';
 import type { Tag } from '@/types/tag';
 import type { ChangesOnlyResponse } from '@/types/database-response';
+import type { ProjectDatabase } from '@/types/project';
+import type { SessionDatabase } from '@/types/session';
+import { toDomainProject } from '@/contexts/mappers/projectMapping';
+import { toDomainSession } from '@/contexts/mappers/sessionMapping';
 import { mapDbTagToTag, mapDbTagsToTags } from '@/utils/tagMapping';
 
 // Define the shape of the database context

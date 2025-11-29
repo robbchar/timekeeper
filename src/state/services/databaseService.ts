@@ -1,8 +1,8 @@
 import type { Action, Tag, Settings, AppState } from '@/types/state';
 import { ActionType } from '@/types/state';
 import { useDatabase } from '@/contexts/DatabaseContext';
-import type { Project, ProjectCreate, ProjectUpdate } from '@/types/project';
-import { CreateSessionParams, Session, SessionUpdate } from '@/types/session';
+import type { DatabaseProjectCreate, Project, ProjectUpdate } from '@/types/project';
+import { CreateSessionParams, Session } from '@/types/session';
 import type { ChangesOnlyResponse } from '@/types/database-response';
 
 export class DatabaseError extends Error {
@@ -62,16 +62,11 @@ type PersistActionReturn =
   | null
   | undefined;
 
-async function persistAction<T extends DatabasePersistAction>(
-  action: T,
-  state: AppState,
-  database: ReturnType<typeof useDatabase>
-): Promise<DatabasePersistResultMap[T['type']]>;
-async function persistAction(
+async function persistActionImpl(
   action: Action,
   state: AppState,
   database: ReturnType<typeof useDatabase>
-): Promise<Project | Session | Session[] | Tag | ChangesOnlyResponse | null | undefined> {
+): Promise<PersistActionReturn> {
   const oldState = state;
 
   try {
@@ -201,17 +196,33 @@ async function persistAction(
   }
 }
 
-export const createDatabaseService = (database: ReturnType<typeof useDatabase>) => {
-  type PersistActionBound = {
-    <T extends DatabasePersistAction>(
-      action: T,
-      state: AppState
-    ): Promise<DatabasePersistResultMap[T['type']]>;
-    (action: Action, state: AppState): Promise<PersistActionReturn>;
-  };
+async function persistAction<T extends DatabasePersistAction>(
+  action: T,
+  state: AppState,
+  database: ReturnType<typeof useDatabase>
+): Promise<DatabasePersistResultMap[T['type']]>;
+async function persistAction(
+  action: Action,
+  state: AppState,
+  database: ReturnType<typeof useDatabase>
+): Promise<PersistActionReturn>;
+async function persistAction(
+  action: Action,
+  state: AppState,
+  database: ReturnType<typeof useDatabase>
+): Promise<PersistActionReturn> {
+  return persistActionImpl(action, state, database);
+}
 
-  const persistActionBound: PersistActionBound = (action: Action, state: AppState) =>
-    persistAction(action, state, database);
+export const createDatabaseService = (database: ReturnType<typeof useDatabase>) => {
+  function persistActionBound<T extends DatabasePersistAction>(
+    action: T,
+    state: AppState
+  ): Promise<DatabasePersistResultMap[T['type']]>;
+  function persistActionBound(action: Action, state: AppState): Promise<PersistActionReturn>;
+  function persistActionBound(action: Action, state: AppState) {
+    return persistAction(action, state, database);
+  }
 
   return {
     persistAction: persistActionBound,
