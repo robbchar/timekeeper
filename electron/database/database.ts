@@ -2,15 +2,11 @@ import * as sqlite3 from 'sqlite3';
 import { ipcMain } from 'electron';
 import type { TagDatabase } from '@/types/tag';
 import { getDatabaseConfig } from './database-config';
-import {
-  getRecordAfterInsert,
-  getRecordAfterWrite,
-  getRecordBeforeDelete,
-  setDatabaseInstance,
-} from '../helpers';
+import { setDatabaseInstance } from '../helpers';
 import { runMigrations } from './db-migrate';
 import { registerProjectHandlers } from './handlers/projects.handlers';
 import { registerSessionHandlers } from './handlers/sessions.handlers';
+import { registerTagHandlers } from './handlers/tags.handlers';
 
 let db: sqlite3.Database;
 export const createTablesSchema = `
@@ -128,41 +124,7 @@ export function setupDatabaseHandlers() {
 
   registerProjectHandlers(ipcMain, db);
   registerSessionHandlers(ipcMain, db);
-
-  // Tag operations
-  ipcMain.handle('database:createTag', (_, name: string, color?: string) => {
-    return getRecordAfterInsert<TagDatabase>(function (cb) {
-      db.run('INSERT INTO tags (name, color) VALUES (?, ?)', [name, color], cb);
-    }, 'SELECT * FROM tags WHERE tagId = ?');
-  });
-
-  ipcMain.handle('database:getTags', () => {
-    return new Promise<TagDatabase[]>((resolve, reject) => {
-      db.all('SELECT * FROM tags ORDER BY name', (err, rows) => {
-        if (err) reject(err);
-        else resolve(rows as TagDatabase[]);
-      });
-    });
-  });
-
-  ipcMain.handle('database:updateTag', (_, tagId: number, name: string, color?: string) => {
-    return getRecordAfterWrite<TagDatabase>(
-      function (cb) {
-        db.run('UPDATE tags SET name = ?, color = ? WHERE tagId = ?', [name, color, tagId], cb);
-      },
-      'SELECT * FROM tags WHERE tagId = ?',
-      [tagId]
-    );
-  });
-
-  ipcMain.handle('database:deleteTag', (_, tagId: number) => {
-    return getRecordBeforeDelete<TagDatabase>(
-      'SELECT * FROM tags WHERE tagId = ?',
-      [tagId],
-      'DELETE FROM tags WHERE tagId = ?',
-      [tagId]
-    );
-  });
+  registerTagHandlers(ipcMain, db);
 
   // Project–Tag relationship operations
   ipcMain.handle('database:getTagsForProject', (_, projectId: number) => {
