@@ -15,6 +15,37 @@ export class DatabaseError extends Error {
   }
 }
 
+export type PersistActionResultMap = {
+  [ActionType.CREATE_PROJECT]: Project;
+  [ActionType.UPDATE_PROJECT]: Project;
+  [ActionType.DELETE_PROJECT]: ChangesOnlyResponse;
+
+  [ActionType.ADD_TAG]: Tag;
+  [ActionType.UPDATE_TAG]: Tag;
+  [ActionType.DELETE_TAG]: ChangesOnlyResponse;
+
+  [ActionType.UPDATE_SETTINGS]: ChangesOnlyResponse;
+
+  [ActionType.CREATE_SESSION]: Session;
+  [ActionType.GET_SESSIONS]: Session[];
+  [ActionType.END_SESSION]: ChangesOnlyResponse;
+  [ActionType.UPDATE_SESSION_NOTES]: ChangesOnlyResponse;
+  [ActionType.UPDATE_SESSION_DURATION]: ChangesOnlyResponse;
+  [ActionType.DELETE_SESSION]: ChangesOnlyResponse;
+};
+
+export type PersistActionResult<T extends ActionType> = T extends keyof PersistActionResultMap
+  ? PersistActionResultMap[T]
+  : void;
+
+export interface DatabaseService {
+  persistAction<T extends ActionType>(
+    action: Action & { type: T },
+    state: AppState
+  ): Promise<PersistActionResult<T>>;
+  persistAction(action: Action, state: AppState): Promise<PersistActionResult<ActionType>>;
+}
+
 async function persistAction(
   action: Action,
   state: AppState,
@@ -94,7 +125,7 @@ async function persistAction(
         if (!projectId) {
           throw new DatabaseError('Project ID is required', oldState);
         }
-        return (await database.createSession(projectId, notes)) as unknown as Session;
+        return await database.createSession(projectId, notes);
       }
 
       case ActionType.GET_SESSIONS: {
@@ -154,8 +185,20 @@ async function persistAction(
   }
 }
 
-export const createDatabaseService = (database: ReturnType<typeof useDatabase>) => {
-  return {
-    persistAction: (action: Action, state: AppState) => persistAction(action, state, database),
-  };
+export const createDatabaseService = (
+  database: ReturnType<typeof useDatabase>
+): DatabaseService => {
+  function persistActionTyped<T extends ActionType>(
+    action: Action & { type: T },
+    state: AppState
+  ): Promise<PersistActionResult<T>>;
+  function persistActionTyped(
+    action: Action,
+    state: AppState
+  ): Promise<PersistActionResult<ActionType>>;
+  function persistActionTyped(action: Action, state: AppState) {
+    return persistAction(action, state, database) as Promise<PersistActionResult<ActionType>>;
+  }
+
+  return { persistAction: persistActionTyped };
 };
