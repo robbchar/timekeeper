@@ -17,6 +17,7 @@ export interface DatabaseAPI {
     color?: string
   ) => Promise<CreateResponse<Project>>;
   getProjects: () => Promise<Project[]>;
+  getProject: (projectId: number) => Promise<Project | undefined>;
   deleteProject: (projectId: number) => Promise<ChangesOnlyResponse>;
   updateProject: (
     projectId: number,
