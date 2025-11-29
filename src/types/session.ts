@@ -14,6 +14,20 @@ export interface Session {
   updatedAt?: Date;
 }
 
+/**
+ * Database/IPC shape for rows from the `sessions` table.
+ *
+ * NOTE: SQLite returns DATETIME columns as strings; these should not leak into UI/domain types.
+ */
+export interface SessionDatabase {
+  sessionId: number;
+  projectId: number;
+  startTime: string;
+  endTime: string | null;
+  duration: number | null;
+  notes: string | null;
+}
+
 // Type for database operations
 export type SessionCreate = Session;
 export type SessionUpdate = Pick<Session, 'sessionId' | 'notes' | 'duration'>;

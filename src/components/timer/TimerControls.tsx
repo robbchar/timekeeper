@@ -1,6 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { Button } from '@heroui/react';
+import { formatClockTime } from '@/utils/time';
 
 interface TimerControlsProps {
   isSessionActive: boolean;
@@ -26,14 +27,6 @@ const TimerDisplay = styled.div`
   color: ${({ theme }) => theme.colors.text.primary};
   margin-top: 1rem;
 `;
-
-const formatTime = (totalSeconds: number): string => {
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  return [hours, minutes, seconds].map(num => num.toString().padStart(2, '0')).join(':');
-};
 
 const TimerControls: React.FC<TimerControlsProps> = ({
   isSessionActive,
@@ -65,7 +58,7 @@ const TimerControls: React.FC<TimerControlsProps> = ({
       >
         {isTimingActive ? 'Stop Timing' : 'Start Timing'}
       </Button>
-      <TimerDisplay>{formatTime(elapsedTime)}</TimerDisplay>
+      <TimerDisplay>{formatClockTime(elapsedTime)}</TimerDisplay>
       {isSessionActive && (
         <Button className="bg-red-500" radius="full" onPress={() => onStopSession(elapsedTime)}>
           Stop Session

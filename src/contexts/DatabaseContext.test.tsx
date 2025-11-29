@@ -1,8 +1,8 @@
 import React from 'react';
 import { renderHook } from '@testing-library/react';
 import { DatabaseProvider, useDatabase } from './DatabaseContext';
-import type { Project } from '@/types/project';
-import type { Session } from '@/types/session';
+import type { ProjectDatabase } from '@/types/project';
+import type { SessionDatabase } from '@/types/session';
 import type { TagDatabase } from '@/types/tag';
 
 const createWrapper =
@@ -20,19 +20,24 @@ describe('DatabaseContext mappings', () => {
           name: 'Project 1',
           description: 'Test project',
           color: '#ffffff',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        } as unknown as Project,
+          createdAt: new Date().toISOString(),
+        } satisfies ProjectDatabase,
       }),
+      getProject: vi.fn().mockResolvedValue({
+        projectId: 1,
+        name: 'Project 1',
+        description: 'Test project',
+        color: '#ffffff',
+        createdAt: new Date().toISOString(),
+      } satisfies ProjectDatabase),
       getProjects: vi.fn().mockResolvedValue([
         {
           projectId: 1,
           name: 'Project 1',
           description: 'Test project',
           color: '#ffffff',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        } as unknown as Project,
+          createdAt: new Date().toISOString(),
+        } satisfies ProjectDatabase,
       ]),
       createSession: vi.fn().mockResolvedValue({
         itemId: 1,
@@ -44,8 +49,7 @@ describe('DatabaseContext mappings', () => {
           endTime: null,
           duration: 0,
           notes: 'Test session',
-          status: 'active',
-        } as unknown as Session,
+        } satisfies SessionDatabase,
       }),
       getSessionsForProject: vi.fn().mockResolvedValue([
         {
@@ -55,8 +59,7 @@ describe('DatabaseContext mappings', () => {
           endTime: null,
           duration: 0,
           notes: 'Test session',
-          status: 'active',
-        } as unknown as Session,
+        } satisfies SessionDatabase,
       ]),
       createTag: vi.fn().mockResolvedValue({
         itemId: 1,
@@ -90,9 +93,8 @@ describe('DatabaseContext mappings', () => {
           name: 'Updated Project',
           description: 'Updated',
           color: '#000000',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        } as unknown as Project,
+          createdAt: new Date().toISOString(),
+        } satisfies ProjectDatabase,
       }),
       updateTag: vi.fn().mockResolvedValue({
         changes: 1,
@@ -120,6 +122,24 @@ describe('DatabaseContext mappings', () => {
     expect(project.name).toBe('Project 1');
     expect(project.description).toBe('Test project');
     expect(project.color).toBe('#ffffff');
+    expect(project.createdAt).toBeInstanceOf(Date);
+    expect(project.updatedAt).toBeInstanceOf(Date);
+  });
+
+  it('uses getProject to fetch a single project', async () => {
+    const { result } = renderHook(() => useDatabase(), { wrapper: createWrapper() });
+
+    const project = await result.current.getProject(1);
+
+    expect(window.database.getProject).toHaveBeenCalledWith(1);
+    expect(project.projectId).toBe(1);
+  });
+
+  it('throws when getProject returns undefined', async () => {
+    window.database.getProject = vi.fn().mockResolvedValue(undefined);
+    const { result } = renderHook(() => useDatabase(), { wrapper: createWrapper() });
+
+    await expect(result.current.getProject(123)).rejects.toThrow('Project with id 123 not found');
   });
 
   it('uses getSessionsForProject to fetch sessions for a project', async () => {

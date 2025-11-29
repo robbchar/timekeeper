@@ -15,6 +15,58 @@ export class DatabaseError extends Error {
   }
 }
 
+export type DatabasePersistAction =
+  // Project actions
+  | { type: ActionType.CREATE_PROJECT; payload: DatabaseProjectCreate }
+  | { type: ActionType.UPDATE_PROJECT; payload: ProjectUpdate }
+  | { type: ActionType.DELETE_PROJECT; payload: number | string }
+  // Tag actions
+  | { type: ActionType.ADD_TAG; payload: Tag }
+  | { type: ActionType.UPDATE_TAG; payload: Tag }
+  | { type: ActionType.DELETE_TAG; payload: number | string }
+  // Settings actions
+  | { type: ActionType.UPDATE_SETTINGS; payload: Partial<Settings> }
+  // Session actions
+  | { type: ActionType.CREATE_SESSION; payload: CreateSessionParams }
+  | { type: ActionType.GET_SESSIONS }
+  | { type: ActionType.END_SESSION; payload: { sessionId: number; duration: number } }
+  | { type: ActionType.UPDATE_SESSION_NOTES; payload: { sessionId: number; notes: string } }
+  | { type: ActionType.UPDATE_SESSION_DURATION; payload: { sessionId: number; duration: number } }
+  | { type: ActionType.DELETE_SESSION; payload: { sessionId: number } };
+
+export type DatabasePersistResultMap = {
+  [ActionType.CREATE_PROJECT]: Project;
+  [ActionType.UPDATE_PROJECT]: Project;
+  [ActionType.DELETE_PROJECT]: ChangesOnlyResponse;
+
+  [ActionType.ADD_TAG]: Tag;
+  [ActionType.UPDATE_TAG]: Tag;
+  [ActionType.DELETE_TAG]: ChangesOnlyResponse;
+
+  [ActionType.UPDATE_SETTINGS]: ChangesOnlyResponse;
+
+  [ActionType.CREATE_SESSION]: Session;
+  [ActionType.GET_SESSIONS]: Session[];
+  [ActionType.END_SESSION]: ChangesOnlyResponse;
+  [ActionType.UPDATE_SESSION_NOTES]: ChangesOnlyResponse;
+  [ActionType.UPDATE_SESSION_DURATION]: ChangesOnlyResponse;
+  [ActionType.DELETE_SESSION]: ChangesOnlyResponse;
+};
+
+type PersistActionReturn =
+  | Project
+  | Session
+  | Session[]
+  | Tag
+  | ChangesOnlyResponse
+  | null
+  | undefined;
+
+async function persistAction<T extends DatabasePersistAction>(
+  action: T,
+  state: AppState,
+  database: ReturnType<typeof useDatabase>
+): Promise<DatabasePersistResultMap[T['type']]>;
 async function persistAction(
   action: Action,
   state: AppState,
@@ -25,7 +77,7 @@ async function persistAction(
   try {
     switch (action.type) {
       case ActionType.CREATE_PROJECT: {
-        const { name, description, color } = action.payload as ProjectCreate;
+        const { name, description, color } = action.payload as DatabaseProjectCreate;
         if (!name) {
           throw new DatabaseError('Project name is required', oldState);
         }
@@ -85,7 +137,7 @@ async function persistAction(
           const result = await database.setSetting(key, JSON.stringify(value));
           totalChanges += result.changes;
         }
-        return { changes: totalChanges };
+        return { changes: totalChanges } satisfies ChangesOnlyResponse;
       }
 
       case ActionType.CREATE_SESSION: {
@@ -93,7 +145,7 @@ async function persistAction(
         if (!projectId) {
           throw new DatabaseError('Project ID is required', oldState);
         }
-        return (await database.createSession(projectId, notes)) as unknown as Session;
+        return await database.createSession(projectId, notes);
       }
 
       case ActionType.GET_SESSIONS: {
@@ -102,7 +154,7 @@ async function persistAction(
       }
 
       case ActionType.END_SESSION: {
-        const { sessionId, duration } = action.payload as SessionUpdate;
+        const { sessionId, duration } = action.payload as { sessionId: number; duration: number };
         if (!sessionId) {
           throw new DatabaseError('Session ID is required', oldState);
         }
@@ -150,7 +202,18 @@ async function persistAction(
 }
 
 export const createDatabaseService = (database: ReturnType<typeof useDatabase>) => {
+  type PersistActionBound = {
+    <T extends DatabasePersistAction>(
+      action: T,
+      state: AppState
+    ): Promise<DatabasePersistResultMap[T['type']]>;
+    (action: Action, state: AppState): Promise<PersistActionReturn>;
+  };
+
+  const persistActionBound: PersistActionBound = (action: Action, state: AppState) =>
+    persistAction(action, state, database);
+
   return {
-    persistAction: (action: Action, state: AppState) => persistAction(action, state, database),
+    persistAction: persistActionBound,
   };
 };
