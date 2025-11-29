@@ -2,6 +2,7 @@ import React, { createContext, useContext, ReactNode } from 'react';
 import type { Project } from '@/types/project';
 import type { Session } from '@/types/session';
 import type { Tag } from '@/types/tag';
+import { dbTagToTag, dbTagsToTags } from '@/utils/tag-mappers';
 
 // Define the shape of the database context
 export interface DatabaseContextType {
@@ -177,14 +178,7 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   const createTag = async (name: string, color?: string): Promise<Tag> => {
     try {
       const result = await window.database.createTag(name, color);
-      const dbTag = result.record;
-      return {
-        id: dbTag.tagId,
-        name: dbTag.name,
-        color: dbTag.color,
-        createdAt: new Date(dbTag.createdAt),
-        updatedAt: new Date(dbTag.updatedAt),
-      };
+      return dbTagToTag(result.record);
     } catch (error) {
       console.error('Error creating tag:', error);
       throw error;
@@ -194,13 +188,7 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   const getAllTags = async (): Promise<Tag[]> => {
     try {
       const tags = await window.database.getTags();
-      return tags.map(t => ({
-        id: t.tagId,
-        name: t.name,
-        color: t.color,
-        createdAt: new Date(t.createdAt),
-        updatedAt: new Date(t.updatedAt),
-      }));
+      return dbTagsToTags(tags);
     } catch (error) {
       console.error('Error getting all tags:', error);
       throw error;
@@ -210,14 +198,7 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   const updateTag = async (tagId: number, name: string, color?: string): Promise<Tag> => {
     try {
       const result = await window.database.updateTag(tagId, name, color);
-      const dbTag = result.record;
-      return {
-        id: dbTag.tagId,
-        name: dbTag.name,
-        color: dbTag.color,
-        createdAt: new Date(dbTag.createdAt),
-        updatedAt: new Date(dbTag.updatedAt),
-      };
+      return dbTagToTag(result.record);
     } catch (error) {
       console.error('Error updating tag:', error);
       throw error;
@@ -237,13 +218,7 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   const getTagsForProject = async (projectId: number): Promise<Tag[]> => {
     try {
       const tags = await window.database.getTagsForProject(projectId);
-      return tags.map(t => ({
-        id: t.tagId,
-        name: t.name,
-        color: t.color,
-        createdAt: new Date(t.createdAt),
-        updatedAt: new Date(t.updatedAt),
-      }));
+      return dbTagsToTags(tags);
     } catch (error) {
       console.error('Error getting tags for project:', error);
       throw error;
