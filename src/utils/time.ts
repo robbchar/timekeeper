@@ -19,3 +19,5 @@ export const formatDate = (date: string): string => {
   const day = String(dateObj.getDate()).padStart(2, '0');
   return `${month}/${day}`;
 };
+
+export const now = (): number => Date.now();

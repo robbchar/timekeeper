@@ -7,7 +7,7 @@ import type { Session } from '@/types/session';
 import TimerControls from './TimerControls';
 import { Select, SelectItem, Button, Textarea } from '@heroui/react';
 import RecentSessions from './RecentSessions';
-import { now } from '@/test-utils/time';
+import { now } from '@/utils/time';
 
 const Container = styled.div`
   padding: 1.5rem;
