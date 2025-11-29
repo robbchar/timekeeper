@@ -36,12 +36,10 @@ export const ProjectsProvider: React.FC<{ children: ReactNode }> = ({ children }
         throw new Error('Invalid response from database: expected an array of projects');
       }
 
+      // `DatabaseContext` owns the DB → domain mapping, including timestamps.
       const mappedProjects: Project[] = fetchedProjects.map(project => ({
-        projectId: project.projectId,
-        name: project.name,
+        ...project,
         description: project.description || '',
-        createdAt: new Date(project.createdAt),
-        updatedAt: new Date(project.createdAt),
       }));
 
       setProjects(mappedProjects);

@@ -14,6 +14,33 @@ export interface Session {
   updatedAt?: Date;
 }
 
+/**
+ * Database-specific shape (SQLite row / IPC payload).
+ *
+ * Timestamps are serialized strings at the DB boundary; the UI/domain `Session`
+ * uses `Date`.
+ */
+export interface SessionDatabase {
+  sessionId: number;
+  projectId: number;
+  startTime: string;
+  endTime: string | null;
+  duration: number | null;
+  notes: string | null;
+  /**
+   * Optional for backwards-compatibility with older schemas.
+   */
+  status?: SessionStatus | null;
+  /**
+   * Optional for backwards-compatibility with older schemas.
+   */
+  createdAt?: string | null;
+  /**
+   * Optional for backwards-compatibility with older schemas.
+   */
+  updatedAt?: string | null;
+}
+
 // Type for database operations
 export type SessionCreate = Session;
 export type SessionUpdate = Pick<Session, 'sessionId' | 'notes' | 'duration'>;
