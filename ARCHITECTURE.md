@@ -89,6 +89,12 @@ There are a few “contract surfaces” that should stay in sync:
 - **DB row types** (SQLite rows): sometimes explicitly modeled (e.g. `TagDatabase` in `src/types/tag.ts`)
   - These are “database-shaped” (column-named) representations of rows as returned from SQL.
 
+### Timestamp boundary (SQLite string ↔ UI `Date`)
+
+- **DB/IPC contracts** (`*Database` types) carry timestamps as **serialized strings** (or `null`).
+- **UI/domain types** carry timestamps as **`Date`** objects.
+- **Conversion happens in one place**: renderer-side mappers in `src/mappers/*Mapper.ts`, used by `src/contexts/DatabaseContext.tsx`.
+
 When adding new DB capabilities, update the canonical contract in `src/types/database.ts` first, then implement the matching IPC handler and preload mapping.
 
 ## IPC channels (naming convention)
