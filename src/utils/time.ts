@@ -19,3 +19,9 @@ export const formatDate = (date: string): string => {
   const day = String(dateObj.getDate()).padStart(2, '0');
   return `${month}/${day}`;
 };
+
+/**
+ * Canonical "now" helper for production code.
+ * Tests should either use this directly or rely on Vitest fake timers/date mocks.
+ */
+export const now = (): number => Date.now();
