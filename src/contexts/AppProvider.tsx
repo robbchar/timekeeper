@@ -17,10 +17,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const createProject = useCallback(
     async (project: DatabaseProjectCreate): Promise<Project | null> => {
-      const createdProject = (await dbService.persistAction(
+      const createdProject = await dbService.persistAction(
         { type: ActionType.CREATE_PROJECT, payload: project },
         getState()
-      )) as Project;
+      );
       dispatch({ type: ActionType.CREATE_PROJECT, payload: createdProject });
       return createdProject;
     },
@@ -29,10 +29,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateProject = useCallback(
     async (project: ProjectUpdate): Promise<void> => {
-      const updated = (await dbService.persistAction(
+      const updated = await dbService.persistAction(
         { type: ActionType.UPDATE_PROJECT, payload: project },
         getState()
-      )) as ProjectUpdate;
+      );
       if (updated) {
         dispatch({ type: ActionType.UPDATE_PROJECT, payload: updated });
       }
