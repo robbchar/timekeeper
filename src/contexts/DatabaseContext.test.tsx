@@ -1,8 +1,8 @@
 import React from 'react';
 import { renderHook } from '@testing-library/react';
 import { DatabaseProvider, useDatabase } from './DatabaseContext';
-import type { Project } from '@/types/project';
-import type { Session } from '@/types/session';
+import type { ProjectDatabase } from '@/types/project';
+import type { SessionDatabase } from '@/types/session';
 import type { TagDatabase } from '@/types/tag';
 
 const createWrapper =
@@ -11,61 +11,39 @@ const createWrapper =
 
 describe('DatabaseContext mappings', () => {
   beforeEach(() => {
+    const projectRow: ProjectDatabase = {
+      projectId: 1,
+      name: 'Project 1',
+      description: 'Test project',
+      color: '#ffffff',
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-02T00:00:00.000Z',
+    };
+
+    const sessionRow: SessionDatabase = {
+      sessionId: 1,
+      projectId: 1,
+      startTime: '2025-01-03T10:00:00.000Z',
+      endTime: null,
+      duration: 0,
+      notes: 'Test session',
+      status: 'active',
+    };
+
     (window as unknown as { database: unknown }).database = {
       createProject: vi.fn().mockResolvedValue({
         itemId: 1,
         changes: 1,
-        record: {
-          projectId: 1,
-          name: 'Project 1',
-          description: 'Test project',
-          color: '#ffffff',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        } as unknown as Project,
+        record: projectRow,
       }),
-      getProjects: vi.fn().mockResolvedValue([
-        {
-          projectId: 1,
-          name: 'Project 1',
-          description: 'Test project',
-          color: '#ffffff',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        } as unknown as Project,
-      ]),
-      getProject: vi.fn().mockResolvedValue({
-        projectId: 1,
-        name: 'Project 1',
-        description: 'Test project',
-        color: '#ffffff',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      } as unknown as Project),
+      getProjects: vi.fn().mockResolvedValue([projectRow]),
+      getProject: vi.fn().mockResolvedValue(projectRow),
       createSession: vi.fn().mockResolvedValue({
         itemId: 1,
         changes: 1,
-        record: {
-          sessionId: 1,
-          projectId: 1,
-          startTime: new Date().toISOString(),
-          endTime: null,
-          duration: 0,
-          notes: 'Test session',
-          status: 'active',
-        } as unknown as Session,
+        record: sessionRow,
       }),
-      getSessionsForProject: vi.fn().mockResolvedValue([
-        {
-          sessionId: 1,
-          projectId: 1,
-          startTime: new Date().toISOString(),
-          endTime: null,
-          duration: 0,
-          notes: 'Test session',
-          status: 'active',
-        } as unknown as Session,
-      ]),
+      getSessionsForProject: vi.fn().mockResolvedValue([sessionRow]),
       createTag: vi.fn().mockResolvedValue({
         itemId: 1,
         changes: 1,
@@ -86,21 +64,19 @@ describe('DatabaseContext mappings', () => {
           updatedAt: new Date().toISOString(),
         } as TagDatabase,
       ]),
-      endSession: vi.fn().mockResolvedValue({ changes: 1 }),
-      updateSessionNotes: vi.fn().mockResolvedValue({ changes: 1 }),
-      updateSessionDuration: vi.fn().mockResolvedValue({ changes: 1 }),
+      endSession: vi.fn().mockResolvedValue({ changes: 1, record: sessionRow }),
+      updateSessionNotes: vi.fn().mockResolvedValue({ changes: 1, record: sessionRow }),
+      updateSessionDuration: vi.fn().mockResolvedValue({ changes: 1, record: sessionRow }),
       deleteSession: vi.fn().mockResolvedValue({ changes: 1 }),
       deleteProject: vi.fn().mockResolvedValue({ changes: 1 }),
       updateProject: vi.fn().mockResolvedValue({
         changes: 1,
         record: {
-          projectId: 1,
+          ...projectRow,
           name: 'Updated Project',
           description: 'Updated',
           color: '#000000',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        } as unknown as Project,
+        } satisfies ProjectDatabase,
       }),
       updateTag: vi.fn().mockResolvedValue({
         changes: 1,
@@ -128,6 +104,8 @@ describe('DatabaseContext mappings', () => {
     expect(project.name).toBe('Project 1');
     expect(project.description).toBe('Test project');
     expect(project.color).toBe('#ffffff');
+    expect(project.createdAt).toBeInstanceOf(Date);
+    expect(project.updatedAt).toBeInstanceOf(Date);
   });
 
   it('uses getProject to fetch a single project', async () => {
@@ -148,6 +126,7 @@ describe('DatabaseContext mappings', () => {
     expect(window.database.getSessionsForProject).toHaveBeenCalledWith(1);
     expect(Array.isArray(sessions)).toBe(true);
     expect(sessions[0].projectId).toBe(1);
+    expect(sessions[0].startTime).toBeInstanceOf(Date);
   });
 
   it('maps TagDatabase rows to Tag domain objects', async () => {
