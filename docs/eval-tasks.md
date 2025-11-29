@@ -25,25 +25,13 @@ We’re working in a **single-package, multi-layer TypeScript codebase** (Electr
 - **Behavior**: <replace>
 - **Type-level / contracts**: <replace>
 
-**Methodology:**
+**Methodology**:
 
-- **Git**: create a new branch for your work using branch `eval-2` as the base; commit in small, focused commits.
-- **Before edits**: list the files you will inspect first (**max 8**) and where you think the source-of-truth is.
-- **Design**: propose a **3–5 step plan** and call out suspected near-duplicates.
-- **During implementation**: make small, focused changes; avoid sweeping rewrites.
-- **Evidence at end**: tests run (**commands + result**) _or_ explicitly say “tests not run” and why.
-- **Docs**: if you introduce new concepts/contracts, update docs as needed. If anything is commented to be done, prefix it with `TODO`.
+- Git: base all work off the branch named 'eval-d', do not worry about making a PR if needed
+- Before making edits: list the first files you’ll inspect (max 8) and where you think the source-of-truth is.
+- Evidence at end: state why you’re confident and whether you ran tests (yes/no + why).
 
-**Initial context bundle (entry points):**
-
-- Architecture: `ARCHITECTURE.md`
-- Renderer entry: `src/main.tsx`, `src/App.tsx`
-- Renderer DB boundary: `src/contexts/DatabaseContext.tsx`, `src/state/services/databaseService.ts`
-- Shared DB contract types: `src/types/database.ts`, `src/types/database-response.ts`
-- Electron entry: `electron/main.ts`, `electron/preload.ts`
-- IPC mapping: `electron/helpers.ts`
-- DB + migrations: `electron/database/database.ts`, `electron/database/db-migrate.ts`, `electron/database/migrations/`
-- Tests: `vitest.config.ts`, `vitest.electron.config.ts`, `vitest.database.config.ts`
+Context: you are not given an entry-point bundle; you must request files as needed.
 
 ---
 
@@ -83,21 +71,11 @@ Success criteria:
 - Type-level / contracts: <replace>
 
 Methodology:
-- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits.
-- Before edits: list the files you will inspect first (max 8) and where you think the source-of-truth is.
-- Design: propose a 3–5 step plan and call out suspected near-duplicates.
-- During implementation: make small, focused changes; avoid sweeping rewrites.
-- Evidence at end: tests run (commands + result) or explicitly say “tests not run” and why.
+- Git: base all work off the branch named 'eval-d', do not worry about making a PR if needed
+- Before making edits: list the first files you’ll inspect (max 8) and where you think the source-of-truth is.
+- Evidence at end: state why you’re confident and whether you ran tests (yes/no + why).
 
-Initial context bundle (entry points):
-- Architecture: ARCHITECTURE.md
-- Renderer entry: src/main.tsx, src/App.tsx
-- Renderer DB boundary: src/contexts/DatabaseContext.tsx, src/state/services/databaseService.ts
-- Shared DB contract types: src/types/database.ts, src/types/database-response.ts
-- Electron entry: electron/main.ts, electron/preload.ts
-- IPC mapping: electron/helpers.ts
-- DB + migrations: electron/database/database.ts, electron/database/db-migrate.ts, electron/database/migrations/
-- Tests: vitest.config.ts, vitest.electron.config.ts, vitest.database.config.ts
+Context: you are not given an entry-point bundle; you must request files as needed.
 ```
 
 ## Proposed task suite (draft)
@@ -124,22 +102,11 @@ Success criteria:
 - Type-level / contracts: N/A (docs-only)
 
 Methodology:
-- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits.
-- Before edits: list the files you will inspect first (max 8) and where you think the source-of-truth is.
-- Design: propose a 3–5 step plan and call out suspected near-duplicates.
-- During implementation: make small, focused changes; avoid sweeping rewrites.
-- Evidence at end: tests run (commands + result) or explicitly say “tests not run” and why.
-- Docs: if you introduce new concepts/contracts, update docs as needed. If anything is commented to be done, prefix it with TODO.
+- Git: base all work off the branch named 'eval-d', do not worry about making a PR if needed
+- Before making edits: list the first files you’ll inspect (max 8) and where you think the source-of-truth is.
+- Evidence at end: state why you’re confident and whether you ran tests (yes/no + why).
 
-Initial context bundle (entry points):
-- Architecture: ARCHITECTURE.md
-- Renderer entry: src/main.tsx, src/App.tsx
-- Renderer DB boundary: src/contexts/DatabaseContext.tsx, src/state/services/databaseService.ts
-- Shared DB contract types: src/types/database.ts, src/types/database-response.ts
-- Electron entry: electron/main.ts, electron/preload.ts
-- IPC mapping: electron/helpers.ts
-- DB + migrations: electron/database/database.ts, electron/database/db-migrate.ts, electron/database/migrations/
-- Tests: vitest.config.ts, vitest.electron.config.ts, vitest.database.config.ts
+Context: you are not given an entry-point bundle; you must request files as needed.
 ```
 
 ### Task 3: Extract and reuse Tag mapping helpers (near-duplicate consolidation)
@@ -162,22 +129,11 @@ Success criteria:
 - Type-level / contracts: mapping is type-safe and lives in one place.
 
 Methodology:
-- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits.
-- Before edits: list the files you will inspect first (max 8) and where you think the source-of-truth is.
-- Design: propose a 3–5 step plan and call out suspected near-duplicates.
-- During implementation: make small, focused changes; avoid sweeping rewrites.
-- Evidence at end: tests run (commands + result) or explicitly say “tests not run” and why.
-- Docs: if you introduce new concepts/contracts, update docs as needed. If anything is commented to be done, prefix it with TODO.
+- Git: base all work off the branch named 'eval-d', do not worry about making a PR if needed
+- Before making edits: list the first files you’ll inspect (max 8) and where you think the source-of-truth is.
+- Evidence at end: state why you’re confident and whether you ran tests (yes/no + why).
 
-Initial context bundle (entry points):
-- Architecture: ARCHITECTURE.md
-- Renderer entry: src/main.tsx, src/App.tsx
-- Renderer DB boundary: src/contexts/DatabaseContext.tsx, src/state/services/databaseService.ts
-- Shared DB contract types: src/types/database.ts, src/types/database-response.ts
-- Electron entry: electron/main.ts, electron/preload.ts
-- IPC mapping: electron/helpers.ts
-- DB + migrations: electron/database/database.ts, electron/database/db-migrate.ts, electron/database/migrations/
-- Tests: vitest.config.ts, vitest.electron.config.ts, vitest.database.config.ts
+Context: you are not given an entry-point bundle; you must request files as needed.
 ```
 
 ### Task 4: Introduce a single “changes-only” response shape in renderer (contract convergence)
@@ -200,22 +156,11 @@ Success criteria:
 - Type-level / contracts: fewer ad-hoc { changes: result.changes } conversions; no any.
 
 Methodology:
-- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits.
-- Before edits: list the files you will inspect first (max 8) and where you think the source-of-truth is.
-- Design: propose a 3–5 step plan and call out suspected near-duplicates.
-- During implementation: make small, focused changes; avoid sweeping rewrites.
-- Evidence at end: tests run (commands + result) or explicitly say “tests not run” and why.
-- Docs: if you introduce new concepts/contracts, update docs as needed. If anything is commented to be done, prefix it with TODO.
+- Git: base all work off the branch named 'eval-d', do not worry about making a PR if needed
+- Before making edits: list the first files you’ll inspect (max 8) and where you think the source-of-truth is.
+- Evidence at end: state why you’re confident and whether you ran tests (yes/no + why).
 
-Initial context bundle (entry points):
-- Architecture: ARCHITECTURE.md
-- Renderer entry: src/main.tsx, src/App.tsx
-- Renderer DB boundary: src/contexts/DatabaseContext.tsx, src/state/services/databaseService.ts
-- Shared DB contract types: src/types/database.ts, src/types/database-response.ts
-- Electron entry: electron/main.ts, electron/preload.ts
-- IPC mapping: electron/helpers.ts
-- DB + migrations: electron/database/database.ts, electron/database/db-migrate.ts, electron/database/migrations/
-- Tests: vitest.config.ts, vitest.electron.config.ts, vitest.database.config.ts
+Context: you are not given an entry-point bundle; you must request files as needed.
 ```
 
 ### Task 5: Add a `getProject(projectId)` IPC call (cross-layer addition)
@@ -238,22 +183,11 @@ Success criteria:
 - Type-level / contracts: src/types/database.ts matches electron/helpers.ts exposed shape and electron/database/database.ts handlers.
 
 Methodology:
-- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits.
-- Before edits: list the files you will inspect first (max 8) and where you think the source-of-truth is.
-- Design: propose a 3–5 step plan and call out suspected near-duplicates.
-- During implementation: make small, focused changes; avoid sweeping rewrites.
-- Evidence at end: tests run (commands + result) or explicitly say “tests not run” and why.
-- Docs: if you introduce new concepts/contracts, update docs as needed. If anything is commented to be done, prefix it with TODO.
+- Git: base all work off the branch named 'eval-d', do not worry about making a PR if needed
+- Before making edits: list the first files you’ll inspect (max 8) and where you think the source-of-truth is.
+- Evidence at end: state why you’re confident and whether you ran tests (yes/no + why).
 
-Initial context bundle (entry points):
-- Architecture: ARCHITECTURE.md
-- Renderer entry: src/main.tsx, src/App.tsx
-- Renderer DB boundary: src/contexts/DatabaseContext.tsx, src/state/services/databaseService.ts
-- Shared DB contract types: src/types/database.ts, src/types/database-response.ts
-- Electron entry: electron/main.ts, electron/preload.ts
-- IPC mapping: electron/helpers.ts
-- DB + migrations: electron/database/database.ts, electron/database/db-migrate.ts, electron/database/migrations/
-- Tests: vitest.config.ts, vitest.electron.config.ts, vitest.database.config.ts
+Context: you are not given an entry-point bundle; you must request files as needed.
 ```
 
 ### Task 6: Split `setupDatabaseHandlers` into focused modules (meaty extraction)
@@ -276,22 +210,11 @@ Success criteria:
 - Type-level / contracts: boundaries are clearer (each module exports a registerXHandlers(...) function; setupDatabaseHandlers() remains the single entry point).
 
 Methodology:
-- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits.
-- Before edits: list the files you will inspect first (max 8) and where you think the source-of-truth is.
-- Design: propose a 3–5 step plan and call out suspected near-duplicates.
-- During implementation: make small, focused changes; avoid sweeping rewrites.
-- Evidence at end: tests run (commands + result) or explicitly say “tests not run” and why.
-- Docs: if you introduce new concepts/contracts, update docs as needed. If anything is commented to be done, prefix it with TODO.
+- Git: base all work off the branch named 'eval-d', do not worry about making a PR if needed
+- Before making edits: list the first files you’ll inspect (max 8) and where you think the source-of-truth is.
+- Evidence at end: state why you’re confident and whether you ran tests (yes/no + why).
 
-Initial context bundle (entry points):
-- Architecture: ARCHITECTURE.md
-- Renderer entry: src/main.tsx, src/App.tsx
-- Renderer DB boundary: src/contexts/DatabaseContext.tsx, src/state/services/databaseService.ts
-- Shared DB contract types: src/types/database.ts, src/types/database-response.ts
-- Electron entry: electron/main.ts, electron/preload.ts
-- IPC mapping: electron/helpers.ts
-- DB + migrations: electron/database/database.ts, electron/database/db-migrate.ts, electron/database/migrations/
-- Tests: vitest.config.ts, vitest.electron.config.ts, vitest.database.config.ts
+Context: you are not given an entry-point bundle; you must request files as needed.
 ```
 
 ### Task 7: Reduce cross-layer “stringly typed” IPC channel usage (contract hardening)
@@ -314,22 +237,11 @@ Success criteria:
 - Type-level / contracts: channel names are referenced from one place; fewer typos possible.
 
 Methodology:
-- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits.
-- Before edits: list the files you will inspect first (max 8) and where you think the source-of-truth is.
-- Design: propose a 3–5 step plan and call out suspected near-duplicates.
-- During implementation: make small, focused changes; avoid sweeping rewrites.
-- Evidence at end: tests run (commands + result) or explicitly say “tests not run” and why.
-- Docs: if you introduce new concepts/contracts, update docs as needed. If anything is commented to be done, prefix it with TODO.
+- Git: base all work off the branch named 'eval-d', do not worry about making a PR if needed
+- Before making edits: list the first files you’ll inspect (max 8) and where you think the source-of-truth is.
+- Evidence at end: state why you’re confident and whether you ran tests (yes/no + why).
 
-Initial context bundle (entry points):
-- Architecture: ARCHITECTURE.md
-- Renderer entry: src/main.tsx, src/App.tsx
-- Renderer DB boundary: src/contexts/DatabaseContext.tsx, src/state/services/databaseService.ts
-- Shared DB contract types: src/types/database.ts, src/types/database-response.ts
-- Electron entry: electron/main.ts, electron/preload.ts
-- IPC mapping: electron/helpers.ts
-- DB + migrations: electron/database/database.ts, electron/database/db-migrate.ts, electron/database/migrations/
-- Tests: vitest.config.ts, vitest.electron.config.ts, vitest.database.config.ts
+Context: you are not given an entry-point bundle; you must request files as needed.
 ```
 
 ### Task 8: Consolidate time utilities (near-duplicate consolidation + call-site updates)
@@ -352,22 +264,11 @@ Success criteria:
 - Type-level / contracts: clear split between production utilities and test-only helpers (no accidental coupling).
 
 Methodology:
-- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits.
-- Before edits: list the files you will inspect first (max 8) and where you think the source-of-truth is.
-- Design: propose a 3–5 step plan and call out suspected near-duplicates.
-- During implementation: make small, focused changes; avoid sweeping rewrites.
-- Evidence at end: tests run (commands + result) or explicitly say “tests not run” and why.
-- Docs: if you introduce new concepts/contracts, update docs as needed. If anything is commented to be done, prefix it with TODO.
+- Git: base all work off the branch named 'eval-d', do not worry about making a PR if needed
+- Before making edits: list the first files you’ll inspect (max 8) and where you think the source-of-truth is.
+- Evidence at end: state why you’re confident and whether you ran tests (yes/no + why).
 
-Initial context bundle (entry points):
-- Architecture: ARCHITECTURE.md
-- Renderer entry: src/main.tsx, src/App.tsx
-- Renderer DB boundary: src/contexts/DatabaseContext.tsx, src/state/services/databaseService.ts
-- Shared DB contract types: src/types/database.ts, src/types/database-response.ts
-- Electron entry: electron/main.ts, electron/preload.ts
-- IPC mapping: electron/helpers.ts
-- DB + migrations: electron/database/database.ts, electron/database/db-migrate.ts, electron/database/migrations/
-- Tests: vitest.config.ts, vitest.electron.config.ts, vitest.database.config.ts
+Context: you are not given an entry-point bundle; you must request files as needed.
 ```
 
 ### Task 9: Tighten error boundaries in `databaseService.persistAction` (core logic refactor)
@@ -390,22 +291,11 @@ Success criteria:
 - Type-level / contracts: less unknown-as and fewer broad unions.
 
 Methodology:
-- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits.
-- Before edits: list the files you will inspect first (max 8) and where you think the source-of-truth is.
-- Design: propose a 3–5 step plan and call out suspected near-duplicates.
-- During implementation: make small, focused changes; avoid sweeping rewrites.
-- Evidence at end: tests run (commands + result) or explicitly say “tests not run” and why.
-- Docs: if you introduce new concepts/contracts, update docs as needed. If anything is commented to be done, prefix it with TODO.
+- Git: base all work off the branch named 'eval-d', do not worry about making a PR if needed
+- Before making edits: list the first files you’ll inspect (max 8) and where you think the source-of-truth is.
+- Evidence at end: state why you’re confident and whether you ran tests (yes/no + why).
 
-Initial context bundle (entry points):
-- Architecture: ARCHITECTURE.md
-- Renderer entry: src/main.tsx, src/App.tsx
-- Renderer DB boundary: src/contexts/DatabaseContext.tsx, src/state/services/databaseService.ts
-- Shared DB contract types: src/types/database.ts, src/types/database-response.ts
-- Electron entry: electron/main.ts, electron/preload.ts
-- IPC mapping: electron/helpers.ts
-- DB + migrations: electron/database/database.ts, electron/database/db-migrate.ts, electron/database/migrations/
-- Tests: vitest.config.ts, vitest.electron.config.ts, vitest.database.config.ts
+Context: you are not given an entry-point bundle; you must request files as needed.
 ```
 
 ### Task 10: Normalize Date handling at the boundary (contract convergence)
@@ -428,20 +318,9 @@ Success criteria:
 - Type-level / contracts: no ambiguous Date | string types leaking across layers.
 
 Methodology:
-- Git: create a new branch for your work using branch eval-2 as the base; commit in small, focused commits.
-- Before edits: list the files you will inspect first (max 8) and where you think the source-of-truth is.
-- Design: propose a 3–5 step plan and call out suspected near-duplicates.
-- During implementation: make small, focused changes; avoid sweeping rewrites.
-- Evidence at end: tests run (commands + result) or explicitly say “tests not run” and why.
-- Docs: if you introduce new concepts/contracts, update docs as needed. If anything is commented to be done, prefix it with TODO.
+- Git: base all work off the branch named 'eval-d', do not worry about making a PR if needed
+- Before making edits: list the first files you’ll inspect (max 8) and where you think the source-of-truth is.
+- Evidence at end: state why you’re confident and whether you ran tests (yes/no + why).
 
-Initial context bundle (entry points):
-- Architecture: ARCHITECTURE.md
-- Renderer entry: src/main.tsx, src/App.tsx
-- Renderer DB boundary: src/contexts/DatabaseContext.tsx, src/state/services/databaseService.ts
-- Shared DB contract types: src/types/database.ts, src/types/database-response.ts
-- Electron entry: electron/main.ts, electron/preload.ts
-- IPC mapping: electron/helpers.ts
-- DB + migrations: electron/database/database.ts, electron/database/db-migrate.ts, electron/database/migrations/
-- Tests: vitest.config.ts, vitest.electron.config.ts, vitest.database.config.ts
+Context: you are not given an entry-point bundle; you must request files as needed.
 ```
