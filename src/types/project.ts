@@ -9,6 +9,25 @@ export interface Project {
   updatedAt: Date;
 }
 
+/**
+ * Database-specific shape (SQLite row / IPC payload).
+ *
+ * Timestamps are serialized strings at the DB boundary; the UI/domain `Project`
+ * uses `Date`.
+ */
+export interface ProjectDatabase {
+  projectId: number;
+  name: string;
+  description?: string | null;
+  color?: string | null;
+  createdAt: string;
+  /**
+   * Optional for backwards-compatibility with older schemas that don't include
+   * an `updatedAt` column.
+   */
+  updatedAt?: string | null;
+}
+
 // Type for database operations
 export type ProjectCreate = Project;
 export type ProjectUpdate = Pick<

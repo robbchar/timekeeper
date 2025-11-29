@@ -1,5 +1,5 @@
-import type { Project } from './project';
-import type { Session } from './session';
+import type { ProjectDatabase } from './project';
+import type { SessionDatabase } from './session';
 import type { TagDatabase } from './tag';
 import type {
   CreateResponse,
@@ -15,23 +15,29 @@ export interface DatabaseAPI {
     name: string,
     description?: string,
     color?: string
-  ) => Promise<CreateResponse<Project>>;
-  getProjects: () => Promise<Project[]>;
-  getProject: (projectId: number) => Promise<Project | undefined>;
+  ) => Promise<CreateResponse<ProjectDatabase>>;
+  getProjects: () => Promise<ProjectDatabase[]>;
+  getProject: (projectId: number) => Promise<ProjectDatabase | undefined>;
   deleteProject: (projectId: number) => Promise<ChangesOnlyResponse>;
   updateProject: (
     projectId: number,
     name: string,
     description?: string,
     color?: string
-  ) => Promise<UpdateResponse<Project>>;
+  ) => Promise<UpdateResponse<ProjectDatabase>>;
   // Session operations
-  createSession: (projectId: number, notes?: string) => Promise<CreateResponse<Session>>;
-  endSession: (sessionId: number, duration: number) => Promise<UpdateResponse<Session>>;
-  getSessions: () => Promise<Session[]>;
-  getSessionsForProject: (projectId: number) => Promise<Session[]>;
-  updateSessionNotes: (sessionId: number, notes: string) => Promise<UpdateResponse<Session>>;
-  updateSessionDuration: (sessionId: number, duration: number) => Promise<UpdateResponse<Session>>;
+  createSession: (projectId: number, notes?: string) => Promise<CreateResponse<SessionDatabase>>;
+  endSession: (sessionId: number, duration: number) => Promise<UpdateResponse<SessionDatabase>>;
+  getSessions: () => Promise<SessionDatabase[]>;
+  getSessionsForProject: (projectId: number) => Promise<SessionDatabase[]>;
+  updateSessionNotes: (
+    sessionId: number,
+    notes: string
+  ) => Promise<UpdateResponse<SessionDatabase>>;
+  updateSessionDuration: (
+    sessionId: number,
+    duration: number
+  ) => Promise<UpdateResponse<SessionDatabase>>;
   deleteSession: (sessionId: number) => Promise<ChangesOnlyResponse>;
   // Tag operations
   createTag: (name: string, color?: string) => Promise<CreateResponse<TagDatabase>>;
