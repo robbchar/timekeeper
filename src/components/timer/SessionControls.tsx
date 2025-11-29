@@ -55,6 +55,15 @@ const SessionControls: React.FC<{
   const [isTiming, setIsTiming] = useState(false);
   const timerIdRef = useRef<NodeJS.Timeout | null>(null);
 
+  const handleStopTimer = useCallback(() => {
+    console.log('handleStopTimer');
+    if (timerIdRef.current) {
+      clearInterval(timerIdRef.current);
+      timerIdRef.current = null;
+    }
+    setIsTiming(false);
+  }, []);
+
   // Handle window unload
   useEffect(() => {
     const handleBeforeUnload = async () => {
@@ -77,7 +86,7 @@ const SessionControls: React.FC<{
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, []);
+  }, [handleStopTimer, isTiming, state.sessions.currentSession, stopSession]);
 
   const handleStartSession = async () => {
     if (!selectedProjectId) return;
@@ -112,15 +121,6 @@ const SessionControls: React.FC<{
       });
     }, 1000);
   };
-
-  const handleStopTimer = useCallback(() => {
-    console.log('handleStopTimer');
-    if (timerIdRef.current) {
-      clearInterval(timerIdRef.current);
-      timerIdRef.current = null;
-    }
-    setIsTiming(false);
-  }, []);
 
   const isSessionActive = !!state.sessions.currentSession;
 
