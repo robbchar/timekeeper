@@ -14,6 +14,26 @@ export interface Session {
   updatedAt?: Date;
 }
 
+/**
+ * Database/IPC shape for `sessions` rows.
+ *
+ * Boundary rule:
+ * - DB/IPC layer uses `string` timestamps (ISO 8601)
+ * - UI/domain layer uses `Date` timestamps
+ */
+export interface SessionDatabase {
+  sessionId: number;
+  projectId: number;
+  startTime: string;
+  endTime: string | null;
+  duration: number | null;
+  notes: string | null;
+  // These may exist depending on migrations / schema version.
+  status?: SessionStatus;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 // Type for database operations
 export type SessionCreate = Session;
 export type SessionUpdate = Pick<Session, 'sessionId' | 'notes' | 'duration'>;

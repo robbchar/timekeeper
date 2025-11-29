@@ -22,7 +22,7 @@ This document focuses on **renderer ↔ IPC ↔ DB boundaries** and where the **
 - **Entry points**: `src/main.tsx`, `src/App.tsx`
 - **DB boundary in renderer**: `src/contexts/DatabaseContext.tsx`
   - Consumes `window.database`
-  - Maps DB-ish shapes into domain shapes where needed (e.g. tag date parsing)
+  - Maps DB/IPC row shapes (string timestamps) into domain shapes (Date timestamps)
 - **State persistence orchestration**: `src/state/services/databaseService.ts`
   - Drives DB writes based on state actions
 
@@ -83,7 +83,7 @@ For deeper notes on response-shape conventions and layer responsibilities, see `
 - Renderer calls `window.database.createProject(name, description?, color?)`.
 - Preload forwards to `ipcRenderer.invoke(IPC_CHANNELS.database.createProject, ...)` (string value remains `'database:createProject'`).
 - Main handles `ipcMain.handle(IPC_CHANNELS.database.createProject, ...)` and runs an `INSERT`.
-- Response crosses back as `CreateResponse<Project>` (see `src/types/database-response.ts`), and the renderer may unwrap `record` in `DatabaseContext`.
+- Response crosses back as `CreateResponse<ProjectDatabase>` (DB row shape; timestamps are strings), and `DatabaseContext` maps the row to the domain `Project` (timestamps are Dates).
 
 ## Adding a new DB operation (checklist)
 
