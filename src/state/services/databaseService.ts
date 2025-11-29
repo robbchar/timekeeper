@@ -3,6 +3,7 @@ import { ActionType } from '@/types/state';
 import { useDatabase } from '@/contexts/DatabaseContext';
 import type { Project, ProjectCreate, ProjectUpdate } from '@/types/project';
 import { CreateSessionParams, Session, SessionUpdate } from '@/types/session';
+import type { ChangesOnlyResponse } from '@/types/database-response';
 
 export class DatabaseError extends Error {
   constructor(
@@ -18,7 +19,7 @@ async function persistAction(
   action: Action,
   state: AppState,
   database: ReturnType<typeof useDatabase>
-): Promise<Project | Session | Session[] | Tag | { changes: number } | null | undefined> {
+): Promise<Project | Session | Session[] | Tag | ChangesOnlyResponse | null | undefined> {
   const oldState = state;
 
   try {
@@ -71,8 +72,7 @@ async function persistAction(
         if (isNaN(id)) {
           throw new DatabaseError('Invalid tag ID', oldState);
         }
-        const result = await database.deleteTag(id);
-        return { changes: result.changes };
+        return await database.deleteTag(id);
       }
 
       case ActionType.UPDATE_SETTINGS: {
@@ -93,7 +93,7 @@ async function persistAction(
         if (!projectId) {
           throw new DatabaseError('Project ID is required', oldState);
         }
-        return (await database.createSession(projectId, notes)) as unknown as Session;
+        return await database.createSession(projectId, notes);
       }
 
       case ActionType.GET_SESSIONS: {
@@ -106,8 +106,7 @@ async function persistAction(
         if (!sessionId) {
           throw new DatabaseError('Session ID is required', oldState);
         }
-        const result = await database.endSession(sessionId, duration);
-        return { changes: result.changes };
+        return await database.endSession(sessionId, duration);
       }
 
       case ActionType.UPDATE_SESSION_NOTES: {
@@ -115,8 +114,7 @@ async function persistAction(
         if (!sessionId) {
           throw new DatabaseError('Session ID is required', oldState);
         }
-        const result = await database.updateSessionNotes(sessionId, notes);
-        return { changes: result.changes };
+        return await database.updateSessionNotes(sessionId, notes);
       }
 
       case ActionType.UPDATE_SESSION_DURATION: {
@@ -127,8 +125,7 @@ async function persistAction(
         if (!sessionId) {
           throw new DatabaseError('Session ID is required', oldState);
         }
-        const result = await database.updateSessionDuration(sessionId, duration);
-        return { changes: result.changes };
+        return await database.updateSessionDuration(sessionId, duration);
       }
 
       case ActionType.DELETE_SESSION: {
@@ -136,8 +133,7 @@ async function persistAction(
         if (!sessionId) {
           throw new DatabaseError('Session ID is required', oldState);
         }
-        const result = await database.deleteSession(sessionId);
-        return { changes: result.changes };
+        return await database.deleteSession(sessionId);
       }
 
       default:
