@@ -168,6 +168,15 @@ export function setupDatabaseHandlers() {
     });
   });
 
+  ipcMain.handle('database:getProject', (_, projectId: number) => {
+    return new Promise<Project | undefined>((resolve, reject) => {
+      db.get('SELECT * FROM projects WHERE projectId = ?', [projectId], (err, row) => {
+        if (err) reject(err);
+        else resolve(row as Project | undefined);
+      });
+    });
+  });
+
   ipcMain.handle('database:deleteProject', (_, id: number) => {
     return new Promise<{ changes: number }>((resolve, reject) => {
       db.run('DELETE FROM projects WHERE projectId = ?', [id], function (err) {
