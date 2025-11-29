@@ -3,6 +3,7 @@ import { ActionType } from '@/types/state';
 import { useDatabase } from '@/contexts/DatabaseContext';
 import type { Project, ProjectCreate, ProjectUpdate } from '@/types/project';
 import { CreateSessionParams, Session, SessionUpdate } from '@/types/session';
+import type { ChangesOnlyResponse } from '@/types/database-response';
 
 export class DatabaseError extends Error {
   constructor(
@@ -18,7 +19,7 @@ async function persistAction(
   action: Action,
   state: AppState,
   database: ReturnType<typeof useDatabase>
-): Promise<Project | Session | Session[] | Tag | { changes: number } | null | undefined> {
+): Promise<Project | Session | Session[] | Tag | ChangesOnlyResponse | null | undefined> {
   const oldState = state;
 
   try {
