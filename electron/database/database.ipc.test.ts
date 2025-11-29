@@ -1,9 +1,17 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { mockIpcMain } from '@/test-utils/ipc-test-helper';
+type HandlerFn = (event: unknown, ...args: unknown[]) => unknown;
+const handlers = new Map<string, HandlerFn>();
 
-vi.mock('electron', () => ({
-  ipcMain: mockIpcMain,
-}));
+const mockIpcMain = {
+  handle: (channel: string, fn: HandlerFn) => {
+    handlers.set(channel, fn);
+  },
+  reset: () => {
+    handlers.clear();
+  },
+  __handlers: handlers,
+};
+
+vi.mock('electron', () => ({ ipcMain: mockIpcMain }));
 
 describe('database IPC handlers', () => {
   beforeEach(() => {
