@@ -56,7 +56,8 @@ Rule of thumb:
   - Registers IPC handlers (`setupDatabaseHandlers()`)
   - Creates the BrowserWindow
 - **SQLite + IPC handlers**: `electron/database/database.ts`
-  - Owns SQL statements and `ipcMain.handle('database:*', ...)`
+  - Owns schema + migrations + the single handler entry point (`setupDatabaseHandlers()`)
+  - Delegates to focused handler modules in `electron/database/handlers/*` (each exports `registerXHandlers(...)`)
 - **Migrations**: `electron/database/db-migrate.ts`, `electron/database/migrations/`
 
 ## Canonical contracts and types (source of truth)
