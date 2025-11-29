@@ -2,16 +2,17 @@ import * as sqlite3 from 'sqlite3';
 import { ipcMain } from 'electron';
 import type { TagDatabase } from '@/types/tag';
 import { getRecordAfterInsert, getRecordAfterWrite, getRecordBeforeDelete } from '../../helpers';
+import { IPC_CHANNELS } from '@/ipc/channels';
 
 export function registerTagHandlers({ db }: { db: sqlite3.Database }) {
   // Tag operations
-  ipcMain.handle('database:createTag', (_, name: string, color?: string) => {
+  ipcMain.handle(IPC_CHANNELS.database.createTag, (_, name: string, color?: string) => {
     return getRecordAfterInsert<TagDatabase>(function (cb) {
       db.run('INSERT INTO tags (name, color) VALUES (?, ?)', [name, color], cb);
     }, 'SELECT * FROM tags WHERE tagId = ?');
   });
 
-  ipcMain.handle('database:getTags', () => {
+  ipcMain.handle(IPC_CHANNELS.database.getTags, () => {
     return new Promise<TagDatabase[]>((resolve, reject) => {
       db.all('SELECT * FROM tags ORDER BY name', (err, rows) => {
         if (err) reject(err);
@@ -20,17 +21,20 @@ export function registerTagHandlers({ db }: { db: sqlite3.Database }) {
     });
   });
 
-  ipcMain.handle('database:updateTag', (_, tagId: number, name: string, color?: string) => {
-    return getRecordAfterWrite<TagDatabase>(
-      function (cb) {
-        db.run('UPDATE tags SET name = ?, color = ? WHERE tagId = ?', [name, color, tagId], cb);
-      },
-      'SELECT * FROM tags WHERE tagId = ?',
-      [tagId]
-    );
-  });
+  ipcMain.handle(
+    IPC_CHANNELS.database.updateTag,
+    (_, tagId: number, name: string, color?: string) => {
+      return getRecordAfterWrite<TagDatabase>(
+        function (cb) {
+          db.run('UPDATE tags SET name = ?, color = ? WHERE tagId = ?', [name, color, tagId], cb);
+        },
+        'SELECT * FROM tags WHERE tagId = ?',
+        [tagId]
+      );
+    }
+  );
 
-  ipcMain.handle('database:deleteTag', (_, tagId: number) => {
+  ipcMain.handle(IPC_CHANNELS.database.deleteTag, (_, tagId: number) => {
     return getRecordBeforeDelete<TagDatabase>(
       'SELECT * FROM tags WHERE tagId = ?',
       [tagId],
@@ -40,7 +44,7 @@ export function registerTagHandlers({ db }: { db: sqlite3.Database }) {
   });
 
   // Project–Tag relationship operations
-  ipcMain.handle('database:getTagsForProject', (_, projectId: number) => {
+  ipcMain.handle(IPC_CHANNELS.database.getTagsForProject, (_, projectId: number) => {
     return new Promise<TagDatabase[]>((resolve, reject) => {
       db.all(
         `SELECT t.*
@@ -57,7 +61,7 @@ export function registerTagHandlers({ db }: { db: sqlite3.Database }) {
     });
   });
 
-  ipcMain.handle('database:setProjectTags', (_, projectId: number, tagIds: number[]) => {
+  ipcMain.handle(IPC_CHANNELS.database.setProjectTags, (_, projectId: number, tagIds: number[]) => {
     return new Promise<{ changes: number }>((resolve, reject) => {
       db.serialize(() => {
         db.run('BEGIN TRANSACTION');
