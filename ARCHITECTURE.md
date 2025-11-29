@@ -42,6 +42,7 @@ This is the **security and API boundary**. The app runs with `contextIsolation: 
 
 - **Channel mapping**: `electron/helpers.ts` (`makeDbShape`)
   - Maps `DatabaseAPI` methods to channel names like `database:createProject`.
+  - Channel names are centralized in `src/types/ipc-channels.ts` (`IPC_CHANNELS`) and reused across layers.
 
 Rule of thumb:
 
@@ -80,8 +81,8 @@ For deeper notes on response-shape conventions and layer responsibilities, see `
 ## Example (Create Project)
 
 - Renderer calls `window.database.createProject(name, description?, color?)`.
-- Preload forwards to `ipcRenderer.invoke('database:createProject', ...)`.
-- Main handles `ipcMain.handle('database:createProject', ...)` and runs an `INSERT`.
+- Preload forwards to `ipcRenderer.invoke(IPC_CHANNELS.database.createProject, ...)` (string value remains `'database:createProject'`).
+- Main handles `ipcMain.handle(IPC_CHANNELS.database.createProject, ...)` and runs an `INSERT`.
 - Response crosses back as `CreateResponse<Project>` (see `src/types/database-response.ts`), and the renderer may unwrap `record` in `DatabaseContext`.
 
 ## Adding a new DB operation (checklist)
@@ -89,6 +90,7 @@ For deeper notes on response-shape conventions and layer responsibilities, see `
 1. **Define the contract**:
    - Add/adjust method signature in `src/types/database.ts` (and any response types in `src/types/database-response.ts`).
 2. **Expose it through preload**:
+   - Add the channel name in `src/types/ipc-channels.ts` (`IPC_CHANNELS.database`).
    - Add the channel mapping in `electron/helpers.ts` (`makeDbShape`).
 3. **Implement it in the main process**:
    - Register an `ipcMain.handle('database:yourChannel', ...)` in `electron/database/database.ts`.
