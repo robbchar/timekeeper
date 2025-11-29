@@ -131,15 +131,7 @@ Methodology:
 - Evidence at end: tests run (commands + result) or explicitly say “tests not run” and why.
 - Docs: if you introduce new concepts/contracts, update docs as needed. If anything is commented to be done, prefix it with TODO.
 
-Initial context bundle (entry points):
-- Architecture: ARCHITECTURE.md
-- Renderer entry: src/main.tsx, src/App.tsx
-- Renderer DB boundary: src/contexts/DatabaseContext.tsx, src/state/services/databaseService.ts
-- Shared DB contract types: src/types/database.ts, src/types/database-response.ts
-- Electron entry: electron/main.ts, electron/preload.ts
-- IPC mapping: electron/helpers.ts
-- DB + migrations: electron/database/database.ts, electron/database/db-migrate.ts, electron/database/migrations/
-- Tests: vitest.config.ts, vitest.electron.config.ts, vitest.database.config.ts
+Context: you are not given an entry-point bundle; you must request files as needed.
 ```
 
 ### Task 3: Extract and reuse Tag mapping helpers (near-duplicate consolidation)
@@ -169,15 +161,7 @@ Methodology:
 - Evidence at end: tests run (commands + result) or explicitly say “tests not run” and why.
 - Docs: if you introduce new concepts/contracts, update docs as needed. If anything is commented to be done, prefix it with TODO.
 
-Initial context bundle (entry points):
-- Architecture: ARCHITECTURE.md
-- Renderer entry: src/main.tsx, src/App.tsx
-- Renderer DB boundary: src/contexts/DatabaseContext.tsx, src/state/services/databaseService.ts
-- Shared DB contract types: src/types/database.ts, src/types/database-response.ts
-- Electron entry: electron/main.ts, electron/preload.ts
-- IPC mapping: electron/helpers.ts
-- DB + migrations: electron/database/database.ts, electron/database/db-migrate.ts, electron/database/migrations/
-- Tests: vitest.config.ts, vitest.electron.config.ts, vitest.database.config.ts
+Context: you are not given an entry-point bundle; you must request files as needed.
 ```
 
 ### Task 4: Introduce a single “changes-only” response shape in renderer (contract convergence)
@@ -207,15 +191,7 @@ Methodology:
 - Evidence at end: tests run (commands + result) or explicitly say “tests not run” and why.
 - Docs: if you introduce new concepts/contracts, update docs as needed. If anything is commented to be done, prefix it with TODO.
 
-Initial context bundle (entry points):
-- Architecture: ARCHITECTURE.md
-- Renderer entry: src/main.tsx, src/App.tsx
-- Renderer DB boundary: src/contexts/DatabaseContext.tsx, src/state/services/databaseService.ts
-- Shared DB contract types: src/types/database.ts, src/types/database-response.ts
-- Electron entry: electron/main.ts, electron/preload.ts
-- IPC mapping: electron/helpers.ts
-- DB + migrations: electron/database/database.ts, electron/database/db-migrate.ts, electron/database/migrations/
-- Tests: vitest.config.ts, vitest.electron.config.ts, vitest.database.config.ts
+Context: you are not given an entry-point bundle; you must request files as needed.
 ```
 
 ### Task 5: Add a `getProject(projectId)` IPC call (cross-layer addition)
@@ -245,15 +221,7 @@ Methodology:
 - Evidence at end: tests run (commands + result) or explicitly say “tests not run” and why.
 - Docs: if you introduce new concepts/contracts, update docs as needed. If anything is commented to be done, prefix it with TODO.
 
-Initial context bundle (entry points):
-- Architecture: ARCHITECTURE.md
-- Renderer entry: src/main.tsx, src/App.tsx
-- Renderer DB boundary: src/contexts/DatabaseContext.tsx, src/state/services/databaseService.ts
-- Shared DB contract types: src/types/database.ts, src/types/database-response.ts
-- Electron entry: electron/main.ts, electron/preload.ts
-- IPC mapping: electron/helpers.ts
-- DB + migrations: electron/database/database.ts, electron/database/db-migrate.ts, electron/database/migrations/
-- Tests: vitest.config.ts, vitest.electron.config.ts, vitest.database.config.ts
+Context: you are not given an entry-point bundle; you must request files as needed.
 ```
 
 ### Task 6: Split `setupDatabaseHandlers` into focused modules (meaty extraction)
@@ -283,15 +251,7 @@ Methodology:
 - Evidence at end: tests run (commands + result) or explicitly say “tests not run” and why.
 - Docs: if you introduce new concepts/contracts, update docs as needed. If anything is commented to be done, prefix it with TODO.
 
-Initial context bundle (entry points):
-- Architecture: ARCHITECTURE.md
-- Renderer entry: src/main.tsx, src/App.tsx
-- Renderer DB boundary: src/contexts/DatabaseContext.tsx, src/state/services/databaseService.ts
-- Shared DB contract types: src/types/database.ts, src/types/database-response.ts
-- Electron entry: electron/main.ts, electron/preload.ts
-- IPC mapping: electron/helpers.ts
-- DB + migrations: electron/database/database.ts, electron/database/db-migrate.ts, electron/database/migrations/
-- Tests: vitest.config.ts, vitest.electron.config.ts, vitest.database.config.ts
+Context: you are not given an entry-point bundle; you must request files as needed.
 ```
 
 ### Task 7: Reduce cross-layer “stringly typed” IPC channel usage (contract hardening)
@@ -321,15 +281,7 @@ Methodology:
 - Evidence at end: tests run (commands + result) or explicitly say “tests not run” and why.
 - Docs: if you introduce new concepts/contracts, update docs as needed. If anything is commented to be done, prefix it with TODO.
 
-Initial context bundle (entry points):
-- Architecture: ARCHITECTURE.md
-- Renderer entry: src/main.tsx, src/App.tsx
-- Renderer DB boundary: src/contexts/DatabaseContext.tsx, src/state/services/databaseService.ts
-- Shared DB contract types: src/types/database.ts, src/types/database-response.ts
-- Electron entry: electron/main.ts, electron/preload.ts
-- IPC mapping: electron/helpers.ts
-- DB + migrations: electron/database/database.ts, electron/database/db-migrate.ts, electron/database/migrations/
-- Tests: vitest.config.ts, vitest.electron.config.ts, vitest.database.config.ts
+Context: you are not given an entry-point bundle; you must request files as needed.
 ```
 
 ### Task 8: Consolidate time utilities (near-duplicate consolidation + call-site updates)
@@ -359,15 +311,7 @@ Methodology:
 - Evidence at end: tests run (commands + result) or explicitly say “tests not run” and why.
 - Docs: if you introduce new concepts/contracts, update docs as needed. If anything is commented to be done, prefix it with TODO.
 
-Initial context bundle (entry points):
-- Architecture: ARCHITECTURE.md
-- Renderer entry: src/main.tsx, src/App.tsx
-- Renderer DB boundary: src/contexts/DatabaseContext.tsx, src/state/services/databaseService.ts
-- Shared DB contract types: src/types/database.ts, src/types/database-response.ts
-- Electron entry: electron/main.ts, electron/preload.ts
-- IPC mapping: electron/helpers.ts
-- DB + migrations: electron/database/database.ts, electron/database/db-migrate.ts, electron/database/migrations/
-- Tests: vitest.config.ts, vitest.electron.config.ts, vitest.database.config.ts
+Context: you are not given an entry-point bundle; you must request files as needed.
 ```
 
 ### Task 9: Tighten error boundaries in `databaseService.persistAction` (core logic refactor)
@@ -397,15 +341,7 @@ Methodology:
 - Evidence at end: tests run (commands + result) or explicitly say “tests not run” and why.
 - Docs: if you introduce new concepts/contracts, update docs as needed. If anything is commented to be done, prefix it with TODO.
 
-Initial context bundle (entry points):
-- Architecture: ARCHITECTURE.md
-- Renderer entry: src/main.tsx, src/App.tsx
-- Renderer DB boundary: src/contexts/DatabaseContext.tsx, src/state/services/databaseService.ts
-- Shared DB contract types: src/types/database.ts, src/types/database-response.ts
-- Electron entry: electron/main.ts, electron/preload.ts
-- IPC mapping: electron/helpers.ts
-- DB + migrations: electron/database/database.ts, electron/database/db-migrate.ts, electron/database/migrations/
-- Tests: vitest.config.ts, vitest.electron.config.ts, vitest.database.config.ts
+Context: you are not given an entry-point bundle; you must request files as needed.
 ```
 
 ### Task 10: Normalize Date handling at the boundary (contract convergence)
@@ -435,13 +371,5 @@ Methodology:
 - Evidence at end: tests run (commands + result) or explicitly say “tests not run” and why.
 - Docs: if you introduce new concepts/contracts, update docs as needed. If anything is commented to be done, prefix it with TODO.
 
-Initial context bundle (entry points):
-- Architecture: ARCHITECTURE.md
-- Renderer entry: src/main.tsx, src/App.tsx
-- Renderer DB boundary: src/contexts/DatabaseContext.tsx, src/state/services/databaseService.ts
-- Shared DB contract types: src/types/database.ts, src/types/database-response.ts
-- Electron entry: electron/main.ts, electron/preload.ts
-- IPC mapping: electron/helpers.ts
-- DB + migrations: electron/database/database.ts, electron/database/db-migrate.ts, electron/database/migrations/
-- Tests: vitest.config.ts, vitest.electron.config.ts, vitest.database.config.ts
+Context: you are not given an entry-point bundle; you must request files as needed.
 ```
