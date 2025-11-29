@@ -1,9 +1,10 @@
 import * as sqlite3 from 'sqlite3';
 import { ipcMain } from 'electron';
+import { IPC_CHANNELS } from '@/ipc/channels';
 
 export function registerSettingsHandlers({ db }: { db: sqlite3.Database }) {
   // Settings operations
-  ipcMain.handle('database:getSetting', (_, key: string) => {
+  ipcMain.handle(IPC_CHANNELS.database.getSetting, (_, key: string) => {
     return new Promise<string | undefined>((resolve, reject) => {
       db.get('SELECT value FROM settings WHERE key = ?', [key], (err, row) => {
         if (err) reject(err);
@@ -12,7 +13,7 @@ export function registerSettingsHandlers({ db }: { db: sqlite3.Database }) {
     });
   });
 
-  ipcMain.handle('database:setSetting', (_, key: string, value: string) => {
+  ipcMain.handle(IPC_CHANNELS.database.setSetting, (_, key: string, value: string) => {
     return new Promise<{ changes: number }>((resolve, reject) => {
       db.run(
         'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',

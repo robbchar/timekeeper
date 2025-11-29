@@ -1,6 +1,7 @@
 import type { DatabaseAPI } from '@/types/database';
 import type { CreateResponse, DeleteResponse, UpdateResponse } from '@/types/database-response';
 import type { Database, RunResult } from 'sqlite3';
+import { IPC_CHANNELS } from '@/ipc/channels';
 
 let db: Database;
 export function setDatabaseInstance(instance: Database) {
@@ -69,54 +70,57 @@ export function getRecordBeforeDelete<T>(
 export const makeDbShape = (invoke: (channel: string, ...args: any[]) => any): DatabaseAPI => ({
   // Project operations
   createProject: (name: string, description?: string, color?: string) =>
-    invoke('database:createProject', name, description, color),
+    invoke(IPC_CHANNELS.database.createProject, name, description, color),
 
-  getProjects: () => invoke('database:getProjects'),
+  getProjects: () => invoke(IPC_CHANNELS.database.getProjects),
 
-  getProject: (projectId: number) => invoke('database:getProject', projectId),
+  getProject: (projectId: number) => invoke(IPC_CHANNELS.database.getProject, projectId),
 
   updateProject: (projectId: number, name: string, description?: string, color?: string) =>
-    invoke('database:updateProject', projectId, name, description, color),
+    invoke(IPC_CHANNELS.database.updateProject, projectId, name, description, color),
 
-  deleteProject: (id: number) => invoke('database:deleteProject', id),
+  deleteProject: (id: number) => invoke(IPC_CHANNELS.database.deleteProject, id),
 
   // Session operations
   createSession: (projectId: number, notes?: string) =>
-    invoke('database:createSession', projectId, notes),
+    invoke(IPC_CHANNELS.database.createSession, projectId, notes),
 
-  endSession: (id: number, duration: number) => invoke('database:endSession', id, duration),
+  endSession: (id: number, duration: number) =>
+    invoke(IPC_CHANNELS.database.endSession, id, duration),
 
-  getSessions: () => invoke('database:getSessions'),
+  getSessions: () => invoke(IPC_CHANNELS.database.getSessions),
 
-  getSessionsForProject: (projectId: number) => invoke('database:getSessionsForProject', projectId),
+  getSessionsForProject: (projectId: number) =>
+    invoke(IPC_CHANNELS.database.getSessionsForProject, projectId),
 
   updateSessionNotes: (id: number, notes: string) =>
-    invoke('database:updateSessionNotes', id, notes),
+    invoke(IPC_CHANNELS.database.updateSessionNotes, id, notes),
 
   updateSessionDuration: (id: number, duration: number) =>
-    invoke('database:updateSessionDuration', id, duration),
+    invoke(IPC_CHANNELS.database.updateSessionDuration, id, duration),
 
-  deleteSession: (id: number) => invoke('database:deleteSession', id),
+  deleteSession: (id: number) => invoke(IPC_CHANNELS.database.deleteSession, id),
 
   // Tag operations
-  createTag: (name: string, color?: string) => invoke('database:createTag', name, color),
+  createTag: (name: string, color?: string) => invoke(IPC_CHANNELS.database.createTag, name, color),
 
-  getTags: () => invoke('database:getTags'),
+  getTags: () => invoke(IPC_CHANNELS.database.getTags),
   updateTag: (id: number, name: string, color?: string) =>
-    invoke('database:updateTag', id, name, color),
+    invoke(IPC_CHANNELS.database.updateTag, id, name, color),
 
-  deleteTag: (id: number) => invoke('database:deleteTag', id),
+  deleteTag: (id: number) => invoke(IPC_CHANNELS.database.deleteTag, id),
 
   // Project–Tag relationship operations
-  getTagsForProject: (projectId: number) => invoke('database:getTagsForProject', projectId),
+  getTagsForProject: (projectId: number) =>
+    invoke(IPC_CHANNELS.database.getTagsForProject, projectId),
   setProjectTags: (projectId: number, tagIds: number[]) =>
-    invoke('database:setProjectTags', projectId, tagIds),
+    invoke(IPC_CHANNELS.database.setProjectTags, projectId, tagIds),
 
   // Settings operations
-  getSetting: (key: string) => invoke('database:getSetting', key),
+  getSetting: (key: string) => invoke(IPC_CHANNELS.database.getSetting, key),
 
-  setSetting: (key: string, value: string) => invoke('database:setSetting', key, value),
+  setSetting: (key: string, value: string) => invoke(IPC_CHANNELS.database.setSetting, key, value),
 
   // Test helper
-  reset: () => invoke('database:reset'),
+  reset: () => invoke(IPC_CHANNELS.database.reset),
 });

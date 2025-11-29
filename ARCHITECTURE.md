@@ -100,7 +100,7 @@ IPC handlers follow a `database:*` naming convention. Examples include:
 - `database:getSessionsForProject`
 - `database:setSetting`
 
-The authoritative mapping of method → channel lives in `electron/helpers.ts` (`makeDbShape`), and the authoritative handler registrations are composed by `electron/database/database.ts` (`setupDatabaseHandlers`) from modules in `electron/database/handlers/*`.
+The authoritative list of channel names lives in `src/ipc/channels.ts` (`IPC_CHANNELS`). The preload mapping in `electron/helpers.ts` (`makeDbShape`) and the handler registrations in `electron/database/handlers/*` both reference those constants.
 
 ## Error/response conventions
 
