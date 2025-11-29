@@ -20,8 +20,8 @@ describe('DatabaseContext mappings', () => {
           name: 'Project 1',
           description: 'Test project',
           color: '#ffffff',
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         } as unknown as Project,
       }),
       getProject: vi.fn().mockResolvedValue({
@@ -29,8 +29,8 @@ describe('DatabaseContext mappings', () => {
         name: 'Project 1',
         description: 'Test project',
         color: '#ffffff',
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       } as unknown as Project),
       getProjects: vi.fn().mockResolvedValue([
         {
@@ -38,8 +38,8 @@ describe('DatabaseContext mappings', () => {
           name: 'Project 1',
           description: 'Test project',
           color: '#ffffff',
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         } as unknown as Project,
       ]),
       createSession: vi.fn().mockResolvedValue({
@@ -128,6 +128,8 @@ describe('DatabaseContext mappings', () => {
     expect(project.name).toBe('Project 1');
     expect(project.description).toBe('Test project');
     expect(project.color).toBe('#ffffff');
+    expect(project.createdAt).toBeInstanceOf(Date);
+    expect(project.updatedAt).toBeInstanceOf(Date);
   });
 
   it('uses getProject to fetch a single project', async () => {
@@ -147,6 +149,7 @@ describe('DatabaseContext mappings', () => {
     expect(window.database.getSessionsForProject).toHaveBeenCalledWith(1);
     expect(Array.isArray(sessions)).toBe(true);
     expect(sessions[0].projectId).toBe(1);
+    expect(sessions[0].startTime).toBeInstanceOf(Date);
   });
 
   it('maps TagDatabase rows to Tag domain objects', async () => {
