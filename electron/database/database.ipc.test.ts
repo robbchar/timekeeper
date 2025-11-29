@@ -1,3 +1,5 @@
+import { IPC_CHANNELS } from '@/types/ipc-channels';
+
 type HandlerFn = (event: unknown, ...args: unknown[]) => unknown;
 const handlers = new Map<string, HandlerFn>();
 
@@ -23,6 +25,6 @@ describe('database IPC handlers', () => {
     const mod = await import('./database');
     mod.setupDatabaseHandlers();
 
-    expect(mockIpcMain.__handlers.has('database:getProject')).toBe(true);
+    expect(mockIpcMain.__handlers.has(IPC_CHANNELS.database.getProject)).toBe(true);
   });
 });
