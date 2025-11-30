@@ -65,6 +65,10 @@ Concretely:
 - Renderer/state code uses **`Session`** (`startTime` / `endTime` are real `Date` objects).
 - The conversion happens in one place via `dbSessionToSession` (see `src/utils/session-mappers.ts`), called from `DatabaseContext`.
 
+- Projects crossing IPC use **`ProjectDatabase`** (`createdAt` is a string from SQLite).
+- Renderer/state code uses **`Project`** (`createdAt` / `updatedAt` are real `Date` objects).
+- The conversion happens in one place via `dbProjectToProject` (see `src/utils/project-mappers.ts`), called from `DatabaseContext`.
+
 ## Where boundaries are enforced in code
 
 ### Renderer → Preload (`window.database`)
