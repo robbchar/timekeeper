@@ -1,4 +1,4 @@
-import type { Project } from './project';
+import type { ProjectDatabase } from './project-database';
 import type { SessionDatabase } from './session-database';
 import type { TagDatabase } from './tag';
 import type {
@@ -15,16 +15,16 @@ export interface DatabaseAPI {
     name: string,
     description?: string,
     color?: string
-  ) => Promise<CreateResponse<Project>>;
-  getProject: (projectId: number) => Promise<Project | undefined>;
-  getProjects: () => Promise<Project[]>;
+  ) => Promise<CreateResponse<ProjectDatabase>>;
+  getProject: (projectId: number) => Promise<ProjectDatabase | undefined>;
+  getProjects: () => Promise<ProjectDatabase[]>;
   deleteProject: (projectId: number) => Promise<ChangesOnlyResponse>;
   updateProject: (
     projectId: number,
     name: string,
     description?: string,
     color?: string
-  ) => Promise<UpdateResponse<Project>>;
+  ) => Promise<UpdateResponse<ProjectDatabase>>;
   // Session operations
   createSession: (projectId: number, notes?: string) => Promise<CreateResponse<SessionDatabase>>;
   endSession: (sessionId: number, duration: number) => Promise<UpdateResponse<SessionDatabase>>;

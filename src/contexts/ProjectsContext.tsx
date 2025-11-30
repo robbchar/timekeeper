@@ -37,11 +37,9 @@ export const ProjectsProvider: React.FC<{ children: ReactNode }> = ({ children }
       }
 
       const mappedProjects: Project[] = fetchedProjects.map(project => ({
-        projectId: project.projectId,
-        name: project.name,
+        ...project,
+        // Keep existing UI behavior: description is never undefined in this context.
         description: project.description || '',
-        createdAt: new Date(project.createdAt),
-        updatedAt: new Date(project.createdAt),
       }));
 
       setProjects(mappedProjects);
