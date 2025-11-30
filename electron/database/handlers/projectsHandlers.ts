@@ -2,11 +2,12 @@ import { ipcMain } from 'electron';
 import type { Project } from '@/types/project';
 import type { Database } from 'sqlite3';
 import { getRecordAfterInsert, getRecordAfterWrite } from '../../helpers';
+import { IPC_CHANNELS } from '@/ipc/channels';
 
 export function registerProjectHandlers(db: Database) {
   // Create Project
   ipcMain.handle(
-    'database:createProject',
+    IPC_CHANNELS.database.createProject,
     (_, name: string, description?: string, color?: string) => {
       return getRecordAfterInsert<Project>(function (cb) {
         db.run(
@@ -20,7 +21,7 @@ export function registerProjectHandlers(db: Database) {
 
   // Update Project
   ipcMain.handle(
-    'database:updateProject',
+    IPC_CHANNELS.database.updateProject,
     (_, projectId: number, name: string, description: string, color: string) => {
       return getRecordAfterWrite<Project>(
         function (cb) {
@@ -36,7 +37,7 @@ export function registerProjectHandlers(db: Database) {
     }
   );
 
-  ipcMain.handle('database:getProjects', () => {
+  ipcMain.handle(IPC_CHANNELS.database.getProjects, () => {
     return new Promise<Project[]>((resolve, reject) => {
       db.all('SELECT * FROM projects ORDER BY name', (err, rows) => {
         if (err) reject(err);
@@ -45,7 +46,7 @@ export function registerProjectHandlers(db: Database) {
     });
   });
 
-  ipcMain.handle('database:getProject', (_, projectId: number) => {
+  ipcMain.handle(IPC_CHANNELS.database.getProject, (_, projectId: number) => {
     return new Promise<Project | undefined>((resolve, reject) => {
       db.get('SELECT * FROM projects WHERE projectId = ?', [projectId], (err, row) => {
         if (err) reject(err);
@@ -54,7 +55,7 @@ export function registerProjectHandlers(db: Database) {
     });
   });
 
-  ipcMain.handle('database:deleteProject', (_, id: number) => {
+  ipcMain.handle(IPC_CHANNELS.database.deleteProject, (_, id: number) => {
     return new Promise<{ changes: number }>((resolve, reject) => {
       db.run('DELETE FROM projects WHERE projectId = ?', [id], function (err) {
         if (err) reject(err);

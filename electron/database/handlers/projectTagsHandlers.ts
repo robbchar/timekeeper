@@ -1,10 +1,11 @@
 import { ipcMain } from 'electron';
 import type { Database } from 'sqlite3';
 import type { TagDatabase } from '@/types/tag';
+import { IPC_CHANNELS } from '@/ipc/channels';
 
 export function registerProjectTagHandlers(db: Database) {
   // Project–Tag relationship operations
-  ipcMain.handle('database:getTagsForProject', (_, projectId: number) => {
+  ipcMain.handle(IPC_CHANNELS.database.getTagsForProject, (_, projectId: number) => {
     return new Promise<TagDatabase[]>((resolve, reject) => {
       db.all(
         `SELECT t.*
@@ -21,7 +22,7 @@ export function registerProjectTagHandlers(db: Database) {
     });
   });
 
-  ipcMain.handle('database:setProjectTags', (_, projectId: number, tagIds: number[]) => {
+  ipcMain.handle(IPC_CHANNELS.database.setProjectTags, (_, projectId: number, tagIds: number[]) => {
     return new Promise<{ changes: number }>((resolve, reject) => {
       db.serialize(() => {
         db.run('BEGIN TRANSACTION');
