@@ -1,5 +1,4 @@
 import * as sqlite3 from 'sqlite3';
-import { ipcMain } from 'electron';
 import { getDatabaseConfig } from './database-config';
 import { setDatabaseInstance } from '../helpers';
 import { runMigrations } from './db-migrate';
@@ -7,6 +6,8 @@ import { registerProjectHandlers } from './handlers/projectsHandlers';
 import { registerSessionHandlers } from './handlers/sessionsHandlers';
 import { registerTagHandlers } from './handlers/tagsHandlers';
 import { registerProjectTagHandlers } from './handlers/projectTagsHandlers';
+import { registerSettingsHandlers } from './handlers/settingsHandlers';
+import { registerTestHandlers } from './handlers/testHandlers';
 
 let db: sqlite3.Database;
 export const createTablesSchema = `
@@ -135,80 +136,8 @@ export function setupDatabaseHandlers() {
   registerProjectTagHandlers(db);
 
   // Settings operations
-  ipcMain.handle('database:getSetting', (_, key: string) => {
-    return new Promise<string | undefined>((resolve, reject) => {
-      db.get('SELECT value FROM settings WHERE key = ?', [key], (err, row) => {
-        if (err) reject(err);
-        else resolve(row ? (row as { value: string }).value : undefined);
-      });
-    });
-  });
-
-  ipcMain.handle('database:setSetting', (_, key: string, value: string) => {
-    return new Promise<{ changes: number }>((resolve, reject) => {
-      db.run(
-        'INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
-        [key, value],
-        function (err) {
-          if (err) reject(err);
-          else resolve({ changes: this.changes });
-        }
-      );
-    });
-  });
+  registerSettingsHandlers(db);
 
   // Test helper
-  ipcMain.handle('database:reset', () => {
-    return new Promise<{ changes: number }>((resolve, reject) => {
-      db.serialize(() => {
-        db.run('BEGIN TRANSACTION');
-        db.run('DELETE FROM session_tags', function (err) {
-          if (err) {
-            db.run('ROLLBACK');
-            reject(err);
-            return;
-          }
-          db.run('DELETE FROM project_tags', function (err) {
-            if (err) {
-              db.run('ROLLBACK');
-              reject(err);
-              return;
-            }
-            db.run('DELETE FROM sessions', function (err) {
-              if (err) {
-                db.run('ROLLBACK');
-                reject(err);
-                return;
-              }
-              db.run('DELETE FROM tags', function (err) {
-                if (err) {
-                  db.run('ROLLBACK');
-                  reject(err);
-                  return;
-                }
-                db.run('DELETE FROM projects', function (err) {
-                  if (err) {
-                    db.run('ROLLBACK');
-                    reject(err);
-                    return;
-                  }
-                  db.run('DELETE FROM settings', function (err) {
-                    if (err) {
-                      db.run('ROLLBACK');
-                      reject(err);
-                      return;
-                    }
-                    db.run('COMMIT', function (err) {
-                      if (err) reject(err);
-                      else resolve({ changes: this.changes });
-                    });
-                  });
-                });
-              });
-            });
-          });
-        });
-      });
-    });
-  });
+  registerTestHandlers(db);
 }
