@@ -4,6 +4,7 @@ import type { Session } from '@/types/session';
 import type { Tag } from '@/types/tag';
 import type { ChangesOnlyResponse } from '@/types/database-response';
 import { dbTagToTag, dbTagsToTags } from '@/utils/tag-mappers';
+import { dbSessionToSession, dbSessionsToSessions } from '@/utils/session-mappers';
 
 // Define the shape of the database context
 export interface DatabaseContextType {
@@ -105,7 +106,7 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   const getSessions = async (): Promise<Session[]> => {
     try {
       const sessions = await window.database.getSessions();
-      return sessions;
+      return dbSessionsToSessions(sessions);
     } catch (error) {
       console.error('Error getting sessions:', error);
       throw error;
@@ -115,7 +116,7 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   const createSession = async (projectId: number, notes?: string): Promise<Session> => {
     try {
       const result = await window.database.createSession(projectId, notes);
-      return result.record as Session;
+      return dbSessionToSession(result.record);
     } catch (error) {
       console.error('Error creating session:', error);
       throw error;
@@ -135,7 +136,7 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   const getSessionsForProject = async (projectId: number): Promise<Session[]> => {
     try {
       const sessions = await window.database.getSessionsForProject(projectId);
-      return sessions;
+      return dbSessionsToSessions(sessions);
     } catch (error) {
       console.error('Error getting sessions for project:', error);
       throw error;

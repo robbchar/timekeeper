@@ -2,7 +2,7 @@ import React from 'react';
 import { renderHook } from '@testing-library/react';
 import { DatabaseProvider, useDatabase } from './DatabaseContext';
 import type { Project } from '@/types/project';
-import type { Session } from '@/types/session';
+import type { SessionDatabase } from '@/types/session-database';
 import type { TagDatabase } from '@/types/tag';
 
 const createWrapper =
@@ -52,8 +52,7 @@ describe('DatabaseContext mappings', () => {
           endTime: null,
           duration: 0,
           notes: 'Test session',
-          status: 'active',
-        } as unknown as Session,
+        } as SessionDatabase,
       }),
       getSessionsForProject: vi.fn().mockResolvedValue([
         {
@@ -63,8 +62,7 @@ describe('DatabaseContext mappings', () => {
           endTime: null,
           duration: 0,
           notes: 'Test session',
-          status: 'active',
-        } as unknown as Session,
+        } as SessionDatabase,
       ]),
       createTag: vi.fn().mockResolvedValue({
         itemId: 1,
@@ -147,6 +145,7 @@ describe('DatabaseContext mappings', () => {
     expect(window.database.getSessionsForProject).toHaveBeenCalledWith(1);
     expect(Array.isArray(sessions)).toBe(true);
     expect(sessions[0].projectId).toBe(1);
+    expect(sessions[0].startTime).toBeInstanceOf(Date);
   });
 
   it('maps TagDatabase rows to Tag domain objects', async () => {
