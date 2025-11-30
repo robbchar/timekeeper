@@ -1,12 +1,12 @@
 import { ipcMain } from 'electron';
 import type { Database } from 'sqlite3';
-import type { Session } from '@/types/session';
+import type { SessionDatabase } from '@/types/session-database';
 import { getRecordAfterInsert, getRecordAfterWrite } from '../../helpers';
 import { IPC_CHANNELS } from '../../../src/ipc/channels';
 
 export function registerSessionHandlers(db: Database) {
   ipcMain.handle(IPC_CHANNELS.database.createSession, (_, projectId: number, notes?: string) => {
-    return getRecordAfterInsert<Session>(function (cb) {
+    return getRecordAfterInsert<SessionDatabase>(function (cb) {
       db.run(
         'INSERT INTO sessions (projectId, startTime, notes) VALUES (?, ?, ?)',
         [projectId, new Date().toISOString(), notes],
@@ -16,7 +16,7 @@ export function registerSessionHandlers(db: Database) {
   });
 
   ipcMain.handle(IPC_CHANNELS.database.endSession, (_, id: number, duration: number) => {
-    return getRecordAfterWrite<Session>(
+    return getRecordAfterWrite<SessionDatabase>(
       function (cb) {
         db.run(
           'UPDATE sessions SET endTime = ?, duration = ? WHERE sessionId = ?',
@@ -30,33 +30,33 @@ export function registerSessionHandlers(db: Database) {
   });
 
   ipcMain.handle(IPC_CHANNELS.database.getSessions, () => {
-    return new Promise<Session[]>((resolve, reject) => {
+    return new Promise<SessionDatabase[]>((resolve, reject) => {
       let query = 'SELECT * FROM sessions';
       const params: string[] = [];
 
       query += ' ORDER BY startTime DESC';
       db.all(query, params, (err, rows) => {
         if (err) reject(err);
-        else resolve(rows as Session[]);
+        else resolve(rows as SessionDatabase[]);
       });
     });
   });
 
   ipcMain.handle(IPC_CHANNELS.database.getSessionsForProject, (_, projectId: number) => {
-    return new Promise<Session[]>((resolve, reject) => {
+    return new Promise<SessionDatabase[]>((resolve, reject) => {
       db.all(
         'SELECT * FROM sessions WHERE projectId = ? ORDER BY startTime DESC',
         [projectId],
         (err, rows) => {
           if (err) reject(err);
-          else resolve(rows as Session[]);
+          else resolve(rows as SessionDatabase[]);
         }
       );
     });
   });
 
   ipcMain.handle(IPC_CHANNELS.database.updateSessionNotes, (_, id: number, notes: string) => {
-    return getRecordAfterWrite<Session>(
+    return getRecordAfterWrite<SessionDatabase>(
       function (cb) {
         db.run('UPDATE sessions SET notes = ? WHERE sessionId = ?', [notes, id], cb);
       },
@@ -66,7 +66,7 @@ export function registerSessionHandlers(db: Database) {
   });
 
   ipcMain.handle(IPC_CHANNELS.database.updateSessionDuration, (_, id: number, duration: number) => {
-    return getRecordAfterWrite<Session>(
+    return getRecordAfterWrite<SessionDatabase>(
       function (cb) {
         db.run('UPDATE sessions SET duration = ? WHERE sessionId = ?', [duration, id], cb);
       },

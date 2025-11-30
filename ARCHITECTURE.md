@@ -59,6 +59,16 @@ Some types represent **DB-row shapes** (e.g. `TagDatabase` uses `tagId`, timesta
 
 Today, the mapping is primarily performed in the renderer layer (notably `src/contexts/DatabaseContext.tsx`), while the SQLite/IPC layer tends to return row-like objects.
 
+Concretely:
+
+- Sessions crossing IPC use **`SessionDatabase`** (`startTime` / `endTime` are ISO strings from SQLite).
+- Renderer/state code uses **`Session`** (`startTime` / `endTime` are real `Date` objects).
+- The conversion happens in one place via `dbSessionToSession` (see `src/utils/session-mappers.ts`), called from `DatabaseContext`.
+
+- Projects crossing IPC use **`ProjectDatabase`** (`createdAt` is a string from SQLite).
+- Renderer/state code uses **`Project`** (`createdAt` / `updatedAt` are real `Date` objects).
+- The conversion happens in one place via `dbProjectToProject` (see `src/utils/project-mappers.ts`), called from `DatabaseContext`.
+
 ## Where boundaries are enforced in code
 
 ### Renderer → Preload (`window.database`)
