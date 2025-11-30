@@ -107,3 +107,10 @@ If you change an existing operation, ensure `DatabaseAPI` types still match the 
 - **Electron / DB tests** live under `electron/` (see `README.md` for the commands and configs).
 
 This separation intentionally mirrors the architectural boundary: UI tests validate user-visible behavior; DB tests validate SQL + IPC handler behavior.
+
+## Shared utilities (renderer)
+
+### Time utilities
+
+- **Canonical production helpers** live in `src/utils/time.ts` (e.g. formatting and `now()`).
+- **Test helpers** live in `src/test-utils/`. If a test needs a production time helper, prefer importing it from `src/utils/time.ts` (or via `src/test-utils/time.ts` when a test-specific facade is intentionally provided).
