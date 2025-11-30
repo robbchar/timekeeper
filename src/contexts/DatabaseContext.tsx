@@ -2,6 +2,7 @@ import React, { createContext, useContext, ReactNode } from 'react';
 import type { Project } from '@/types/project';
 import type { Session } from '@/types/session';
 import type { Tag } from '@/types/tag';
+import type { ChangesOnlyResponse } from '@/types/database-response';
 import { dbTagToTag, dbTagsToTags } from '@/utils/tag-mappers';
 
 // Define the shape of the database context
@@ -10,7 +11,7 @@ export interface DatabaseContextType {
   createProject: (name: string, description?: string, color?: string) => Promise<Project>;
   getProject: (projectId: number) => Promise<Project>;
   getAllProjects: () => Promise<Project[]>;
-  deleteProject: (projectId: number) => Promise<{ changes: number }>;
+  deleteProject: (projectId: number) => Promise<ChangesOnlyResponse>;
   updateProject: (
     projectId: number,
     name: string,
@@ -19,23 +20,23 @@ export interface DatabaseContextType {
   ) => Promise<Project>;
   // Sessions
   createSession: (projectId: number, notes?: string) => Promise<Session>;
-  endSession: (sessionId: number, duration: number) => Promise<{ changes: number }>;
-  updateSessionNotes: (sessionId: number, notes?: string) => Promise<{ changes: number }>;
-  updateSessionDuration: (sessionId: number, duration: number) => Promise<{ changes: number }>;
+  endSession: (sessionId: number, duration: number) => Promise<ChangesOnlyResponse>;
+  updateSessionNotes: (sessionId: number, notes?: string) => Promise<ChangesOnlyResponse>;
+  updateSessionDuration: (sessionId: number, duration: number) => Promise<ChangesOnlyResponse>;
   getSessions: () => Promise<Session[]>;
   getSessionsForProject: (projectId: number) => Promise<Session[]>;
-  deleteSession: (sessionId: number) => Promise<{ changes: number }>;
+  deleteSession: (sessionId: number) => Promise<ChangesOnlyResponse>;
   // Tags
   createTag: (name: string, color?: string) => Promise<Tag>;
   getAllTags: () => Promise<Tag[]>;
   updateTag: (tagId: number, name: string, color?: string) => Promise<Tag>;
-  deleteTag: (tagId: number) => Promise<{ changes: number }>;
+  deleteTag: (tagId: number) => Promise<ChangesOnlyResponse>;
   // Project–Tag relationships
   getTagsForProject: (projectId: number) => Promise<Tag[]>;
-  setProjectTags: (projectId: number, tagIds: number[]) => Promise<{ changes: number }>;
+  setProjectTags: (projectId: number, tagIds: number[]) => Promise<ChangesOnlyResponse>;
   // Settings
   getSetting: (key: string) => Promise<string | undefined>;
-  setSetting: (key: string, value: string) => Promise<{ changes: number }>;
+  setSetting: (key: string, value: string) => Promise<ChangesOnlyResponse>;
 }
 
 // Create the context with a default value
@@ -43,6 +44,10 @@ const DatabaseContext = createContext<DatabaseContextType | undefined>(undefined
 
 // Provider component
 export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const toChangesOnlyResponse = (result: { changes: number }): ChangesOnlyResponse => ({
+    changes: result.changes,
+  });
+
   // Projects
   const getProject = async (projectId: number): Promise<Project> => {
     const projects = await window.database.getProjects();
@@ -72,7 +77,7 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
     return result.record as Project;
   };
 
-  const deleteProject = async (projectId: number): Promise<{ changes: number }> => {
+  const deleteProject = async (projectId: number): Promise<ChangesOnlyResponse> => {
     try {
       const result = await window.database.deleteProject(projectId);
       return result;
@@ -118,10 +123,10 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
     }
   };
 
-  const endSession = async (id: number, duration: number): Promise<{ changes: number }> => {
+  const endSession = async (id: number, duration: number): Promise<ChangesOnlyResponse> => {
     try {
       const result = await window.database.endSession(id, duration);
-      return { changes: result.changes };
+      return toChangesOnlyResponse(result);
     } catch (error) {
       console.error('Error ending session:', error);
       throw error;
@@ -141,10 +146,10 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   const updateSessionNotes = async (
     sessionId: number,
     notes?: string
-  ): Promise<{ changes: number }> => {
+  ): Promise<ChangesOnlyResponse> => {
     try {
       const result = await window.database.updateSessionNotes(sessionId, notes || '');
-      return { changes: result.changes };
+      return toChangesOnlyResponse(result);
     } catch (error) {
       console.error('Error updating session notes:', error);
       throw error;
@@ -154,20 +159,20 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   const updateSessionDuration = async (
     sessionId: number,
     duration: number
-  ): Promise<{ changes: number }> => {
+  ): Promise<ChangesOnlyResponse> => {
     try {
       const result = await window.database.updateSessionDuration(sessionId, duration);
-      return { changes: result.changes };
+      return toChangesOnlyResponse(result);
     } catch (error) {
       console.error('Error updating session duration:', error);
       throw error;
     }
   };
 
-  const deleteSession = async (sessionId: number): Promise<{ changes: number }> => {
+  const deleteSession = async (sessionId: number): Promise<ChangesOnlyResponse> => {
     try {
       const result = await window.database.deleteSession(sessionId);
-      return { changes: result.changes };
+      return result;
     } catch (error) {
       console.error('Error deleting session:', error);
       throw error;
@@ -205,10 +210,10 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
     }
   };
 
-  const deleteTag = async (tagId: number): Promise<{ changes: number }> => {
+  const deleteTag = async (tagId: number): Promise<ChangesOnlyResponse> => {
     try {
       const result = await window.database.deleteTag(tagId);
-      return { changes: result.changes };
+      return toChangesOnlyResponse(result);
     } catch (error) {
       console.error('Error deleting tag:', error);
       throw error;
@@ -228,10 +233,10 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
   const setProjectTags = async (
     projectId: number,
     tagIds: number[]
-  ): Promise<{ changes: number }> => {
+  ): Promise<ChangesOnlyResponse> => {
     try {
       const result = await window.database.setProjectTags(projectId, tagIds);
-      return { changes: result.changes };
+      return result;
     } catch (error) {
       console.error('Error setting project tags:', error);
       throw error;
@@ -248,10 +253,10 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
     }
   };
 
-  const setSetting = async (key: string, value: string): Promise<{ changes: number }> => {
+  const setSetting = async (key: string, value: string): Promise<ChangesOnlyResponse> => {
     try {
       const result = await window.database.setSetting(key, value);
-      return { changes: result.changes };
+      return result;
     } catch (error) {
       console.error('Error setting setting:', error);
       throw error;
