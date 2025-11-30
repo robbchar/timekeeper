@@ -24,6 +24,14 @@ describe('DatabaseContext mappings', () => {
           updatedAt: new Date(),
         } as unknown as Project,
       }),
+      getProject: vi.fn().mockResolvedValue({
+        projectId: 1,
+        name: 'Project 1',
+        description: 'Test project',
+        color: '#ffffff',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      } as unknown as Project),
       getProjects: vi.fn().mockResolvedValue([
         {
           projectId: 1,
@@ -120,6 +128,15 @@ describe('DatabaseContext mappings', () => {
     expect(project.name).toBe('Project 1');
     expect(project.description).toBe('Test project');
     expect(project.color).toBe('#ffffff');
+  });
+
+  it('uses getProject to fetch a single project', async () => {
+    const { result } = renderHook(() => useDatabase(), { wrapper: createWrapper() });
+
+    const project = await result.current.getProject(1);
+
+    expect(window.database.getProject).toHaveBeenCalledWith(1);
+    expect(project.projectId).toBe(1);
   });
 
   it('uses getSessionsForProject to fetch sessions for a project', async () => {

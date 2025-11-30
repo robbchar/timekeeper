@@ -71,6 +71,8 @@ export const makeDbShape = (invoke: (channel: string, ...args: any[]) => any): D
   createProject: (name: string, description?: string, color?: string) =>
     invoke('database:createProject', name, description, color),
 
+  getProject: (projectId: number) => invoke('database:getProject', projectId),
+
   getProjects: () => invoke('database:getProjects'),
 
   updateProject: (projectId: number, name: string, description?: string, color?: string) =>

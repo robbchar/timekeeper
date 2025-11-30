@@ -50,8 +50,7 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   // Projects
   const getProject = async (projectId: number): Promise<Project> => {
-    const projects = await window.database.getProjects();
-    const project = projects.find(p => p.projectId === projectId);
+    const project = await window.database.getProject(projectId);
     if (!project) {
       throw new Error(`Project with id ${projectId} not found`);
     }
