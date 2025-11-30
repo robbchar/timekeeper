@@ -1,1 +1,1 @@
-export const now = () => Date.now();
+export { now } from '@/utils/time';
