@@ -13,6 +13,7 @@ This refactor splits handler registration into small modules while preserving:
 ## Source of truth
 
 - Main-process behavior is defined by what gets registered via `ipcMain.handle(...)`.
+- IPC channel name strings are centralized in `src/ipc/channels.ts` and reused by both handler registration and `electron/helpers.ts` (`makeDbShape`).
 - Renderer-side call sites live behind `window.database` in `electron/helpers.ts` (`makeDbShape`) and types in `src/types/database.ts`.
 
 ## Target module structure
