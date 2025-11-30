@@ -2,7 +2,7 @@ import { ipcMain } from 'electron';
 import type { Database } from 'sqlite3';
 import type { Session } from '@/types/session';
 import { getRecordAfterInsert, getRecordAfterWrite } from '../../helpers';
-import { IPC_CHANNELS } from '@/ipc/channels';
+import { IPC_CHANNELS } from '../../../src/ipc/channels';
 
 export function registerSessionHandlers(db: Database) {
   ipcMain.handle(IPC_CHANNELS.database.createSession, (_, projectId: number, notes?: string) => {

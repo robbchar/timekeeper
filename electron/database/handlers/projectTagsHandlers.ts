@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron';
 import type { Database } from 'sqlite3';
 import type { TagDatabase } from '@/types/tag';
-import { IPC_CHANNELS } from '@/ipc/channels';
+import { IPC_CHANNELS } from '../../../src/ipc/channels';
 
 export function registerProjectTagHandlers(db: Database) {
   // Project–Tag relationship operations

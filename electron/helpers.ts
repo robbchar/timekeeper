@@ -1,7 +1,7 @@
 import type { DatabaseAPI } from '@/types/database';
 import type { CreateResponse, DeleteResponse, UpdateResponse } from '@/types/database-response';
 import type { Database, RunResult } from 'sqlite3';
-import { IPC_CHANNELS } from '@/ipc/channels';
+import { IPC_CHANNELS } from '../src/ipc/channels';
 
 let db: Database;
 export function setDatabaseInstance(instance: Database) {

@@ -2,7 +2,7 @@ import { ipcMain } from 'electron';
 import type { Project } from '@/types/project';
 import type { Database } from 'sqlite3';
 import { getRecordAfterInsert, getRecordAfterWrite } from '../../helpers';
-import { IPC_CHANNELS } from '@/ipc/channels';
+import { IPC_CHANNELS } from '../../../src/ipc/channels';
 
 export function registerProjectHandlers(db: Database) {
   // Create Project

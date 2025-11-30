@@ -2,7 +2,7 @@ import { ipcMain } from 'electron';
 import type { Database } from 'sqlite3';
 import type { TagDatabase } from '@/types/tag';
 import { getRecordAfterInsert, getRecordAfterWrite, getRecordBeforeDelete } from '../../helpers';
-import { IPC_CHANNELS } from '@/ipc/channels';
+import { IPC_CHANNELS } from '../../../src/ipc/channels';
 
 export function registerTagHandlers(db: Database) {
   // Tag operations

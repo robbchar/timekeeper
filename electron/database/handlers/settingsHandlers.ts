@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
 import type { Database } from 'sqlite3';
-import { IPC_CHANNELS } from '@/ipc/channels';
+import { IPC_CHANNELS } from '../../../src/ipc/channels';
 
 export function registerSettingsHandlers(db: Database) {
   // Settings operations
