@@ -50,10 +50,11 @@ const SessionControls: React.FC<{
 }) => {
   const { startSession, stopSession, state } = useSessions();
   const [notes, setNotes] = useState<string>('');
-  const [, setStartTime] = useState<number | null>(null);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isTiming, setIsTiming] = useState(false);
   const timerIdRef = useRef<NodeJS.Timeout | null>(null);
+  const startTimeRef = useRef<number | null>(null);
+  const accumulatedTimeRef = useRef<number>(0);
 
   // Handle window unload
   useEffect(() => {
@@ -83,6 +84,7 @@ const SessionControls: React.FC<{
     if (!selectedProjectId) return;
     await startSession({ projectId: selectedProjectId, notes });
     setElapsedTime(0);
+    accumulatedTimeRef.current = 0;
   };
 
   const handleStopSession = async (totalDuration: number = 0) => {
@@ -95,29 +97,31 @@ const SessionControls: React.FC<{
     await stopSession(totalDuration);
     setNotes('');
     setElapsedTime(0);
+    accumulatedTimeRef.current = 0;
     sessionCompleted();
   };
 
   const handleStartTimer = () => {
-    console.log('handleStartTimer');
-    const nowTime = now();
-    setStartTime(nowTime);
+    startTimeRef.current = now();
     setIsTiming(true);
 
     timerIdRef.current = setInterval(() => {
-      setElapsedTime(prev => {
-        const newVal = prev + 1;
-        console.log('⏱️ elapsed tick', newVal);
-        return newVal;
-      });
+      if (startTimeRef.current !== null) {
+        const elapsed =
+          accumulatedTimeRef.current + Math.floor((Date.now() - startTimeRef.current) / 1000);
+        setElapsedTime(elapsed);
+      }
     }, 1000);
   };
 
   const handleStopTimer = useCallback(() => {
-    console.log('handleStopTimer');
     if (timerIdRef.current) {
       clearInterval(timerIdRef.current);
       timerIdRef.current = null;
+    }
+    if (startTimeRef.current !== null) {
+      accumulatedTimeRef.current += Math.floor((Date.now() - startTimeRef.current) / 1000);
+      startTimeRef.current = null;
     }
     setIsTiming(false);
   }, []);
