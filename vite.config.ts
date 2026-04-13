@@ -11,6 +11,11 @@ export default defineConfig({
       {
         entry: 'electron/main.ts',
         vite: {
+          resolve: {
+            alias: {
+              '@': path.resolve(__dirname, './src'),
+            },
+          },
           build: {
             rollupOptions: {
               external: ['sqlite3'],
@@ -22,6 +27,13 @@ export default defineConfig({
         entry: 'electron/preload.ts',
         onstart(options) {
           options.reload();
+        },
+        vite: {
+          resolve: {
+            alias: {
+              '@': path.resolve(__dirname, './src'),
+            },
+          },
         },
       },
     ]),
