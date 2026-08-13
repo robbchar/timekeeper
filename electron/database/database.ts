@@ -1,7 +1,7 @@
 import * as sqlite3 from 'sqlite3';
 import { getDatabaseConfig } from './database-config';
 import { setDatabaseInstance } from '../helpers';
-import { runMigrations } from './db-migrate';
+import { CURRENT_SCHEMA_VERSION, runMigrations } from './db-migrate';
 import { registerProjectHandlers } from './handlers/projects.handlers';
 import { registerSessionHandlers } from './handlers/sessions.handlers';
 import { registerTagHandlers } from './handlers/tags.handlers';
@@ -58,48 +58,70 @@ export const createTablesSchema = `
     );
   `;
 
+const run = (database: sqlite3.Database, sql: string, params: unknown[] = []): Promise<void> =>
+  new Promise((resolve, reject) =>
+    database.run(sql, params, (err: Error | null) => (err ? reject(err) : resolve()))
+  );
+
+const exec = (database: sqlite3.Database, sql: string): Promise<void> =>
+  new Promise((resolve, reject) =>
+    database.exec(sql, (err: Error | null) => (err ? reject(err) : resolve()))
+  );
+
+/** Counts application tables, ignoring SQLite's own internal bookkeeping tables. */
+const countUserTables = (database: sqlite3.Database): Promise<number> =>
+  new Promise((resolve, reject) =>
+    database.get(
+      `SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`,
+      (err: Error | null, row) => (err ? reject(err) : resolve((row as { count: number }).count))
+    )
+  );
+
+/** Runs `work`, logging which step failed before letting the error propagate. */
+async function withFailureLog<T>(context: string, work: Promise<T>): Promise<T> {
+  try {
+    return await work;
+  } catch (error) {
+    console.error(`${context}:`, error);
+    throw error;
+  }
+}
+
 // Initialize database with proper error handling
-export function initializeDatabase(memory = false): Promise<sqlite3.Database> {
+export async function initializeDatabase(memory = false): Promise<sqlite3.Database> {
   const dbPath = memory ? ':memory:' : getDatabaseConfig().dbPath;
-  return new Promise((resolve, reject) => {
-    db = new sqlite3.Database(dbPath, (err: Error | null) => {
-      if (err) {
-        console.error('Failed to open database:', err);
-        reject(err);
-        return;
-      }
 
-      // Enable foreign keys
-      db.run('PRAGMA foreign_keys = ON', function (err) {
-        if (err) {
-          console.error('Failed to enable foreign keys:', err);
-          reject(err);
-          return;
-        }
+  db = await withFailureLog(
+    'Failed to open database',
+    new Promise<sqlite3.Database>((resolve, reject) => {
+      const instance = new sqlite3.Database(dbPath, (err: Error | null) =>
+        err ? reject(err) : resolve(instance)
+      );
+    })
+  );
 
-        // Create tables if they don't exist
-        console.log('Creating tables...');
-        db.exec(createTablesSchema, async function (err) {
-          if (err) {
-            console.error('Failed to create tables:', err);
-            reject(err);
-            return;
-          }
+  await withFailureLog('Failed to enable foreign keys', run(db, 'PRAGMA foreign_keys = ON'));
 
-          db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('schema_version', '1')`);
+  // Whether this database predates `createTablesSchema` determines which schema
+  // version it starts at, so it has to be measured before any tables exist.
+  const isNewDatabase = (await countUserTables(db)) === 0;
 
-          console.log('📤 Running migrations...');
-          await runMigrations(db).catch(err => {
-            console.error('Failed to run migrations:', err);
-            reject(err);
-          });
+  // Create tables if they don't exist
+  console.log('Creating tables...');
+  await withFailureLog('Failed to create tables', exec(db, createTablesSchema));
 
-          setDatabaseInstance(db);
-          resolve(db);
-        });
-      });
-    });
-  });
+  // A new database is built from the current schema, so it starts at the current
+  // version with nothing to migrate. An existing database carrying no version
+  // stamp predates versioning and must replay the migration chain from the start.
+  await run(db, `INSERT OR IGNORE INTO settings (key, value) VALUES ('schema_version', ?)`, [
+    isNewDatabase ? CURRENT_SCHEMA_VERSION.toString() : '1',
+  ]);
+
+  console.log('📤 Running migrations...');
+  await withFailureLog('Failed to run migrations', runMigrations(db));
+
+  setDatabaseInstance(db);
+  return db;
 }
 
 export async function closeDatabase() {

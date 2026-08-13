@@ -1,9 +1,10 @@
 import type sqlite3 from 'sqlite3';
 import { up as migrate002 } from './migrations/002_camelcase_columns';
 import { up as migrate003 } from './migrations/003_add_tag_timestamps';
+import { up as migrate004 } from './migrations/004_add_project_tags';
 import { logMigrationError } from './logMigrationError';
 
-const CURRENT_SCHEMA_VERSION = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 export async function runMigrations(db: sqlite3.Database): Promise<void> {
   // Ensure settings table exists (just in case)
@@ -60,11 +61,27 @@ export async function runMigrations(db: sqlite3.Database): Promise<void> {
       }
     }
 
+    if (currentVersion < 4) {
+      try {
+        console.log('📦 Applying migration 004_add_project_tags...');
+        await migrate004(db);
+
+        console.log('🧪 DB schema version: 4');
+        await setSchemaVersion(db, 4);
+      } catch (err) {
+        console.log('Migration 004_add_project_tags failed');
+        logMigrationError('Migration 004_add_project_tags failed', err as Error);
+        throw err;
+      }
+    }
+
     console.log(`✅ Database schema is up to date (v${CURRENT_SCHEMA_VERSION})`);
   } else {
     console.log('🧪 Skipping migrations in test environment');
 
-    db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('schema_version', '3')`);
+    db.run(`INSERT OR IGNORE INTO settings (key, value) VALUES ('schema_version', ?)`, [
+      CURRENT_SCHEMA_VERSION.toString(),
+    ]);
   }
 }
 
