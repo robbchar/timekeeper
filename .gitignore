@@ -34,3 +34,4 @@ coverage
 *.sqlite3
 
 .claude/
+.ignored/
