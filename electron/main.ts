@@ -13,14 +13,28 @@ async function createWindow() {
     },
   });
 
-  // In development, load from Vite dev server
-  if (process.env.NODE_ENV === 'development') {
-    win.loadURL('http://localhost:5173');
+  // In development, load from the Vite dev server. vite-plugin-electron injects
+  // the URL of the port Vite actually bound, which is not necessarily the one
+  // configured: Vite falls back to the next free port when something else is
+  // already holding it. Hardcoding the port here loads whatever happens to be
+  // listening on it — including another project's dev server.
+  const devServerUrl = process.env.VITE_DEV_SERVER_URL;
+
+  if (devServerUrl) {
+    win.loadURL(devServerUrl);
     win.webContents.openDevTools();
-  } else {
-    // In production, load the built files
-    win.loadFile(path.join(__dirname, '../dist/index.html'));
+    return;
   }
+
+  if (process.env.NODE_ENV === 'development') {
+    console.error(
+      'VITE_DEV_SERVER_URL is not set — start the app with `npm start` so ' +
+        'vite-plugin-electron can supply it. Falling back to the last build.'
+    );
+  }
+
+  // In production, load the built files
+  win.loadFile(path.join(__dirname, '../dist/index.html'));
 }
 
 app.whenReady().then(async () => {
