@@ -8,6 +8,7 @@ describe('sessionReducer', () => {
     sessions: [],
     isLoading: false,
     error: null,
+    restoredSessionId: null,
   };
 
   beforeEach(() => {
@@ -176,5 +177,57 @@ describe('sessionReducer', () => {
     const newState = sessionReducer(stateWithActiveSession, action);
     expect(newState.sessions[0].notes).toBe('Updated notes');
     expect(newState.error).toBeNull();
+  });
+
+  describe('RESTORE_SESSION', () => {
+    const unfinishedSession = {
+      sessionId: 9,
+      projectId: 1,
+      startTime: new Date(),
+      duration: 240,
+      status: 'active' as SessionStatus,
+    };
+
+    const restoreAction: SessionAction = {
+      type: ActionType.RESTORE_SESSION,
+      payload: unfinishedSession,
+    };
+
+    it('adopts the session as the current one', () => {
+      const newState = sessionReducer(initialState, restoreAction);
+
+      expect(newState.currentSession).toEqual(unfinishedSession);
+    });
+
+    it('flags it so the timer knows to resume counting', () => {
+      const newState = sessionReducer(initialState, restoreAction);
+
+      expect(newState.restoredSessionId).toBe(unfinishedSession.sessionId);
+    });
+
+    it('leaves a session that is already running untouched', () => {
+      const running = { ...unfinishedSession, sessionId: 1, duration: 0 };
+      const stateWithRunningSession: SessionState = {
+        ...initialState,
+        currentSession: running,
+      };
+
+      const newState = sessionReducer(stateWithRunningSession, restoreAction);
+
+      expect(newState.currentSession).toEqual(running);
+      expect(newState.restoredSessionId).toBeNull();
+    });
+
+    it('clears the flag once the session ends', () => {
+      const restored = sessionReducer(initialState, restoreAction);
+
+      const ended = sessionReducer(restored, {
+        type: ActionType.END_SESSION,
+        payload: { sessionId: unfinishedSession.sessionId, duration: 300 },
+      });
+
+      expect(ended.restoredSessionId).toBeNull();
+      expect(ended.currentSession).toBeNull();
+    });
   });
 });

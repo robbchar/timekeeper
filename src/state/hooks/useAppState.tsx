@@ -106,6 +106,9 @@ export const useSessions = () => {
     resumeSession: () => {
       dispatch({ type: ActionType.RESUME_SESSION });
     },
+    restoreSession: (session: Session) => {
+      dispatch({ type: ActionType.RESTORE_SESSION, payload: session });
+    },
     updateSessionNotes: async (sessionId: number, notes: string) => {
       try {
         await dbService.persistAction(

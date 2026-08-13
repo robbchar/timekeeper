@@ -17,6 +17,7 @@ export const appReducer = (state: AppState, action: AppAction): AppState => {
     case ActionType.CREATE_SESSION:
     case ActionType.PAUSE_SESSION:
     case ActionType.RESUME_SESSION:
+    case ActionType.RESTORE_SESSION:
     case ActionType.END_SESSION:
     case ActionType.UPDATE_SESSION_NOTES:
     case ActionType.UPDATE_SESSION_DURATION:

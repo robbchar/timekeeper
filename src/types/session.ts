@@ -7,7 +7,7 @@ export interface Session {
   projectId: number;
   startTime: Date;
   endTime?: Date;
-  duration: number; // in milliseconds
+  duration: number; // in seconds
   notes?: string;
   status: SessionStatus;
   createdAt?: Date;
@@ -37,6 +37,12 @@ export interface SessionState {
   sessions: Session[];
   isLoading: boolean;
   error: string | null;
+  /**
+   * Set when a session is adopted from a previous run, so the timer knows to
+   * resume counting from its last checkpoint. A session started in this run
+   * leaves this null and waits to be started by hand.
+   */
+  restoredSessionId: number | null;
 }
 
 export interface CreateSessionParams {
@@ -76,6 +82,15 @@ export interface PauseSessionAction {
 
 export interface ResumeSessionAction {
   type: ActionType.RESUME_SESSION;
+}
+
+/**
+ * Adopts a session left unfinished by a previous run as the current session.
+ * Purely in-memory: the row already exists, so nothing is written back.
+ */
+export interface RestoreSessionAction {
+  type: ActionType.RESTORE_SESSION;
+  payload: Session;
 }
 
 export interface SetErrorAction {
@@ -123,6 +138,7 @@ export type SessionAction =
   | UpdateSessionDurationAction
   | PauseSessionAction
   | ResumeSessionAction
+  | RestoreSessionAction
   | SetErrorAction
   | ClearErrorAction
   | SetSessionsAction

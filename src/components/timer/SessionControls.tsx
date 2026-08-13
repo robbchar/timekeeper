@@ -8,6 +8,13 @@ import TimerControls from './TimerControls';
 import { Select, SelectItem, Button, Textarea } from '@heroui/react';
 import RecentSessions from './RecentSessions';
 import { now } from '@/utils/time';
+import { useEventCallback } from '@/state/hooks/useEventCallback';
+
+/**
+ * How often a running session's elapsed time is written to the database. This
+ * bounds how much tracked time an abnormal exit can lose.
+ */
+const CHECKPOINT_INTERVAL_MS = 30_000;
 
 const Container = styled.div`
   padding: 1.5rem;
@@ -48,7 +55,7 @@ const SessionControls: React.FC<{
   sessionEdited,
   projectTags,
 }) => {
-  const { startSession, stopSession, state } = useSessions();
+  const { startSession, stopSession, updateSessionDuration, state } = useSessions();
   const [notes, setNotes] = useState<string>('');
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isTiming, setIsTiming] = useState(false);
@@ -56,38 +63,55 @@ const SessionControls: React.FC<{
   const startTimeRef = useRef<number | null>(null);
   const accumulatedTimeRef = useRef<number>(0);
 
-  // Handle window unload.
-  //
-  // The listener is registered once on mount, so it must not close over
-  // render-scoped values directly: it would keep reading them as they were on
-  // the first render, when there is never a session in progress. Instead it
-  // calls through a ref that is refreshed after every render.
-  const handleUnloadRef = useRef<() => void>(() => {});
+  /** Elapsed seconds including the run currently in progress, if any. */
+  const readElapsedSeconds = useCallback(() => {
+    const currentRun = startTimeRef.current === null ? 0 : now() - startTimeRef.current;
+    return accumulatedTimeRef.current + Math.floor(currentRun / 1000);
+  }, []);
 
-  useEffect(() => {
-    handleUnloadRef.current = () => {
-      if (!state.sessions.currentSession) return;
+  // Handle window unload. Best-effort only: beforeunload cannot await, so this
+  // races the window tearing down. Periodic checkpointing below is what makes
+  // the elapsed time actually durable.
+  const handleUnload = useEventCallback(() => {
+    if (!state.sessions.currentSession) return;
 
-      // Stop the timer if it's running, so its elapsed time is accumulated.
-      if (isTiming) {
-        handleStopTimer();
-      }
+    // Stop the timer if it's running, so its elapsed time is accumulated.
+    if (isTiming) {
+      handleStopTimer();
+    }
 
-      // Fire-and-forget: the window is tearing down and cannot await this.
-      stopSession(accumulatedTimeRef.current).catch(error => {
-        console.error('Failed to stop session on window unload:', error);
-      });
-    };
+    stopSession(accumulatedTimeRef.current).catch(error => {
+      console.error('Failed to stop session on window unload:', error);
+    });
   });
 
   useEffect(() => {
-    const handleBeforeUnload = () => handleUnloadRef.current();
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('beforeunload', handleUnload);
     return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('beforeunload', handleUnload);
     };
-  }, []);
+  }, [handleUnload]);
+
+  // Persist elapsed time periodically. Without this the duration exists only in
+  // memory until the session is stopped, so a crash or a quit that outruns the
+  // unload handler loses all of it.
+  const checkpointDuration = useEventCallback(() => {
+    const session = state.sessions.currentSession;
+    if (!session) return;
+
+    updateSessionDuration(session.sessionId, readElapsedSeconds()).catch(error => {
+      console.error('Failed to checkpoint session duration:', error);
+    });
+  });
+
+  useEffect(() => {
+    if (!isTiming) return;
+
+    const checkpointId = setInterval(checkpointDuration, CHECKPOINT_INTERVAL_MS);
+    return () => clearInterval(checkpointId);
+  }, [isTiming, checkpointDuration]);
+
+  const adoptedSessionIdRef = useRef<number | null>(null);
 
   const handleStartSession = async () => {
     if (!selectedProjectId) return;
@@ -110,18 +134,14 @@ const SessionControls: React.FC<{
     sessionCompleted();
   };
 
-  const handleStartTimer = () => {
+  const handleStartTimer = useCallback(() => {
     startTimeRef.current = now();
     setIsTiming(true);
 
     timerIdRef.current = setInterval(() => {
-      if (startTimeRef.current !== null) {
-        const elapsed =
-          accumulatedTimeRef.current + Math.floor((Date.now() - startTimeRef.current) / 1000);
-        setElapsedTime(elapsed);
-      }
+      setElapsedTime(readElapsedSeconds());
     }, 1000);
-  };
+  }, [readElapsedSeconds]);
 
   const handleStopTimer = useCallback(() => {
     if (timerIdRef.current) {
@@ -129,11 +149,28 @@ const SessionControls: React.FC<{
       timerIdRef.current = null;
     }
     if (startTimeRef.current !== null) {
-      accumulatedTimeRef.current += Math.floor((Date.now() - startTimeRef.current) / 1000);
+      accumulatedTimeRef.current = readElapsedSeconds();
       startTimeRef.current = null;
     }
     setIsTiming(false);
-  }, []);
+  }, [readElapsedSeconds]);
+
+  // Pick the clock up from the last checkpoint of a session adopted from a
+  // previous run, and keep counting. Only sessions flagged by RESTORE_SESSION
+  // resume automatically: a session started in this run, or one whose timer was
+  // deliberately stopped, must not start counting on its own.
+  useEffect(() => {
+    const session = state.sessions.currentSession;
+    const { restoredSessionId } = state.sessions;
+
+    if (!session || restoredSessionId !== session.sessionId) return;
+    if (adoptedSessionIdRef.current === session.sessionId) return;
+
+    adoptedSessionIdRef.current = session.sessionId;
+    accumulatedTimeRef.current = session.duration ?? 0;
+    setElapsedTime(session.duration ?? 0);
+    handleStartTimer();
+  }, [state.sessions, handleStartTimer]);
 
   const isSessionActive = !!state.sessions.currentSession;
 
