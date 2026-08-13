@@ -95,17 +95,6 @@
       "dist/**/*",
       "dist-electron/**/*"
     ],
-    "extraResources": [
-      {
-        "from": "electron/database.ts",
-        "to": "database.ts",
-        "filter": [
-          "!*.db",
-          "!*.sqlite",
-          "!*.sqlite3"
-        ]
-      }
-    ],
     "mac": {
       "category": "public.app-category.productivity"
     },
