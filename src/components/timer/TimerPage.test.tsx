@@ -61,6 +61,7 @@ describe('TimerPage', () => {
       pauseSession: vi.fn(),
       resumeSession: vi.fn(),
       restoreSession: vi.fn(),
+      continueSession: vi.fn().mockResolvedValue(undefined),
       deleteSession: vi.fn(),
       updateSessionNotes: vi.fn(),
       updateSessionDuration: vi.fn(),

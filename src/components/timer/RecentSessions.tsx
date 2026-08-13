@@ -62,13 +62,24 @@ const RecentSessions: React.FC<{
   sessionEdited: () => void;
 }> = ({ sessions, sessionEdited }) => {
   const [selectedSession, setSelectedSession] = useState<Session | null>(null);
-  const { updateSessionNotes, updateSessionDuration, deleteSession } = useSessions();
+  const { updateSessionNotes, updateSessionDuration, deleteSession, continueSession } =
+    useSessions();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
   const handleEditClick = (sessionId: number) => {
     setSelectedSession(sessions.find(s => s.sessionId === sessionId) || null);
     setIsEditModalOpen(true);
+  };
+
+  // The list only renders while no session is running, so continuing one here
+  // cannot collide with a session already in progress.
+  const handleContinueClick = async (session: Session) => {
+    try {
+      await continueSession(session);
+    } catch {
+      // continueSession has already put the failure into app state.
+    }
   };
 
   const handleDeleteClick = (sessionId: number) => {
@@ -95,6 +106,15 @@ const RecentSessions: React.FC<{
             <SessionStartDate>{formatDate(session.startTime.toISOString())}</SessionStartDate>
             <SessionNotes>{session.notes || 'No notes'}</SessionNotes>
             <SessionDuration>{formatDuration(session.duration)}</SessionDuration>
+            <Button
+              className="bg-transparent"
+              isIconOnly
+              aria-label="Continue Session"
+              onPress={() => handleContinueClick(session)}
+              title="Continue Session"
+            >
+              ▶️
+            </Button>
             <Button
               className="bg-transparent"
               isIconOnly

@@ -99,6 +99,8 @@ export const makeDbShape = (invoke: (channel: string, ...args: any[]) => any): D
   updateSessionDuration: (id: number, duration: number) =>
     invoke(IPC_CHANNELS.database.updateSessionDuration, id, duration),
 
+  reopenSession: (id: number) => invoke(IPC_CHANNELS.database.reopenSession, id),
+
   deleteSession: (id: number) => invoke(IPC_CHANNELS.database.deleteSession, id),
 
   // Tag operations

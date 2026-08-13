@@ -38,6 +38,8 @@ export interface DatabaseAPI {
     sessionId: number,
     duration: number
   ) => Promise<UpdateResponse<SessionDatabase>>;
+  /** Clears endTime so a finished session counts as in progress again. */
+  reopenSession: (sessionId: number) => Promise<UpdateResponse<SessionDatabase>>;
   deleteSession: (sessionId: number) => Promise<ChangesOnlyResponse>;
   // Tag operations
   createTag: (name: string, color?: string) => Promise<CreateResponse<TagDatabase>>;

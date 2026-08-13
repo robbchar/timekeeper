@@ -106,8 +106,25 @@ export const useSessions = () => {
     resumeSession: () => {
       dispatch({ type: ActionType.RESUME_SESSION });
     },
+    /** Adopts a session that is already unfinished — no database write needed. */
     restoreSession: (session: Session) => {
       dispatch({ type: ActionType.RESTORE_SESSION, payload: session });
+    },
+    /** Picks a finished session back up, clearing its end time first. */
+    continueSession: async (session: Session) => {
+      try {
+        const reopened = await dbService.persistAction(
+          { type: ActionType.RESTORE_SESSION, payload: session },
+          state
+        );
+        dispatch({ type: ActionType.RESTORE_SESSION, payload: reopened });
+      } catch (error) {
+        if (error instanceof DatabaseError) {
+          dispatch({ type: ActionType.SET_ERROR, payload: error.message });
+          dispatch({ type: ActionType.RESTORE_STATE, payload: error.oldState });
+        }
+        throw error;
+      }
     },
     updateSessionNotes: async (sessionId: number, notes: string) => {
       try {

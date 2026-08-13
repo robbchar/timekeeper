@@ -218,6 +218,34 @@ describe('sessionReducer', () => {
       expect(newState.restoredSessionId).toBeNull();
     });
 
+    it('replaces a continued session in the list rather than duplicating it', () => {
+      // A continued session is already in `sessions`, unlike a brand new one.
+      const listed = { ...unfinishedSession, duration: 240 };
+      const restored = sessionReducer(
+        { ...initialState, sessions: [listed] },
+        { type: ActionType.RESTORE_SESSION, payload: listed }
+      );
+
+      const ended = sessionReducer(restored, {
+        type: ActionType.END_SESSION,
+        payload: { sessionId: listed.sessionId, duration: 300 },
+      });
+
+      expect(ended.sessions).toHaveLength(1);
+      expect(ended.sessions[0].duration).toBe(300);
+    });
+
+    it('still appends a session that was not already listed', () => {
+      const restored = sessionReducer(initialState, restoreAction);
+
+      const ended = sessionReducer(restored, {
+        type: ActionType.END_SESSION,
+        payload: { sessionId: unfinishedSession.sessionId, duration: 300 },
+      });
+
+      expect(ended.sessions).toHaveLength(1);
+    });
+
     it('clears the flag once the session ends', () => {
       const restored = sessionReducer(initialState, restoreAction);
 
