@@ -56,23 +56,32 @@ const SessionControls: React.FC<{
   const startTimeRef = useRef<number | null>(null);
   const accumulatedTimeRef = useRef<number>(0);
 
-  // Handle window unload
-  useEffect(() => {
-    const handleBeforeUnload = async () => {
-      if (state.sessions.currentSession) {
-        // Stop the timer if it's running
-        if (isTiming) {
-          handleStopTimer();
-        }
+  // Handle window unload.
+  //
+  // The listener is registered once on mount, so it must not close over
+  // render-scoped values directly: it would keep reading them as they were on
+  // the first render, when there is never a session in progress. Instead it
+  // calls through a ref that is refreshed after every render.
+  const handleUnloadRef = useRef<() => void>(() => {});
 
-        // Try to stop the session
-        try {
-          await stopSession();
-        } catch (error) {
-          console.error('Failed to stop session on window unload:', error);
-        }
+  useEffect(() => {
+    handleUnloadRef.current = () => {
+      if (!state.sessions.currentSession) return;
+
+      // Stop the timer if it's running, so its elapsed time is accumulated.
+      if (isTiming) {
+        handleStopTimer();
       }
+
+      // Fire-and-forget: the window is tearing down and cannot await this.
+      stopSession(accumulatedTimeRef.current).catch(error => {
+        console.error('Failed to stop session on window unload:', error);
+      });
     };
+  });
+
+  useEffect(() => {
+    const handleBeforeUnload = () => handleUnloadRef.current();
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => {
