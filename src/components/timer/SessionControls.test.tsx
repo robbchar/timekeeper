@@ -6,6 +6,7 @@ import type { Tag } from '@/types/tag';
 import type { Session } from '@/types/session';
 import { TestProviders } from '@/test-utils/test-db-context';
 import userEvent, { UserEvent } from '@testing-library/user-event';
+import type { Mock } from 'vitest';
 import { setupTestDatabase, teardownTestDatabase } from '@/test-utils/db-test-setup';
 import { seedProjects } from '@/test-utils/db-test-data-setup';
 import { AppContext } from '@/contexts/AppContext';
@@ -299,5 +300,79 @@ describe('SessionControls', () => {
     expect(addEventListenerSpy).toHaveBeenCalledWith('beforeunload', expect.any(Function));
 
     addEventListenerSpy.mockRestore();
+  });
+
+  type StopSession = (totalDuration?: number) => Promise<void>;
+
+  describe('window unload with a session in progress', () => {
+    // The session always begins after mount, so a listener registered on mount
+    // only sees it if it reads current state rather than first-render state.
+    const renderThenStartSession = async (stopSession: Mock<StopSession>) => {
+      const hookValue = (currentSession: Session | null) => ({
+        ...vi.mocked(useAppState.useSessions)(),
+        stopSession,
+        state: {
+          ...initialState,
+          sessions: { ...initialState.sessions, currentSession },
+        },
+      });
+
+      vi.mocked(useAppState.useSessions).mockReturnValue(hookValue(null));
+
+      let view!: ReturnType<typeof renderWithTheme>;
+      await act(async () => {
+        view = renderWithTheme({ selectedProjectId: 1 });
+      });
+
+      vi.mocked(useAppState.useSessions).mockReturnValue(hookValue(mockSessions[0]));
+      await act(async () => {
+        view.rerender(
+          <SessionControls
+            projects={mockProjects}
+            sessions={mockSessions}
+            projectSelected={vi.fn()}
+            selectedProjectId={1}
+            isProjectsLoading={false}
+            isSessionsLoading={false}
+            sessionCompleted={vi.fn()}
+            sessionEdited={vi.fn()}
+            projectTags={[]}
+          />
+        );
+      });
+    };
+
+    it('stops a session that started after mount', async () => {
+      const stopSession = vi.fn<StopSession>().mockResolvedValue(undefined);
+      await renderThenStartSession(stopSession);
+
+      await act(async () => {
+        window.dispatchEvent(new Event('beforeunload'));
+      });
+
+      expect(stopSession).toHaveBeenCalled();
+    });
+
+    it('does nothing when no session is in progress', async () => {
+      const stopSession = vi.fn<StopSession>().mockResolvedValue(undefined);
+      vi.mocked(useAppState.useSessions).mockReturnValue({
+        ...vi.mocked(useAppState.useSessions)(),
+        stopSession,
+        state: {
+          ...initialState,
+          sessions: { ...initialState.sessions, currentSession: null },
+        },
+      });
+
+      await act(async () => {
+        renderWithTheme({ selectedProjectId: 1 });
+      });
+
+      await act(async () => {
+        window.dispatchEvent(new Event('beforeunload'));
+      });
+
+      expect(stopSession).not.toHaveBeenCalled();
+    });
   });
 });

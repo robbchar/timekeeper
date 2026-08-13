@@ -1,45 +1,58 @@
 // migrations/003_add_tag_timestamps.ts
 import type sqlite3 from 'sqlite3';
 
+/**
+ * Adds createdAt/updatedAt to `tags`.
+ *
+ * SQLite rejects `ALTER TABLE ... ADD COLUMN ... DEFAULT CURRENT_TIMESTAMP`
+ * ("Cannot add a column with non-constant default"), so the table is rebuilt
+ * instead. Rebuilding also keeps the result identical to `createTablesSchema`,
+ * which a plain ADD COLUMN could not do — new rows would have no default.
+ */
 export async function up(db: sqlite3.Database): Promise<void> {
-  return new Promise((resolve, reject) => {
-    db.serialize(() => {
-      db.run('BEGIN TRANSACTION');
+  const run = (sql: string): Promise<void> =>
+    new Promise((resolve, reject) => db.run(sql, err => (err ? reject(err) : resolve())));
 
-      // Add createdAt and updatedAt columns with defaults
-      db.run(`ALTER TABLE tags ADD COLUMN createdAt DATETIME DEFAULT CURRENT_TIMESTAMP`, err => {
-        if (err) {
-          db.run('ROLLBACK');
-          return reject(err);
-        }
+  // session_tags and project_tags reference tags(tagId).
+  await run('PRAGMA foreign_keys = OFF');
+  await run('BEGIN TRANSACTION');
 
-        db.run(`ALTER TABLE tags ADD COLUMN updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP`, err2 => {
-          if (err2) {
-            db.run('ROLLBACK');
-            return reject(err2);
-          }
+  try {
+    await run(`ALTER TABLE tags RENAME TO tags_old`);
 
-          // For existing rows, set updatedAt = createdAt (or now if createdAt is null)
-          db.run(
-            `UPDATE tags SET 
-                  createdAt = COALESCE(createdAt, CURRENT_TIMESTAMP),
-                  updatedAt = COALESCE(updatedAt, createdAt, CURRENT_TIMESTAMP)`,
-            err3 => {
-              if (err3) {
-                db.run('ROLLBACK');
-                return reject(err3);
-              }
+    await run(
+      `CREATE TABLE tags (
+        tagId INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        color TEXT,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      );`
+    );
 
-              db.run('COMMIT', err4 => {
-                if (err4) {
-                  return reject(err4);
-                }
-                resolve();
-              });
-            }
-          );
-        });
-      });
-    });
-  });
+    // Existing tags have no recorded timestamps, so they are stamped as of the
+    // migration. Selecting literals keeps this working whether or not the old
+    // table happened to carry the columns already.
+    await run(
+      `INSERT INTO tags (tagId, name, color, createdAt, updatedAt)
+       SELECT tagId, name, color, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+       FROM tags_old;`
+    );
+
+    await run(`DROP TABLE tags_old`);
+
+    await run('COMMIT');
+  } catch (error) {
+    console.error('❌ Migration 003_add_tag_timestamps failed, rolling back:', error);
+    await run('ROLLBACK').catch(rollbackError =>
+      console.error('❌ Rollback failed in migration 003:', rollbackError)
+    );
+    throw error;
+  } finally {
+    await run('PRAGMA foreign_keys = ON').catch(err =>
+      console.error('❌ Failed to re-enable foreign keys:', err)
+    );
+  }
+
+  console.log('✅ Migration 003_add_tag_timestamps completed successfully');
 }
