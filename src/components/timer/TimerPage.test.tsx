@@ -60,6 +60,7 @@ describe('TimerPage', () => {
       stopSession: vi.fn(),
       pauseSession: vi.fn(),
       resumeSession: vi.fn(),
+      restoreSession: vi.fn(),
       deleteSession: vi.fn(),
       updateSessionNotes: vi.fn(),
       updateSessionDuration: vi.fn(),

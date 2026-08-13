@@ -7,6 +7,7 @@ export const initialState: AppState = {
     sessions: [],
     isLoading: false,
     error: null,
+    restoredSessionId: null,
   },
   tags: [],
   settings: {

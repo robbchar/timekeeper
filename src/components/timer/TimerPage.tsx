@@ -1,6 +1,6 @@
 import styled from 'styled-components';
 import SessionControls from './SessionControls';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useDatabase } from '@/contexts/DatabaseContext';
 import type { Tag } from '@/types/tag';
 import { useProjects } from '@/contexts/ProjectsContext';
@@ -18,15 +18,39 @@ const PageContainer = styled.div`
 const TimerPage = () => {
   const [isSessionsLoading, setIsSessionsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const { getSessionsForProject, getTagsForProject } = useDatabase();
+  const { getSessions, getSessionsForProject, getTagsForProject } = useDatabase();
   const {
     projects,
     isLoading: projectsLoading,
     selectedProjectId,
     setSelectedProjectId,
   } = useProjects();
-  const { sessions, setSessions } = useSessions();
+  const { sessions, setSessions, restoreSession } = useSessions();
   const [projectTags, setProjectTags] = useState<Tag[]>([]);
+  const hasCheckedForUnfinished = useRef(false);
+
+  // A session with no end time was left running when the app last closed.
+  // Adopt it on startup, selecting its project so the timer is visible.
+  useEffect(() => {
+    if (hasCheckedForUnfinished.current) return;
+    hasCheckedForUnfinished.current = true;
+
+    const restoreUnfinishedSession = async () => {
+      try {
+        const allSessions = await getSessions();
+        const unfinished = allSessions.find(session => session.status === 'active');
+        if (!unfinished) return;
+
+        setSelectedProjectId(unfinished.projectId);
+        restoreSession(unfinished);
+      } catch {
+        // A failure here only costs the resume; the rest of the page still works.
+        console.error('Failed to check for an unfinished session');
+      }
+    };
+
+    restoreUnfinishedSession();
+  }, [getSessions, setSelectedProjectId, restoreSession]);
 
   const fetchSessions = useCallback(async () => {
     if (!selectedProjectId || selectedProjectId <= 0) {

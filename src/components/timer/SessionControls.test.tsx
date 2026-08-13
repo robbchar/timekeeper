@@ -121,6 +121,7 @@ describe('SessionControls', () => {
       getSessions: vi.fn().mockResolvedValue(undefined),
       pauseSession: vi.fn().mockResolvedValue(undefined),
       resumeSession: vi.fn().mockResolvedValue(undefined),
+      restoreSession: vi.fn(),
       deleteSession: vi.fn().mockResolvedValue(undefined),
       updateSessionNotes: vi.fn().mockResolvedValue(undefined),
       updateSessionDuration: vi.fn().mockResolvedValue(undefined),
@@ -148,6 +149,7 @@ describe('SessionControls', () => {
       getSessions: vi.fn().mockResolvedValue(undefined),
       pauseSession: vi.fn().mockResolvedValue(undefined),
       resumeSession: vi.fn().mockResolvedValue(undefined),
+      restoreSession: vi.fn(),
       deleteSession: vi.fn().mockResolvedValue(undefined),
       updateSessionNotes: vi.fn().mockResolvedValue(undefined),
       updateSessionDuration: vi.fn().mockResolvedValue(undefined),
@@ -179,6 +181,7 @@ describe('SessionControls', () => {
       getSessions: vi.fn().mockResolvedValue(undefined),
       pauseSession: vi.fn().mockResolvedValue(undefined),
       resumeSession: vi.fn().mockResolvedValue(undefined),
+      restoreSession: vi.fn(),
       deleteSession: vi.fn().mockResolvedValue(undefined),
       updateSessionNotes: vi.fn().mockResolvedValue(undefined),
       updateSessionDuration: vi.fn().mockResolvedValue(undefined),
@@ -227,6 +230,7 @@ describe('SessionControls', () => {
         sessions: [],
         isLoading: false,
         error: null,
+        restoredSessionId: null,
       },
     };
 
@@ -272,6 +276,7 @@ describe('SessionControls', () => {
       getSessions: vi.fn().mockResolvedValue(undefined),
       pauseSession: vi.fn().mockResolvedValue(undefined),
       resumeSession: vi.fn().mockResolvedValue(undefined),
+      restoreSession: vi.fn(),
       deleteSession: vi.fn().mockResolvedValue(undefined),
       updateSessionNotes: vi.fn().mockResolvedValue(undefined),
       updateSessionDuration: vi.fn().mockResolvedValue(undefined),
@@ -290,6 +295,148 @@ describe('SessionControls', () => {
     expect(screen.getByText('00:00:03')).toBeInTheDocument();
   });
 
+  describe('duration checkpointing', () => {
+    // A restored session starts its timer on mount, which avoids driving the
+    // timer through userEvent — that deadlocks against fake timers here.
+    const timingSession: Session = { ...mockSessions[0], sessionId: 7, duration: 0 };
+
+    const renderTimingSession = (updateSessionDuration: Mock<UpdateSessionDuration>) => {
+      vi.mocked(useAppState.useSessions).mockReturnValue({
+        ...vi.mocked(useAppState.useSessions)(),
+        updateSessionDuration,
+        state: {
+          ...initialState,
+          sessions: {
+            ...initialState.sessions,
+            currentSession: timingSession,
+            restoredSessionId: timingSession.sessionId,
+          },
+        },
+      });
+
+      return renderWithTheme({ selectedProjectId: 1 });
+    };
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('writes the elapsed duration every 30 seconds while timing', async () => {
+      const updateSessionDuration = vi.fn<UpdateSessionDuration>().mockResolvedValue(undefined);
+
+      vi.useFakeTimers();
+      await act(async () => {
+        renderTimingSession(updateSessionDuration);
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000);
+      });
+
+      expect(updateSessionDuration).toHaveBeenCalledWith(timingSession.sessionId, 30);
+    });
+
+    it('keeps checkpointing on each interval', async () => {
+      const updateSessionDuration = vi.fn<UpdateSessionDuration>().mockResolvedValue(undefined);
+
+      vi.useFakeTimers();
+      await act(async () => {
+        renderTimingSession(updateSessionDuration);
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(90_000);
+      });
+
+      expect(updateSessionDuration).toHaveBeenCalledTimes(3);
+      expect(updateSessionDuration).toHaveBeenLastCalledWith(timingSession.sessionId, 90);
+    });
+
+    it('stops checkpointing once unmounted', async () => {
+      const updateSessionDuration = vi.fn<UpdateSessionDuration>().mockResolvedValue(undefined);
+
+      vi.useFakeTimers();
+      let view!: ReturnType<typeof renderWithTheme>;
+      await act(async () => {
+        view = renderTimingSession(updateSessionDuration);
+      });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000);
+      });
+      view.unmount();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+
+      expect(updateSessionDuration).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('resuming a session left running by a previous run', () => {
+    const restoredSession: Session = { ...mockSessions[0], sessionId: 42, duration: 120 };
+
+    it('does not auto-resume a session that was not restored', async () => {
+      vi.mocked(useAppState.useSessions).mockReturnValue({
+        ...vi.mocked(useAppState.useSessions)(),
+        state: {
+          ...initialState,
+          sessions: {
+            ...initialState.sessions,
+            currentSession: restoredSession,
+            restoredSessionId: null,
+          },
+        },
+      });
+
+      await act(async () => {
+        renderWithTheme({ selectedProjectId: 1 });
+      });
+
+      expect(screen.getByText('Start Timing')).toBeInTheDocument();
+    });
+
+    it('picks the clock up from the last checkpoint', async () => {
+      vi.mocked(useAppState.useSessions).mockReturnValue({
+        ...vi.mocked(useAppState.useSessions)(),
+        state: {
+          ...initialState,
+          sessions: {
+            ...initialState.sessions,
+            currentSession: restoredSession,
+            restoredSessionId: restoredSession.sessionId,
+          },
+        },
+      });
+
+      await act(async () => {
+        renderWithTheme({ selectedProjectId: 1 });
+      });
+
+      expect(screen.getByText('00:02:00')).toBeInTheDocument();
+    });
+
+    it('resumes counting rather than waiting to be started', async () => {
+      vi.mocked(useAppState.useSessions).mockReturnValue({
+        ...vi.mocked(useAppState.useSessions)(),
+        state: {
+          ...initialState,
+          sessions: {
+            ...initialState.sessions,
+            currentSession: restoredSession,
+            restoredSessionId: restoredSession.sessionId,
+          },
+        },
+      });
+
+      await act(async () => {
+        renderWithTheme({ selectedProjectId: 1 });
+      });
+
+      expect(screen.getByText('Stop Timing')).toBeInTheDocument();
+    });
+  });
+
   it('handles window unload by registering a beforeunload listener', async () => {
     const addEventListenerSpy = vi.spyOn(window, 'addEventListener');
 
@@ -303,6 +450,7 @@ describe('SessionControls', () => {
   });
 
   type StopSession = (totalDuration?: number) => Promise<void>;
+  type UpdateSessionDuration = (sessionId: number, duration: number) => Promise<void>;
 
   describe('window unload with a session in progress', () => {
     // The session always begins after mount, so a listener registered on mount

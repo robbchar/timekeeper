@@ -6,6 +6,7 @@ const initialState: SessionState = {
   sessions: [],
   isLoading: false,
   error: null,
+  restoredSessionId: null,
 };
 
 export const sessionReducer = (
@@ -40,6 +41,7 @@ export const sessionReducer = (
       return {
         ...state,
         currentSession: newSession,
+        restoredSessionId: null,
         error: null,
       };
     }
@@ -80,6 +82,20 @@ export const sessionReducer = (
       };
     }
 
+    case ActionType.RESTORE_SESSION: {
+      // Adopting an unfinished session must not clobber one already running.
+      if (state.currentSession) {
+        return state;
+      }
+
+      return {
+        ...state,
+        currentSession: action.payload,
+        restoredSessionId: action.payload.sessionId,
+        error: null,
+      };
+    }
+
     case ActionType.END_SESSION: {
       if (!state.currentSession) {
         return {
@@ -99,6 +115,7 @@ export const sessionReducer = (
       return {
         ...state,
         currentSession: null,
+        restoredSessionId: null,
         sessions: [...state.sessions, completedSession],
         error: null,
       };

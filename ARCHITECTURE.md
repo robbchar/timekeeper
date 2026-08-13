@@ -22,6 +22,17 @@ Two boundaries in that stack matter more than the rest:
 - **Row shape → domain shape.** `DatabaseContext` is where SQLite row types (`ProjectDatabase`, `SessionDatabase`, `TagDatabase`) become domain types (`Project`, `Session`, `Tag`), via the mappers in `src/contexts/mappers/`. Below this line, code speaks in DB rows; above it, only in domain types.
 - **Write failures.** `persistAction` performs the DB call _before_ the reducer dispatch and throws `DatabaseError` carrying `oldState`, so a failed write cannot leave the reducer holding optimistic state.
 
+### Session durability
+
+A running session's elapsed time lives in refs inside `SessionControls`, so it only reaches SQLite when something writes it. Two mechanisms do:
+
+- **Checkpointing** — while the timer runs, `SessionControls` writes the elapsed seconds every 30s (`CHECKPOINT_INTERVAL_MS`) via `updateSessionDuration`. That handler sets `duration` only, leaving `endTime` NULL, so a checkpointed session still reads as unfinished. This bounds how much tracked time an abnormal exit can lose.
+- **The unload handler** — a `beforeunload` listener ends the session on a clean quit. It is best-effort only: `beforeunload` cannot await, so the write races the window tearing down. Checkpointing, not this, is what makes the time durable.
+
+On startup `TimerPage` looks for a session with no `endTime`, selects its project, and dispatches `RESTORE_SESSION`. That sets `currentSession` **and** `restoredSessionId`; `SessionControls` resumes counting from the stored duration only for the session matching that id. The flag is what distinguishes "left running by a previous run" from "active but the user deliberately stopped the timer" — without it, remounting the component would restart a timer the user had stopped.
+
+Callbacks handed to the unload listener and the checkpoint interval go through `useEventCallback` (`src/state/hooks/useEventCallback.ts`), which keeps a stable identity while reading current state. `useSessions()` returns fresh closures every render, so passing its functions to a long-lived subscription directly forces a choice between a stale closure and resubscribing every render — which for an interval means it never fires.
+
 ## Schema and migrations
 
 New databases are created from `createTablesSchema` (in `electron/database/database.ts`), which always reflects the **current** schema. Existing databases are brought forward by `runMigrations` in `electron/database/db-migrate.ts`.
