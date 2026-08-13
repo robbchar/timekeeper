@@ -26,6 +26,7 @@ describe('RecentSessions', () => {
       pauseSession: vi.fn(),
       resumeSession: vi.fn(),
       restoreSession: vi.fn(),
+      continueSession: vi.fn().mockResolvedValue(undefined),
       deleteSession: vi.fn(),
       updateSessionNotes: vi.fn(),
       updateSessionDuration: vi.fn(),
@@ -72,6 +73,57 @@ describe('RecentSessions', () => {
     expect(screen.getByText('No recent sessions')).toBeInTheDocument();
   });
 
+  describe('continuing a previous session', () => {
+    const finishedSession: Session = {
+      sessionId: 25,
+      projectId: 2,
+      startTime: new Date('2026-08-13T17:03:59.000Z'),
+      endTime: new Date('2026-08-13T17:04:48.000Z'),
+      duration: 47,
+      status: 'completed',
+      notes: 'first sitting',
+    };
+
+    const mockContinue = () => {
+      const continueSession = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(useAppState.useSessions).mockReturnValue({
+        ...vi.mocked(useAppState.useSessions)(),
+        continueSession,
+      });
+      return continueSession;
+    };
+
+    it('offers a continue control for each session', () => {
+      mockContinue();
+      renderSessions([finishedSession]);
+
+      expect(screen.getByLabelText('Continue Session')).toBeInTheDocument();
+    });
+
+    it('continues the session that was clicked', async () => {
+      const continueSession = mockContinue();
+      renderSessions([finishedSession]);
+
+      fireEvent.click(screen.getByLabelText('Continue Session'));
+
+      await waitFor(() => expect(continueSession).toHaveBeenCalledWith(finishedSession));
+    });
+
+    it('does not fall over when continuing fails', async () => {
+      const continueSession = vi.fn().mockRejectedValue(new Error('database unavailable'));
+      vi.mocked(useAppState.useSessions).mockReturnValue({
+        ...vi.mocked(useAppState.useSessions)(),
+        continueSession,
+      });
+      renderSessions([finishedSession]);
+
+      fireEvent.click(screen.getByLabelText('Continue Session'));
+
+      await waitFor(() => expect(continueSession).toHaveBeenCalled());
+      expect(screen.getByText('Recent Sessions')).toBeInTheDocument();
+    });
+  });
+
   it('opens edit modal and saves changes, then closes modal', async () => {
     const updateSessionNotes = vi.fn().mockResolvedValue(undefined);
     const updateSessionDuration = vi.fn().mockResolvedValue(undefined);
@@ -89,6 +141,7 @@ describe('RecentSessions', () => {
       pauseSession: vi.fn(),
       resumeSession: vi.fn(),
       restoreSession: vi.fn(),
+      continueSession: vi.fn().mockResolvedValue(undefined),
       deleteSession: vi.fn(),
       updateSessionNotes,
       updateSessionDuration,
@@ -131,6 +184,7 @@ describe('RecentSessions', () => {
       pauseSession: vi.fn(),
       resumeSession: vi.fn(),
       restoreSession: vi.fn(),
+      continueSession: vi.fn().mockResolvedValue(undefined),
       deleteSession,
       updateSessionNotes: vi.fn(),
       updateSessionDuration: vi.fn(),

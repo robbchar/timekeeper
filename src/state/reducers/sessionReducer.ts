@@ -112,11 +112,19 @@ export const sessionReducer = (
         status: 'completed',
       };
 
+      // A continued session is already in the list, so replace it rather than
+      // appending a second copy of the same row.
+      const isAlreadyListed = state.sessions.some(s => s.sessionId === completedSession.sessionId);
+
       return {
         ...state,
         currentSession: null,
         restoredSessionId: null,
-        sessions: [...state.sessions, completedSession],
+        sessions: isAlreadyListed
+          ? state.sessions.map(s =>
+              s.sessionId === completedSession.sessionId ? completedSession : s
+            )
+          : [...state.sessions, completedSession],
         error: null,
       };
     }

@@ -31,6 +31,7 @@ export interface DatabaseContextType {
   endSession: (sessionId: number, duration: number) => Promise<ChangesOnlyResponse>;
   updateSessionNotes: (sessionId: number, notes?: string) => Promise<ChangesOnlyResponse>;
   updateSessionDuration: (sessionId: number, duration: number) => Promise<ChangesOnlyResponse>;
+  reopenSession: (sessionId: number) => Promise<Session>;
   getSessions: () => Promise<Session[]>;
   getSessionsForProject: (projectId: number) => Promise<Session[]>;
   deleteSession: (sessionId: number) => Promise<ChangesOnlyResponse>;
@@ -172,6 +173,16 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
     }
   };
 
+  const reopenSession = async (sessionId: number): Promise<Session> => {
+    try {
+      const result = await window.database.reopenSession(sessionId);
+      return toDomainSession(result.record as SessionDatabase);
+    } catch (error) {
+      console.error('Error reopening session:', error);
+      throw error;
+    }
+  };
+
   const deleteSession = async (sessionId: number): Promise<ChangesOnlyResponse> => {
     try {
       const result = await window.database.deleteSession(sessionId);
@@ -276,6 +287,7 @@ export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }
     endSession,
     updateSessionNotes,
     updateSessionDuration,
+    reopenSession,
     getSessionsForProject,
     getSessions,
     deleteSession,

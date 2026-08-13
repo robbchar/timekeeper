@@ -26,6 +26,7 @@ describe('SettingsPage', () => {
       endSession: vi.fn(),
       updateSessionNotes: vi.fn(),
       updateSessionDuration: vi.fn(),
+      reopenSession: vi.fn(),
       getSessions: vi.fn(),
       getSessionsForProject: vi.fn(),
       deleteSession: vi.fn(),

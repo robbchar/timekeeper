@@ -19,6 +19,7 @@ export const IPC_CHANNELS = {
     getSessionsForProject: 'database:getSessionsForProject',
     updateSessionNotes: 'database:updateSessionNotes',
     updateSessionDuration: 'database:updateSessionDuration',
+    reopenSession: 'database:reopenSession',
     deleteSession: 'database:deleteSession',
 
     // Tag operations

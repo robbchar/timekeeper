@@ -76,6 +76,18 @@ export function registerSessionHandlers(db: Database) {
     );
   });
 
+  // Continuing a previous session makes it in-progress again. startTime is
+  // deliberately left alone: it records when the work first began.
+  ipcMain.handle(IPC_CHANNELS.database.reopenSession, (_, id: number) => {
+    return getRecordAfterWrite<SessionDatabase>(
+      function (cb) {
+        db.run('UPDATE sessions SET endTime = NULL WHERE sessionId = ?', [id], cb);
+      },
+      'SELECT * FROM sessions WHERE sessionId = ?',
+      [id]
+    );
+  });
+
   ipcMain.handle(IPC_CHANNELS.database.deleteSession, (_, id: number) => {
     return new Promise<{ changes: number }>((resolve, reject) => {
       db.run('DELETE FROM sessions WHERE sessionId = ?', [id], function (err) {

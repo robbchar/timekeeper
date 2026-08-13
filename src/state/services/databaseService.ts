@@ -29,6 +29,7 @@ export type DatabasePersistAction =
   // Session actions
   | { type: ActionType.CREATE_SESSION; payload: CreateSessionParams }
   | { type: ActionType.GET_SESSIONS }
+  | { type: ActionType.RESTORE_SESSION; payload: Session }
   | { type: ActionType.END_SESSION; payload: { sessionId: number; duration: number } }
   | { type: ActionType.UPDATE_SESSION_NOTES; payload: { sessionId: number; notes: string } }
   | { type: ActionType.UPDATE_SESSION_DURATION; payload: { sessionId: number; duration: number } }
@@ -47,6 +48,7 @@ export type DatabasePersistResultMap = {
 
   [ActionType.CREATE_SESSION]: Session;
   [ActionType.GET_SESSIONS]: Session[];
+  [ActionType.RESTORE_SESSION]: Session;
   [ActionType.END_SESSION]: ChangesOnlyResponse;
   [ActionType.UPDATE_SESSION_NOTES]: ChangesOnlyResponse;
   [ActionType.UPDATE_SESSION_DURATION]: ChangesOnlyResponse;
@@ -156,6 +158,16 @@ async function persistAction(
       case ActionType.GET_SESSIONS: {
         const sessions = await database.getSessions();
         return sessions;
+      }
+
+      case ActionType.RESTORE_SESSION: {
+        // Continuing a finished session makes it in-progress again, so its end
+        // time is cleared. Its duration and start time are left as they are.
+        const { sessionId } = action.payload as Session;
+        if (!sessionId) {
+          throw new DatabaseError('Session ID is required', oldState);
+        }
+        return await database.reopenSession(sessionId);
       }
 
       case ActionType.END_SESSION: {
