@@ -9,6 +9,7 @@ A desktop time tracking application built with Electron, React, and TypeScript.
 - Edit a session's notes on the timer screen, and its elapsed time while the timer is paused
 - Closing the app keeps an unfinished session; it comes back paused on the next launch
 - A red dot on the Windows taskbar icon while the timer is counting
+- Leaving the timer page pauses a running timer, keeping the time counted so far
 - Tag-based organization
 - Export functionality
 - Dark/Light theme support
