@@ -441,6 +441,148 @@ describe('SessionControls', () => {
     });
   });
 
+  describe('editing notes during a session', () => {
+    type UpdateSessionNotes = (sessionId: number, notes: string) => Promise<void>;
+    const sessionWithNotes: Session = {
+      ...mockSessions[0],
+      sessionId: 11,
+      notes: 'Existing notes',
+    };
+
+    const renderSessionWithNotes = async (updateSessionNotes: Mock<UpdateSessionNotes>) => {
+      vi.mocked(useAppState.useSessions).mockReturnValue({
+        ...vi.mocked(useAppState.useSessions)(),
+        updateSessionNotes,
+        state: {
+          ...initialState,
+          sessions: { ...initialState.sessions, currentSession: sessionWithNotes },
+        },
+      });
+
+      await act(async () => {
+        renderWithTheme({ selectedProjectId: 1 });
+      });
+
+      return screen.getByLabelText('Session notes');
+    };
+
+    it('shows the current session notes in an editable field', async () => {
+      const notesField = await renderSessionWithNotes(
+        vi.fn<UpdateSessionNotes>().mockResolvedValue(undefined)
+      );
+
+      expect(notesField).toHaveValue('Existing notes');
+      expect(notesField).toBeEnabled();
+    });
+
+    it('saves edited notes when the field loses focus', async () => {
+      const updateSessionNotes = vi.fn<UpdateSessionNotes>().mockResolvedValue(undefined);
+      const notesField = await renderSessionWithNotes(updateSessionNotes);
+
+      await user.clear(notesField);
+      await user.type(notesField, 'Refined notes');
+      await user.click(document.body);
+
+      expect(updateSessionNotes).toHaveBeenCalledWith(11, 'Refined notes');
+    });
+
+    it('saves edited notes on Enter', async () => {
+      const updateSessionNotes = vi.fn<UpdateSessionNotes>().mockResolvedValue(undefined);
+      const notesField = await renderSessionWithNotes(updateSessionNotes);
+
+      await user.type(notesField, ' today{Enter}');
+
+      expect(updateSessionNotes).toHaveBeenCalledWith(11, 'Existing notes today');
+    });
+
+    it('does not save notes that did not change', async () => {
+      const updateSessionNotes = vi.fn<UpdateSessionNotes>().mockResolvedValue(undefined);
+      const notesField = await renderSessionWithNotes(updateSessionNotes);
+
+      await user.click(notesField);
+      await user.click(document.body);
+
+      expect(updateSessionNotes).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('editing the elapsed time', () => {
+    const pausedSession: Session = { ...mockSessions[0], sessionId: 3 };
+
+    const renderPausedSession = async (updateSessionDuration: Mock<UpdateSessionDuration>) => {
+      vi.mocked(useAppState.useSessions).mockReturnValue({
+        ...vi.mocked(useAppState.useSessions)(),
+        updateSessionDuration,
+        state: {
+          ...initialState,
+          sessions: { ...initialState.sessions, currentSession: pausedSession },
+        },
+      });
+
+      await act(async () => {
+        renderWithTheme({ selectedProjectId: 1 });
+      });
+    };
+
+    const openEditorAndSetMinutes = async (minutes: string) => {
+      await user.click(screen.getByRole('button', { name: 'Edit elapsed time' }));
+      await user.tripleClick(screen.getByLabelText('Minutes'));
+      await user.keyboard(minutes);
+    };
+
+    it('writes the typed time to the session', async () => {
+      const updateSessionDuration = vi.fn<UpdateSessionDuration>().mockResolvedValue(undefined);
+      await renderPausedSession(updateSessionDuration);
+
+      await openEditorAndSetMinutes('5');
+      await user.keyboard('{Enter}');
+
+      expect(updateSessionDuration).toHaveBeenCalledWith(3, 300);
+    });
+
+    it('shows the typed time on the clock', async () => {
+      await renderPausedSession(vi.fn<UpdateSessionDuration>().mockResolvedValue(undefined));
+
+      await openEditorAndSetMinutes('5');
+      await user.keyboard('{Enter}');
+
+      expect(screen.getByText('00:05:00')).toBeInTheDocument();
+    });
+
+    it('leaves the time untouched when the edit is cancelled', async () => {
+      const updateSessionDuration = vi.fn<UpdateSessionDuration>().mockResolvedValue(undefined);
+      await renderPausedSession(updateSessionDuration);
+
+      await openEditorAndSetMinutes('5');
+      await user.keyboard('{Escape}');
+
+      expect(updateSessionDuration).not.toHaveBeenCalled();
+      expect(screen.getByText('00:00:00')).toBeInTheDocument();
+    });
+
+    it('saves an open edit when timing is started', async () => {
+      const updateSessionDuration = vi.fn<UpdateSessionDuration>().mockResolvedValue(undefined);
+      await renderPausedSession(updateSessionDuration);
+
+      await openEditorAndSetMinutes('5');
+      await user.click(screen.getByText('Start Timing'));
+
+      expect(updateSessionDuration).toHaveBeenCalledWith(3, 300);
+    });
+
+    it('counts on from the typed time once timing starts', async () => {
+      await renderPausedSession(vi.fn<UpdateSessionDuration>().mockResolvedValue(undefined));
+
+      await openEditorAndSetMinutes('5');
+      await user.click(screen.getByText('Start Timing'));
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 1100));
+      });
+
+      expect(screen.getByText('00:05:01')).toBeInTheDocument();
+    });
+  });
+
   it('handles window unload by registering a beforeunload listener', async () => {
     const addEventListenerSpy = vi.spyOn(window, 'addEventListener');
 

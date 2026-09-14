@@ -24,10 +24,13 @@ Two boundaries in that stack matter more than the rest:
 
 ### Session durability
 
-A running session's elapsed time lives in refs inside `SessionControls`, so it only reaches SQLite when something writes it. Two mechanisms do:
+A running session's elapsed time lives in refs inside `SessionControls`, so it only reaches SQLite when something writes it. Three mechanisms do:
 
 - **Checkpointing** — while the timer runs, `SessionControls` writes the elapsed seconds every 30s (`CHECKPOINT_INTERVAL_MS`) via `updateSessionDuration`. That handler sets `duration` only, leaving `endTime` NULL, so a checkpointed session still reads as unfinished. This bounds how much tracked time an abnormal exit can lose.
 - **The unload handler** — a `beforeunload` listener ends the session on a clean quit. It is best-effort only: `beforeunload` cannot await, so the write races the window tearing down. Checkpointing, not this, is what makes the time durable.
+- **Editing while paused** — `TimerControls` offers the clock for editing only when the timer is not running, so there is never a run in progress to reconcile. Saving from `ElapsedTimeEditor` replaces the accumulated seconds outright and writes them via `updateSessionDuration`.
+
+Notes are edited in place through `ActiveSessionNotes` → `updateSessionNotes`. Both `UPDATE_SESSION_NOTES` and `UPDATE_SESSION_DURATION` apply the change to `currentSession` as well as any listed copy: a session started in this run is not in `sessions` at all, so updating only the list used to report "Session not found" on every checkpoint.
 
 A session becomes the current one through `RESTORE_SESSION` by either of two routes:
 

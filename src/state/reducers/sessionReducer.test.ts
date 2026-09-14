@@ -258,4 +258,66 @@ describe('sessionReducer', () => {
       expect(ended.currentSession).toBeNull();
     });
   });
+
+  describe('editing the current session', () => {
+    const currentSession = {
+      sessionId: 5,
+      projectId: 1,
+      startTime: new Date(),
+      duration: 60,
+      notes: 'Draft',
+      status: 'paused' as SessionStatus,
+    };
+    const stateWithCurrentSession: SessionState = { ...initialState, currentSession };
+
+    it('updates the notes of a current session that is not in the list', () => {
+      const newState = sessionReducer(stateWithCurrentSession, {
+        type: ActionType.UPDATE_SESSION_NOTES,
+        payload: { sessionId: 5, notes: 'Refined' },
+      });
+
+      expect(newState.currentSession?.notes).toBe('Refined');
+      expect(newState.error).toBeNull();
+    });
+
+    it('updates the duration of a current session that is not in the list', () => {
+      const newState = sessionReducer(stateWithCurrentSession, {
+        type: ActionType.UPDATE_SESSION_DURATION,
+        payload: { sessionId: 5, duration: 300 },
+      });
+
+      expect(newState.currentSession?.duration).toBe(300);
+      expect(newState.error).toBeNull();
+    });
+
+    it('keeps a listed copy of the current session in sync', () => {
+      const newState = sessionReducer(
+        { ...stateWithCurrentSession, sessions: [currentSession] },
+        { type: ActionType.UPDATE_SESSION_NOTES, payload: { sessionId: 5, notes: 'Refined' } }
+      );
+
+      expect(newState.currentSession?.notes).toBe('Refined');
+      expect(newState.sessions[0].notes).toBe('Refined');
+    });
+
+    it('leaves the current session alone when another session is edited', () => {
+      const otherSession = { ...currentSession, sessionId: 6, notes: 'Other' };
+      const newState = sessionReducer(
+        { ...stateWithCurrentSession, sessions: [otherSession] },
+        { type: ActionType.UPDATE_SESSION_NOTES, payload: { sessionId: 6, notes: 'Refined' } }
+      );
+
+      expect(newState.currentSession?.notes).toBe('Draft');
+      expect(newState.sessions[0].notes).toBe('Refined');
+    });
+
+    it('reports a session that exists nowhere', () => {
+      const newState = sessionReducer(stateWithCurrentSession, {
+        type: ActionType.UPDATE_SESSION_DURATION,
+        payload: { sessionId: 99, duration: 300 },
+      });
+
+      expect(newState.error).toBe('Session not found');
+    });
+  });
 });
