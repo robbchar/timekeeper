@@ -15,6 +15,7 @@ import { ThemeProvider } from 'styled-components';
 import { theme } from '@/styles/theme';
 import * as useAppState from '@/state/hooks/useAppState';
 import { initialState } from '@/state/initialState';
+import { createTestAppWindow } from '@/test-utils/appWindow';
 
 vi.mock('@/state/hooks/useAppState');
 
@@ -377,8 +378,38 @@ describe('SessionControls', () => {
     });
   });
 
-  describe('resuming a session left running by a previous run', () => {
+  describe('adopting a restored session', () => {
     const restoredSession: Session = { ...mockSessions[0], sessionId: 42, duration: 120 };
+
+    const renderAdopted = async (session: Session) => {
+      vi.mocked(useAppState.useSessions).mockReturnValue({
+        ...vi.mocked(useAppState.useSessions)(),
+        state: {
+          ...initialState,
+          sessions: {
+            ...initialState.sessions,
+            currentSession: session,
+            restoredSessionId: session.sessionId,
+          },
+        },
+      });
+
+      await act(async () => {
+        renderWithTheme({ selectedProjectId: 1 });
+      });
+    };
+
+    it('waits to be started when the session was adopted paused', async () => {
+      await renderAdopted({ ...restoredSession, status: 'paused' });
+
+      expect(screen.getByText('Start Timing')).toBeInTheDocument();
+    });
+
+    it('shows the saved time of a session adopted paused', async () => {
+      await renderAdopted({ ...restoredSession, status: 'paused' });
+
+      expect(screen.getByText('00:02:00')).toBeInTheDocument();
+    });
 
     it('does not auto-resume a session that was not restored', async () => {
       vi.mocked(useAppState.useSessions).mockReturnValue({
@@ -420,7 +451,7 @@ describe('SessionControls', () => {
       expect(screen.getByText('00:02:00')).toBeInTheDocument();
     });
 
-    it('resumes counting rather than waiting to be started', async () => {
+    it('resumes counting a running session rather than waiting to be started', async () => {
       vi.mocked(useAppState.useSessions).mockReturnValue({
         ...vi.mocked(useAppState.useSessions)(),
         state: {
@@ -583,28 +614,149 @@ describe('SessionControls', () => {
     });
   });
 
-  it('handles window unload by registering a beforeunload listener', async () => {
-    const addEventListenerSpy = vi.spyOn(window, 'addEventListener');
+  describe('keeping the session status in step with the timer', () => {
+    const renderPausedSession = async (overrides: {
+      pauseSession?: () => void;
+      resumeSession?: () => void;
+    }) => {
+      vi.mocked(useAppState.useSessions).mockReturnValue({
+        ...vi.mocked(useAppState.useSessions)(),
+        ...overrides,
+        state: {
+          ...initialState,
+          sessions: {
+            ...initialState.sessions,
+            currentSession: { ...mockSessions[0], status: 'paused' },
+          },
+        },
+      });
 
-    await act(async () => {
-      renderWithTheme();
+      await act(async () => {
+        renderWithTheme({ selectedProjectId: 1 });
+      });
+    };
+
+    it('marks the session running when timing starts', async () => {
+      const resumeSession = vi.fn();
+      await renderPausedSession({ resumeSession });
+
+      await user.click(screen.getByText('Start Timing'));
+
+      expect(resumeSession).toHaveBeenCalledTimes(1);
     });
 
-    expect(addEventListenerSpy).toHaveBeenCalledWith('beforeunload', expect.any(Function));
+    it('marks the session paused when timing stops', async () => {
+      const pauseSession = vi.fn();
+      await renderPausedSession({ pauseSession });
 
-    addEventListenerSpy.mockRestore();
+      await user.click(screen.getByText('Start Timing'));
+      await user.click(screen.getByText('Stop Timing'));
+
+      expect(pauseSession).toHaveBeenCalledTimes(1);
+    });
   });
 
   type StopSession = (totalDuration?: number) => Promise<void>;
   type UpdateSessionDuration = (sessionId: number, duration: number) => Promise<void>;
 
-  describe('window unload with a session in progress', () => {
-    // The session always begins after mount, so a listener registered on mount
-    // only sees it if it reads current state rather than first-render state.
-    const renderThenStartSession = async (stopSession: Mock<StopSession>) => {
+  describe('saving before the window closes', () => {
+    let appWindow: ReturnType<typeof createTestAppWindow>;
+
+    beforeEach(() => {
+      appWindow = createTestAppWindow();
+      window.appWindow = appWindow.bridge;
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const closeWindow = async () => {
+      await act(async () => {
+        await appWindow.requestClose();
+      });
+    };
+
+    const mockSessionsHook = (
+      currentSession: Session | null,
+      overrides: {
+        stopSession?: Mock<StopSession>;
+        updateSessionDuration?: Mock<UpdateSessionDuration>;
+        restoredSessionId?: number;
+      } = {}
+    ) => {
+      const { restoredSessionId = null, ...hookOverrides } = overrides;
+      vi.mocked(useAppState.useSessions).mockReturnValue({
+        ...vi.mocked(useAppState.useSessions)(),
+        ...hookOverrides,
+        state: {
+          ...initialState,
+          sessions: { ...initialState.sessions, currentSession, restoredSessionId },
+        },
+      });
+    };
+
+    it('saves the time counted so far, including the run in progress', async () => {
+      const updateSessionDuration = vi.fn<UpdateSessionDuration>().mockResolvedValue(undefined);
+      const timingSession: Session = { ...mockSessions[0], sessionId: 42, duration: 120 };
+      mockSessionsHook(timingSession, { updateSessionDuration, restoredSessionId: 42 });
+
+      vi.useFakeTimers();
+      await act(async () => {
+        renderWithTheme({ selectedProjectId: 1 });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+
+      await closeWindow();
+
+      expect(updateSessionDuration).toHaveBeenCalledWith(42, 125);
+    });
+
+    it('leaves the session open', async () => {
+      const stopSession = vi.fn<StopSession>().mockResolvedValue(undefined);
+      mockSessionsHook(mockSessions[0], { stopSession });
+
+      await act(async () => {
+        renderWithTheme({ selectedProjectId: 1 });
+      });
+      await closeWindow();
+
+      expect(stopSession).not.toHaveBeenCalled();
+    });
+
+    it('saves nothing when no session is in progress', async () => {
+      const updateSessionDuration = vi.fn<UpdateSessionDuration>().mockResolvedValue(undefined);
+      mockSessionsHook(null, { updateSessionDuration });
+
+      await act(async () => {
+        renderWithTheme({ selectedProjectId: 1 });
+      });
+      await closeWindow();
+
+      expect(updateSessionDuration).not.toHaveBeenCalled();
+    });
+
+    it('stops saving once the timer screen is gone', async () => {
+      const updateSessionDuration = vi.fn<UpdateSessionDuration>().mockResolvedValue(undefined);
+      mockSessionsHook(mockSessions[0], { updateSessionDuration });
+
+      let view!: ReturnType<typeof renderWithTheme>;
+      await act(async () => {
+        view = renderWithTheme({ selectedProjectId: 1 });
+      });
+      view.unmount();
+      await closeWindow();
+
+      expect(updateSessionDuration).not.toHaveBeenCalled();
+    });
+
+    // The session begins after mount, so the registered handler must read current state.
+    const renderThenStartSession = async (updateSessionDuration: Mock<UpdateSessionDuration>) => {
       const hookValue = (currentSession: Session | null) => ({
         ...vi.mocked(useAppState.useSessions)(),
-        stopSession,
+        updateSessionDuration,
         state: {
           ...initialState,
           sessions: { ...initialState.sessions, currentSession },
@@ -636,37 +788,13 @@ describe('SessionControls', () => {
       });
     };
 
-    it('stops a session that started after mount', async () => {
-      const stopSession = vi.fn<StopSession>().mockResolvedValue(undefined);
-      await renderThenStartSession(stopSession);
+    it('saves a session that started after mount', async () => {
+      const updateSessionDuration = vi.fn<UpdateSessionDuration>().mockResolvedValue(undefined);
+      await renderThenStartSession(updateSessionDuration);
 
-      await act(async () => {
-        window.dispatchEvent(new Event('beforeunload'));
-      });
+      await closeWindow();
 
-      expect(stopSession).toHaveBeenCalled();
-    });
-
-    it('does nothing when no session is in progress', async () => {
-      const stopSession = vi.fn<StopSession>().mockResolvedValue(undefined);
-      vi.mocked(useAppState.useSessions).mockReturnValue({
-        ...vi.mocked(useAppState.useSessions)(),
-        stopSession,
-        state: {
-          ...initialState,
-          sessions: { ...initialState.sessions, currentSession: null },
-        },
-      });
-
-      await act(async () => {
-        renderWithTheme({ selectedProjectId: 1 });
-      });
-
-      await act(async () => {
-        window.dispatchEvent(new Event('beforeunload'));
-      });
-
-      expect(stopSession).not.toHaveBeenCalled();
+      expect(updateSessionDuration).toHaveBeenCalledWith(mockSessions[0].sessionId, 0);
     });
   });
 });

@@ -123,6 +123,45 @@ describe('useSessions', () => {
       },
     });
   });
+
+  describe('adopting a session', () => {
+    const openSession: Session = {
+      sessionId: 9,
+      projectId: 1,
+      startTime: new Date(),
+      duration: 240,
+      status: 'active',
+    };
+
+    it('restores an unfinished session paused, so timing waits to be started', () => {
+      const dispatch = vi.fn();
+      const { result } = renderHook(() => useSessions(), { wrapper: createWrapper({ dispatch }) });
+
+      act(() => {
+        result.current.restoreSession(openSession);
+      });
+
+      expect(dispatch).toHaveBeenCalledWith({
+        type: ActionType.RESTORE_SESSION,
+        payload: { ...openSession, status: 'paused' },
+      });
+    });
+
+    it('continues a finished session running', async () => {
+      const dispatch = vi.fn();
+      mockPersistAction.mockResolvedValueOnce(openSession);
+      const { result } = renderHook(() => useSessions(), { wrapper: createWrapper({ dispatch }) });
+
+      await act(async () => {
+        await result.current.continueSession({ ...openSession, status: 'completed' });
+      });
+
+      expect(dispatch).toHaveBeenCalledWith({
+        type: ActionType.RESTORE_SESSION,
+        payload: openSession,
+      });
+    });
+  });
 });
 
 describe('useTags', () => {

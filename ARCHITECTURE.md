@@ -27,21 +27,23 @@ Two boundaries in that stack matter more than the rest:
 A running session's elapsed time lives in refs inside `SessionControls`, so it only reaches SQLite when something writes it. Three mechanisms do:
 
 - **Checkpointing** — while the timer runs, `SessionControls` writes the elapsed seconds every 30s (`CHECKPOINT_INTERVAL_MS`) via `updateSessionDuration`. That handler sets `duration` only, leaving `endTime` NULL, so a checkpointed session still reads as unfinished. This bounds how much tracked time an abnormal exit can lose.
-- **The unload handler** — a `beforeunload` listener ends the session on a clean quit. It is best-effort only: `beforeunload` cannot await, so the write races the window tearing down. Checkpointing, not this, is what makes the time durable.
+- **The close handshake** — closing the window does **not** end the session. `registerCloseHandshake` (`electron/closeHandshake.ts`) cancels the first `close`, sends `appWindow:beforeClose`, and closes for real once the renderer answers `appWindow:readyToClose` — or after 2s, so a hung renderer cannot block quitting. On the renderer side `SessionControls` registers through `window.appWindow.onBeforeClose` and awaits a final `updateSessionDuration`; the bridge (`electron/appWindowBridge.ts`) replies only after every registered handler settles, and replies at once when none are registered. This replaced a `beforeunload` listener that could not await its write.
 - **Editing while paused** — `TimerControls` offers the clock for editing only when the timer is not running, so there is never a run in progress to reconcile. Saving from `ElapsedTimeEditor` replaces the accumulated seconds outright and writes them via `updateSessionDuration`.
 
 Notes are edited in place through `ActiveSessionNotes` → `updateSessionNotes`. Both `UPDATE_SESSION_NOTES` and `UPDATE_SESSION_DURATION` apply the change to `currentSession` as well as any listed copy: a session started in this run is not in `sessions` at all, so updating only the list used to report "Session not found" on every checkpoint.
 
 A session becomes the current one through `RESTORE_SESSION` by either of two routes:
 
-- **Automatically**, when the previous run left it unfinished. `restoreSession` only dispatches; the row is already open.
+- **Automatically**, when the previous run left it unfinished. `restoreSession` only dispatches, with `status: 'paused'`; the row is already open.
 - **On request**, when a finished session is continued from the recent-sessions list. `continueSession` first calls `reopenSession` to clear `endTime`, then dispatches. Clearing it matters: an in-progress session must satisfy `endTime IS NULL`, or its own crash recovery would not find it. `startTime` is deliberately left at the original — it records when the work first began, so a continued session's duration keeps accumulating while its start stays put.
 
 Because `appReducer` routes to slice reducers from an explicit `case` list, a session action missing from that list is silently dropped — which is how `RESTORE_SESSION` first shipped inert. `appReducer.test.ts` now asserts the routing contract for every session action.
 
-On startup `TimerPage` looks for a session with no `endTime`, selects its project, and dispatches `RESTORE_SESSION`. That sets `currentSession` **and** `restoredSessionId`; `SessionControls` resumes counting from the stored duration only for the session matching that id. The flag is what distinguishes "left running by a previous run" from "active but the user deliberately stopped the timer" — without it, remounting the component would restart a timer the user had stopped.
+On startup `TimerPage` looks for a session with no `endTime`, selects its project, and dispatches `RESTORE_SESSION`. That sets `currentSession` **and** `restoredSessionId`; `SessionControls` seeds the clock from the stored duration only for the session matching that id, and starts counting only if the adopted session's `status` is `'active'`. A session restored on startup arrives `'paused'` and waits for Start Timing; a continued session arrives `'active'` and counts straight away. The id flag still matters: without it, remounting the component would re-seed a clock the user had since changed.
 
-Callbacks handed to the unload listener and the checkpoint interval go through `useEventCallback` (`src/state/hooks/useEventCallback.ts`), which keeps a stable identity while reading current state. `useSessions()` returns fresh closures every render, so passing its functions to a long-lived subscription directly forces a choice between a stale closure and resubscribing every render — which for an interval means it never fires.
+`currentSession.status` tracks the timer, not just whether the row is open: `CREATE_SESSION` starts `'paused'`, and `SessionControls` dispatches `RESUME_SESSION` / `PAUSE_SESSION` as timing starts and stops. Both are idempotent. Rows read back from SQLite still derive `'active'` for any open session (`deriveStatus`), which is why `restoreSession` overrides it.
+
+Callbacks handed to the before-close handler and the checkpoint interval go through `useEventCallback` (`src/state/hooks/useEventCallback.ts`), which keeps a stable identity while reading current state. `useSessions()` returns fresh closures every render, so passing its functions to a long-lived subscription directly forces a choice between a stale closure and resubscribing every render — which for an interval means it never fires.
 
 ## Schema and migrations
 
