@@ -44,6 +44,8 @@ export const IPC_CHANNELS = {
     beforeClose: 'appWindow:beforeClose',
     // Renderer → main: pending work is done
     readyToClose: 'appWindow:readyToClose',
+    // Renderer → main: whether the timer is counting, for the taskbar indicator
+    setTimingIndicator: 'appWindow:setTimingIndicator',
   },
 } as const;
 

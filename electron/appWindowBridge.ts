@@ -4,7 +4,7 @@ import { IPC_CHANNELS } from '@/types/ipcChannels';
 /** The slice of `ipcRenderer` the bridge needs. */
 export interface RendererIpc {
   on(channel: string, listener: () => void): unknown;
-  send(channel: string): void;
+  send(channel: string, ...args: unknown[]): void;
 }
 
 /** Builds `window.appWindow`. Reports ready to close only once every registered handler settles. */
@@ -23,6 +23,9 @@ export const makeAppWindowShape = (ipc: RendererIpc): AppWindowAPI => {
       return () => {
         beforeCloseHandlers.delete(handler);
       };
+    },
+    setTimingIndicator: isTiming => {
+      ipc.send(IPC_CHANNELS.appWindow.setTimingIndicator, isTiming);
     },
   };
 };
