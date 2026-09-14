@@ -45,6 +45,17 @@ On startup `TimerPage` looks for a session with no `endTime`, selects its projec
 
 Callbacks handed to the before-close handler and the checkpoint interval go through `useEventCallback` (`src/state/hooks/useEventCallback.ts`), which keeps a stable identity while reading current state. `useSessions()` returns fresh closures every render, so passing its functions to a long-lived subscription directly forces a choice between a stale closure and resubscribing every render — which for an interval means it never fires.
 
+### Window bridge (`window.appWindow`)
+
+Alongside `window.database`, the preload exposes `window.appWindow` for window-level concerns that are not data. It is built by `makeAppWindowShape` (`electron/appWindowBridge.ts`), typed in `src/types/appWindow.ts`, and uses the `IPC_CHANNELS.appWindow` channels.
+
+- **`onBeforeClose(handler)`** — the close handshake described above.
+- **`setTimingIndicator(isTiming)`** — `useTimingIndicator` sends whether `currentSession.status` is `'active'`. It is called from `Layout`, which stays mounted across pages. In the main process `registerTimingIndicator` (`electron/timingIndicator.ts`) sets or clears a red dot with `BrowserWindow.setOverlayIcon`. Taskbar overlays are Windows-only, so nothing is registered elsewhere. The dot comes from PNG data URLs embedded in `electron/timingDotIcon.ts`, so there is no asset path to resolve in packaged builds.
+
+Main-process modules take the slices of `BrowserWindow` and `ipcMain` they use as structural interfaces, so their tests run under the node Vitest config without Electron.
+
+Known issue: the timer itself still lives in `SessionControls`, which unmounts when another page is shown. Leaving the timer page mid-session stops counting and checkpointing while `status` stays `'active'`, so the dot stays lit.
+
 ## Schema and migrations
 
 New databases are created from `createTablesSchema` (in `electron/database/database.ts`), which always reflects the **current** schema. Existing databases are brought forward by `runMigrations` in `electron/database/db-migrate.ts`.

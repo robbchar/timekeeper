@@ -5,6 +5,8 @@ export type BeforeCloseHandler = () => Promise<void> | void;
 export interface AppWindowAPI {
   /** Registers work the main process waits for before closing; returns a function that unregisters it. */
   onBeforeClose: (handler: BeforeCloseHandler) => () => void;
+  /** Shows or clears the taskbar indicator that the timer is counting. */
+  setTimingIndicator: (isTiming: boolean) => void;
 }
 
 declare global {

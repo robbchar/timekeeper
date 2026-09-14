@@ -2,6 +2,8 @@ import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
 import { setupDatabaseHandlers, initializeDatabase } from './database/database';
 import { registerCloseHandshake } from './closeHandshake';
+import { registerTimingIndicator } from './timingIndicator';
+import { createTimingDotIcon } from './timingDotIcon';
 
 async function createWindow() {
   const win = new BrowserWindow({
@@ -16,6 +18,10 @@ async function createWindow() {
 
   // Closing leaves the session open, so the renderer saves its elapsed time first.
   registerCloseHandshake(win, ipcMain);
+  registerTimingIndicator(win, ipcMain, {
+    platform: process.platform,
+    createDotIcon: createTimingDotIcon,
+  });
 
   // In development, load from the Vite dev server. vite-plugin-electron injects
   // the URL of the port Vite actually bound, which is not necessarily the one

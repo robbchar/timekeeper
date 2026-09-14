@@ -5,13 +5,17 @@ import { IPC_CHANNELS } from '@/types/ipcChannels';
 export const createTestAppWindow = () => {
   let beforeCloseListener: (() => void) | undefined;
   let reportReadyToClose: (() => void) | undefined;
+  const timingIndicatorUpdates: boolean[] = [];
 
   const bridge = makeAppWindowShape({
     on: (channel, listener) => {
       if (channel === IPC_CHANNELS.appWindow.beforeClose) beforeCloseListener = listener;
     },
-    send: channel => {
+    send: (channel, ...args) => {
       if (channel === IPC_CHANNELS.appWindow.readyToClose) reportReadyToClose?.();
+      if (channel === IPC_CHANNELS.appWindow.setTimingIndicator) {
+        timingIndicatorUpdates.push(args[0] === true);
+      }
     },
   });
 
@@ -25,5 +29,5 @@ export const createTestAppWindow = () => {
       beforeCloseListener();
     });
 
-  return { bridge, requestClose };
+  return { bridge, requestClose, timingIndicatorUpdates };
 };

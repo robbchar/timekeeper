@@ -8,7 +8,7 @@ const createFakeRendererIpc = () => {
     on: vi.fn((channel: string, listener: () => void) => {
       listeners.set(channel, listener);
     }),
-    send: vi.fn<(channel: string) => void>(),
+    send: vi.fn<(channel: string, ...args: unknown[]) => void>(),
     emit: (channel: string) => listeners.get(channel)?.(),
   };
 };
@@ -94,5 +94,13 @@ describe('makeAppWindowShape', () => {
 
       expect(saveTime).not.toHaveBeenCalled();
     });
+  });
+
+  it('tells the main process whether the timer is counting', () => {
+    const ipc = createFakeRendererIpc();
+
+    makeAppWindowShape(ipc).setTimingIndicator(true);
+
+    expect(ipc.send).toHaveBeenCalledWith(IPC_CHANNELS.appWindow.setTimingIndicator, true);
   });
 });
