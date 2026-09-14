@@ -370,11 +370,12 @@ describe('SessionControls', () => {
         await vi.advanceTimersByTimeAsync(30_000);
       });
       view.unmount();
+      const callsAfterLeaving = updateSessionDuration.mock.calls.length;
       await act(async () => {
         await vi.advanceTimersByTimeAsync(60_000);
       });
 
-      expect(updateSessionDuration).toHaveBeenCalledTimes(1);
+      expect(updateSessionDuration).toHaveBeenCalledTimes(callsAfterLeaving);
     });
   });
 
@@ -658,6 +659,157 @@ describe('SessionControls', () => {
 
   type StopSession = (totalDuration?: number) => Promise<void>;
   type UpdateSessionDuration = (sessionId: number, duration: number) => Promise<void>;
+
+  describe('leaving the timer page', () => {
+    // Restored running, so the timer starts on mount without userEvent under fake timers.
+    const timingSession: Session = { ...mockSessions[0], sessionId: 42, duration: 120 };
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const mockSessionsHook = (
+      currentSession: Session | null,
+      overrides: {
+        pauseSession?: () => void;
+        updateSessionDuration?: Mock<UpdateSessionDuration>;
+        restoredSessionId?: number;
+      } = {}
+    ) => {
+      const { restoredSessionId = null, ...hookOverrides } = overrides;
+      vi.mocked(useAppState.useSessions).mockReturnValue({
+        ...vi.mocked(useAppState.useSessions)(),
+        ...hookOverrides,
+        state: {
+          ...initialState,
+          sessions: { ...initialState.sessions, currentSession, restoredSessionId },
+        },
+      });
+    };
+
+    const timeFiveSecondsThenLeave = async (overrides: {
+      pauseSession?: () => void;
+      updateSessionDuration?: Mock<UpdateSessionDuration>;
+    }) => {
+      mockSessionsHook(timingSession, { ...overrides, restoredSessionId: 42 });
+
+      vi.useFakeTimers();
+      let view!: ReturnType<typeof renderWithTheme>;
+      await act(async () => {
+        view = renderWithTheme({ selectedProjectId: 1 });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      view.unmount();
+    };
+
+    it('saves the time counted so far when leaving mid-timing', async () => {
+      const updateSessionDuration = vi.fn<UpdateSessionDuration>().mockResolvedValue(undefined);
+
+      await timeFiveSecondsThenLeave({ updateSessionDuration });
+
+      expect(updateSessionDuration).toHaveBeenCalledWith(42, 125);
+    });
+
+    it('marks the session paused when leaving mid-timing', async () => {
+      const pauseSession = vi.fn();
+
+      await timeFiveSecondsThenLeave({ pauseSession });
+
+      expect(pauseSession).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves a paused session untouched', async () => {
+      const updateSessionDuration = vi.fn<UpdateSessionDuration>().mockResolvedValue(undefined);
+      const pauseSession = vi.fn();
+      mockSessionsHook(
+        { ...timingSession, status: 'paused' },
+        { updateSessionDuration, pauseSession }
+      );
+
+      let view!: ReturnType<typeof renderWithTheme>;
+      await act(async () => {
+        view = renderWithTheme({ selectedProjectId: 1 });
+      });
+      view.unmount();
+
+      expect(updateSessionDuration).not.toHaveBeenCalled();
+      expect(pauseSession).not.toHaveBeenCalled();
+    });
+
+    it('shows the saved time, paused, on coming back', async () => {
+      mockSessionsHook({ ...timingSession, status: 'paused', duration: 125 });
+
+      await act(async () => {
+        renderWithTheme({ selectedProjectId: 1 });
+      });
+
+      expect(screen.getByText('00:02:05')).toBeInTheDocument();
+      expect(screen.getByText('Start Timing')).toBeInTheDocument();
+    });
+
+    it('counts on from the saved time once started again', async () => {
+      mockSessionsHook({ ...timingSession, status: 'paused', duration: 125 });
+      await act(async () => {
+        renderWithTheme({ selectedProjectId: 1 });
+      });
+
+      await user.click(screen.getByText('Start Timing'));
+      await act(async () => {
+        await new Promise(resolve => setTimeout(resolve, 1100));
+      });
+
+      expect(screen.getByText('00:02:06')).toBeInTheDocument();
+    });
+
+    it('keeps a continued session timing through a StrictMode remount', async () => {
+      mockSessionsHook(timingSession, { restoredSessionId: 42 });
+      const StrictProviders = ({ children }: { children: React.ReactNode }) => (
+        <React.StrictMode>
+          <TestProviders>{children}</TestProviders>
+        </React.StrictMode>
+      );
+
+      await act(async () => {
+        renderWithTheme({ selectedProjectId: 1 }, StrictProviders);
+      });
+
+      expect(screen.getByText('Stop Timing')).toBeInTheDocument();
+    });
+
+    it('starts a session continued after being stopped on the same visit', async () => {
+      const renderControls = () => (
+        <SessionControls
+          projects={mockProjects}
+          sessions={mockSessions}
+          projectSelected={vi.fn()}
+          selectedProjectId={1}
+          isProjectsLoading={false}
+          isSessionsLoading={false}
+          sessionCompleted={vi.fn()}
+          sessionEdited={vi.fn()}
+          projectTags={[]}
+        />
+      );
+      mockSessionsHook({ ...timingSession, status: 'paused' });
+      let view!: ReturnType<typeof renderWithTheme>;
+      await act(async () => {
+        view = renderWithTheme({ selectedProjectId: 1 });
+      });
+
+      mockSessionsHook(null);
+      await act(async () => {
+        view.rerender(renderControls());
+      });
+      mockSessionsHook(timingSession, { restoredSessionId: 42 });
+      await act(async () => {
+        view.rerender(renderControls());
+      });
+
+      expect(screen.getByText('Stop Timing')).toBeInTheDocument();
+    });
+  });
 
   describe('saving before the window closes', () => {
     let appWindow: ReturnType<typeof createTestAppWindow>;

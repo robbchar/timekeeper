@@ -156,21 +156,33 @@ const SessionControls: React.FC<{
     markSessionPaused();
   }, [readElapsedSeconds, markSessionPaused]);
 
-  // Seed the clock of a session adopted through RESTORE_SESSION from its last
-  // checkpoint. Only one adopted running (a continued session) starts counting;
-  // one left unfinished by a previous run arrives paused.
+  // Leaving the timer page stops timing: keep the time counted so far and pause.
+  const pauseOnLeave = useEventCallback(() => {
+    if (!timerIdRef.current) return;
+
+    handleStopTimer();
+    checkpointDuration();
+  });
+
+  useEffect(() => () => pauseOnLeave(), [pauseOnLeave]);
+
+  // Seed the clock from the saved duration of whichever session is current. Only a
+  // session adopted running through RESTORE_SESSION (a continued one) starts counting.
   useEffect(() => {
     const session = state.sessions.currentSession;
-    const { restoredSessionId } = state.sessions;
-
-    if (!session || restoredSessionId !== session.sessionId) return;
+    if (!session) {
+      // A session that ends and is later continued keeps its id, so forget it.
+      adoptedSessionIdRef.current = null;
+      return;
+    }
     if (adoptedSessionIdRef.current === session.sessionId) return;
 
     adoptedSessionIdRef.current = session.sessionId;
     accumulatedTimeRef.current = session.duration ?? 0;
     setElapsedTime(session.duration ?? 0);
 
-    if (session.status === 'active') {
+    const isContinuedSession = state.sessions.restoredSessionId === session.sessionId;
+    if (isContinuedSession && session.status === 'active') {
       handleStartTimer();
     }
   }, [state.sessions, handleStartTimer]);
