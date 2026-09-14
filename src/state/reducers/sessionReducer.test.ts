@@ -34,8 +34,16 @@ describe('sessionReducer', () => {
     expect(newState.currentSession).toBeDefined();
     expect(newState.currentSession?.projectId).toBe(1);
     expect(newState.currentSession?.notes).toBe('Test session');
-    expect(newState.currentSession?.status).toBe('active');
     expect(newState.error).toBeNull();
+  });
+
+  it('starts a new session paused, since timing has not begun', () => {
+    const newState = sessionReducer(initialState, {
+      type: ActionType.CREATE_SESSION,
+      payload: { sessionId: 1, projectId: 1 },
+    });
+
+    expect(newState.currentSession?.status).toBe('paused');
   });
 
   it('should not create a new session if one is active', () => {
@@ -117,6 +125,43 @@ describe('sessionReducer', () => {
 
     expect(newState.currentSession?.status).toBe('active');
     expect(newState.error).toBeNull();
+  });
+
+  describe('pausing and resuming are idempotent', () => {
+    const sessionWithStatus = (status: SessionStatus): SessionState => ({
+      ...initialState,
+      currentSession: { sessionId: 1, projectId: 1, startTime: new Date(), duration: 0, status },
+    });
+
+    it('leaves a paused session paused without reporting an error', () => {
+      const newState = sessionReducer(sessionWithStatus('paused'), {
+        type: ActionType.PAUSE_SESSION,
+      });
+
+      expect(newState.currentSession?.status).toBe('paused');
+      expect(newState.error).toBeNull();
+    });
+
+    it('leaves a running session running without reporting an error', () => {
+      const newState = sessionReducer(sessionWithStatus('active'), {
+        type: ActionType.RESUME_SESSION,
+      });
+
+      expect(newState.currentSession?.status).toBe('active');
+      expect(newState.error).toBeNull();
+    });
+
+    it('still reports pausing when there is no session', () => {
+      const newState = sessionReducer(initialState, { type: ActionType.PAUSE_SESSION });
+
+      expect(newState.error).toBe('No active session to pause');
+    });
+
+    it('still reports resuming when there is no session', () => {
+      const newState = sessionReducer(initialState, { type: ActionType.RESUME_SESSION });
+
+      expect(newState.error).toBe('No paused session to resume');
+    });
   });
 
   it('should end a session', () => {

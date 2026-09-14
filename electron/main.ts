@@ -1,6 +1,7 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
 import { setupDatabaseHandlers, initializeDatabase } from './database/database';
+import { registerCloseHandshake } from './closeHandshake';
 
 async function createWindow() {
   const win = new BrowserWindow({
@@ -12,6 +13,9 @@ async function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
     },
   });
+
+  // Closing leaves the session open, so the renderer saves its elapsed time first.
+  registerCloseHandshake(win, ipcMain);
 
   // In development, load from the Vite dev server. vite-plugin-electron injects
   // the URL of the port Vite actually bound, which is not necessarily the one

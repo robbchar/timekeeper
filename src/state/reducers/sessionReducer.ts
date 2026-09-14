@@ -59,7 +59,8 @@ export const sessionReducer = (
         startTime: new Date(),
         duration: 0,
         notes: action.payload.notes,
-        status: 'active',
+        // Timing has not started yet.
+        status: 'paused',
       };
 
       return {
@@ -71,7 +72,7 @@ export const sessionReducer = (
     }
 
     case ActionType.PAUSE_SESSION: {
-      if (!state.currentSession || state.currentSession.status !== 'active') {
+      if (!state.currentSession) {
         return {
           ...state,
           error: 'No active session to pause',
@@ -89,7 +90,7 @@ export const sessionReducer = (
     }
 
     case ActionType.RESUME_SESSION: {
-      if (!state.currentSession || state.currentSession.status !== 'paused') {
+      if (!state.currentSession) {
         return {
           ...state,
           error: 'No paused session to resume',

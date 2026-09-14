@@ -39,6 +39,12 @@ export const IPC_CHANNELS = {
     // Test helper
     reset: 'database:reset',
   },
+  appWindow: {
+    // Main → renderer: finish pending work, the window is closing
+    beforeClose: 'appWindow:beforeClose',
+    // Renderer → main: pending work is done
+    readyToClose: 'appWindow:readyToClose',
+  },
 } as const;
 
 export type DatabaseIpcChannel = (typeof IPC_CHANNELS.database)[keyof typeof IPC_CHANNELS.database];

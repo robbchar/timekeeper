@@ -56,8 +56,15 @@ const SessionControls: React.FC<{
   sessionEdited,
   projectTags,
 }) => {
-  const { startSession, stopSession, updateSessionDuration, updateSessionNotes, state } =
-    useSessions();
+  const {
+    startSession,
+    stopSession,
+    pauseSession,
+    resumeSession,
+    updateSessionDuration,
+    updateSessionNotes,
+    state,
+  } = useSessions();
   const currentSession = state.sessions.currentSession;
   const [notes, setNotes] = useState<string>('');
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -72,32 +79,17 @@ const SessionControls: React.FC<{
     return accumulatedTimeRef.current + Math.floor(currentRun / 1000);
   }, []);
 
-  // Handle window unload. Best-effort only: beforeunload cannot await, so this
-  // races the window tearing down. Periodic checkpointing below is what makes
-  // the elapsed time actually durable.
-  const handleUnload = useEventCallback(() => {
-    if (!state.sessions.currentSession) return;
+  // Closing leaves the session open; save the time counted since the last checkpoint.
+  const saveElapsedBeforeClose = useEventCallback(async () => {
+    const session = state.sessions.currentSession;
+    if (!session) return;
 
-    // Stop the timer if it's running, so its elapsed time is accumulated.
-    if (isTiming) {
-      handleStopTimer();
-    }
-
-    stopSession(accumulatedTimeRef.current).catch(error => {
-      console.error('Failed to stop session on window unload:', error);
-    });
+    await updateSessionDuration(session.sessionId, readElapsedSeconds());
   });
 
-  useEffect(() => {
-    window.addEventListener('beforeunload', handleUnload);
-    return () => {
-      window.removeEventListener('beforeunload', handleUnload);
-    };
-  }, [handleUnload]);
+  useEffect(() => window.appWindow.onBeforeClose(saveElapsedBeforeClose), [saveElapsedBeforeClose]);
 
-  // Persist elapsed time periodically. Without this the duration exists only in
-  // memory until the session is stopped, so a crash or a quit that outruns the
-  // unload handler loses all of it.
+  // Persist elapsed time periodically so a crash loses at most one interval.
   const checkpointDuration = useEventCallback(() => {
     const session = state.sessions.currentSession;
     if (!session) return;
@@ -115,6 +107,10 @@ const SessionControls: React.FC<{
   }, [isTiming, checkpointDuration]);
 
   const adoptedSessionIdRef = useRef<number | null>(null);
+
+  // Keeps currentSession.status in step with the timer: 'active' only while counting.
+  const markSessionRunning = useEventCallback(() => resumeSession());
+  const markSessionPaused = useEventCallback(() => pauseSession());
 
   const handleStartSession = async () => {
     if (!selectedProjectId) return;
@@ -140,11 +136,12 @@ const SessionControls: React.FC<{
   const handleStartTimer = useCallback(() => {
     startTimeRef.current = now();
     setIsTiming(true);
+    markSessionRunning();
 
     timerIdRef.current = setInterval(() => {
       setElapsedTime(readElapsedSeconds());
     }, 1000);
-  }, [readElapsedSeconds]);
+  }, [readElapsedSeconds, markSessionRunning]);
 
   const handleStopTimer = useCallback(() => {
     if (timerIdRef.current) {
@@ -156,12 +153,12 @@ const SessionControls: React.FC<{
       startTimeRef.current = null;
     }
     setIsTiming(false);
-  }, [readElapsedSeconds]);
+    markSessionPaused();
+  }, [readElapsedSeconds, markSessionPaused]);
 
-  // Pick the clock up from the last checkpoint of a session adopted from a
-  // previous run, and keep counting. Only sessions flagged by RESTORE_SESSION
-  // resume automatically: a session started in this run, or one whose timer was
-  // deliberately stopped, must not start counting on its own.
+  // Seed the clock of a session adopted through RESTORE_SESSION from its last
+  // checkpoint. Only one adopted running (a continued session) starts counting;
+  // one left unfinished by a previous run arrives paused.
   useEffect(() => {
     const session = state.sessions.currentSession;
     const { restoredSessionId } = state.sessions;
@@ -172,7 +169,10 @@ const SessionControls: React.FC<{
     adoptedSessionIdRef.current = session.sessionId;
     accumulatedTimeRef.current = session.duration ?? 0;
     setElapsedTime(session.duration ?? 0);
-    handleStartTimer();
+
+    if (session.status === 'active') {
+      handleStartTimer();
+    }
   }, [state.sessions, handleStartTimer]);
 
   const handleNotesSaved = (updatedNotes: string) => {
