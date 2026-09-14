@@ -5,6 +5,7 @@ import type { Tag } from '@/types/tag';
 import type { Project } from '@/types/project';
 import type { Session } from '@/types/session';
 import TimerControls from './TimerControls';
+import ActiveSessionNotes from './ActiveSessionNotes';
 import { Select, SelectItem, Button, Textarea } from '@heroui/react';
 import RecentSessions from './RecentSessions';
 import { now } from '@/utils/time';
@@ -55,7 +56,9 @@ const SessionControls: React.FC<{
   sessionEdited,
   projectTags,
 }) => {
-  const { startSession, stopSession, updateSessionDuration, state } = useSessions();
+  const { startSession, stopSession, updateSessionDuration, updateSessionNotes, state } =
+    useSessions();
+  const currentSession = state.sessions.currentSession;
   const [notes, setNotes] = useState<string>('');
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isTiming, setIsTiming] = useState(false);
@@ -172,7 +175,26 @@ const SessionControls: React.FC<{
     handleStartTimer();
   }, [state.sessions, handleStartTimer]);
 
-  const isSessionActive = !!state.sessions.currentSession;
+  const handleNotesSaved = (updatedNotes: string) => {
+    if (!currentSession) return;
+
+    updateSessionNotes(currentSession.sessionId, updatedNotes).catch(error => {
+      console.error('Failed to save session notes:', error);
+    });
+  };
+
+  // Only reachable while paused, so there is no run in progress to fold in.
+  const handleElapsedTimeEdited = (seconds: number) => {
+    if (!currentSession) return;
+
+    accumulatedTimeRef.current = seconds;
+    setElapsedTime(seconds);
+    updateSessionDuration(currentSession.sessionId, seconds).catch(error => {
+      console.error('Failed to save edited session duration:', error);
+    });
+  };
+
+  const isSessionActive = !!currentSession;
 
   return (
     <Container>
@@ -212,7 +234,13 @@ const SessionControls: React.FC<{
               ))}
             </div>
           )}
-          {isSessionActive && notes !== '' && <input type="text" value={notes} disabled />}
+          {currentSession && (
+            <ActiveSessionNotes
+              key={currentSession.sessionId}
+              initialNotes={currentSession.notes ?? ''}
+              onSave={handleNotesSaved}
+            />
+          )}
           {!isSessionsLoading && !isSessionActive && selectedProjectId > 0 && (
             <>
               <Textarea
@@ -240,6 +268,7 @@ const SessionControls: React.FC<{
               onStartTimer={handleStartTimer}
               onStopTimer={handleStopTimer}
               onStopSession={handleStopSession}
+              onElapsedTimeEdited={handleElapsedTimeEdited}
             />
           )}
           {!isSessionsLoading &&

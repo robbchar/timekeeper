@@ -6,6 +6,7 @@ A desktop time tracking application built with Electron, React, and TypeScript.
 
 - Track time spent on different projects
 - Manage projects and sessions
+- Edit a session's notes on the timer screen, and its elapsed time while the timer is paused
 - Tag-based organization
 - Export functionality
 - Dark/Light theme support
