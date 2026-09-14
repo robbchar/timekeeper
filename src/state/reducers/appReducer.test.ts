@@ -32,6 +32,16 @@ const sessionActions: SessionAction[] = [
 ];
 
 describe('appReducer session routing', () => {
+  // CREATE_SESSION stamps startTime from the clock; pin it so both reducer calls agree.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-13T10:00:00.000Z'));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it.each(sessionActions.map(action => [action.type, action] as const))(
     'routes %s to the session reducer',
     (_type, action) => {

@@ -1,5 +1,6 @@
 import type { Session, SessionState, SessionAction } from '@/types/session';
 import { ActionType } from '@/types/state';
+import { now } from '@/utils/time';
 
 const initialState: SessionState = {
   currentSession: null,
@@ -32,7 +33,7 @@ export const sessionReducer = (
       const newSession: Session = {
         sessionId: action.payload.sessionId,
         projectId: action.payload.projectId,
-        startTime: new Date(),
+        startTime: new Date(now()),
         duration: 0,
         notes: action.payload.notes,
         status: 'active',
@@ -104,7 +105,7 @@ export const sessionReducer = (
         };
       }
 
-      const endTime = new Date();
+      const endTime = new Date(now());
       const completedSession: Session = {
         ...state.currentSession,
         endTime,
