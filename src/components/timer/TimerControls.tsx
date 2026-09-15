@@ -1,7 +1,8 @@
-import React from 'react';
-import styled from 'styled-components';
+import React, { useState } from 'react';
+import styled, { css } from 'styled-components';
 import { Button } from '@heroui/react';
 import { formatClockTime } from '@/utils/time';
+import { ElapsedTimeEditor } from './ElapsedTimeEditor';
 
 interface TimerControlsProps {
   isSessionActive: boolean;
@@ -10,6 +11,7 @@ interface TimerControlsProps {
   onStartTimer: () => void;
   onStopTimer: () => void;
   onStopSession: (totalDuration?: number) => void;
+  onElapsedTimeEdited: (seconds: number) => void;
 }
 
 const ControlsContainer = styled.div`
@@ -20,12 +22,29 @@ const ControlsContainer = styled.div`
   margin: 2rem 0;
 `;
 
-const TimerDisplay = styled.div`
+const clockStyles = css`
   font-size: 2.5rem;
   font-weight: 300;
   font-family: 'Roboto Mono', monospace;
   color: ${({ theme }) => theme.colors.text.primary};
   margin-top: 1rem;
+`;
+
+const TimerDisplay = styled.div`
+  ${clockStyles}
+`;
+
+const EditableTimerDisplay = styled.button`
+  ${clockStyles}
+  background: none;
+  border: none;
+  border-bottom: 1px dashed transparent;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    border-bottom-color: currentColor;
+  }
 `;
 
 const TimerControls: React.FC<TimerControlsProps> = ({
@@ -35,13 +54,52 @@ const TimerControls: React.FC<TimerControlsProps> = ({
   onStartTimer,
   onStopTimer,
   onStopSession,
+  onElapsedTimeEdited,
 }) => {
+  const [isEditingTime, setIsEditingTime] = useState(false);
+  const canEditTime = isSessionActive && !isTimingActive;
+
   const handleTimerClick = () => {
     if (isTimingActive) {
       onStopTimer();
     } else {
       onStartTimer();
     }
+  };
+
+  const handleTimeSaved = (seconds: number) => {
+    setIsEditingTime(false);
+    if (seconds !== elapsedTime) {
+      onElapsedTimeEdited(seconds);
+    }
+  };
+
+  const renderClock = () => {
+    const formattedTime = formatClockTime(elapsedTime);
+
+    if (!canEditTime) {
+      return <TimerDisplay>{formattedTime}</TimerDisplay>;
+    }
+
+    if (isEditingTime) {
+      return (
+        <ElapsedTimeEditor
+          initialSeconds={elapsedTime}
+          onSave={handleTimeSaved}
+          onCancel={() => setIsEditingTime(false)}
+        />
+      );
+    }
+
+    return (
+      <EditableTimerDisplay
+        type="button"
+        aria-label="Edit elapsed time"
+        onClick={() => setIsEditingTime(true)}
+      >
+        {formattedTime}
+      </EditableTimerDisplay>
+    );
   };
 
   const buttonColor = isTimingActive
@@ -58,7 +116,7 @@ const TimerControls: React.FC<TimerControlsProps> = ({
       >
         {isTimingActive ? 'Stop Timing' : 'Start Timing'}
       </Button>
-      <TimerDisplay>{formatClockTime(elapsedTime)}</TimerDisplay>
+      {renderClock()}
       {isSessionActive && (
         <Button className="bg-red-500" radius="full" onPress={() => onStopSession(elapsedTime)}>
           Stop Session

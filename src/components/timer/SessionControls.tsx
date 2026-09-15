@@ -5,6 +5,7 @@ import type { Tag } from '@/types/tag';
 import type { Project } from '@/types/project';
 import type { Session } from '@/types/session';
 import TimerControls from './TimerControls';
+import ActiveSessionNotes from './ActiveSessionNotes';
 import { Select, SelectItem, Button, Textarea } from '@heroui/react';
 import RecentSessions from './RecentSessions';
 import { now } from '@/utils/time';
@@ -55,7 +56,16 @@ const SessionControls: React.FC<{
   sessionEdited,
   projectTags,
 }) => {
-  const { startSession, stopSession, updateSessionDuration, state } = useSessions();
+  const {
+    startSession,
+    stopSession,
+    pauseSession,
+    resumeSession,
+    updateSessionDuration,
+    updateSessionNotes,
+    state,
+  } = useSessions();
+  const currentSession = state.sessions.currentSession;
   const [notes, setNotes] = useState<string>('');
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isTiming, setIsTiming] = useState(false);
@@ -69,32 +79,17 @@ const SessionControls: React.FC<{
     return accumulatedTimeRef.current + Math.floor(currentRun / 1000);
   }, []);
 
-  // Handle window unload. Best-effort only: beforeunload cannot await, so this
-  // races the window tearing down. Periodic checkpointing below is what makes
-  // the elapsed time actually durable.
-  const handleUnload = useEventCallback(() => {
-    if (!state.sessions.currentSession) return;
+  // Closing leaves the session open; save the time counted since the last checkpoint.
+  const saveElapsedBeforeClose = useEventCallback(async () => {
+    const session = state.sessions.currentSession;
+    if (!session) return;
 
-    // Stop the timer if it's running, so its elapsed time is accumulated.
-    if (isTiming) {
-      handleStopTimer();
-    }
-
-    stopSession(accumulatedTimeRef.current).catch(error => {
-      console.error('Failed to stop session on window unload:', error);
-    });
+    await updateSessionDuration(session.sessionId, readElapsedSeconds());
   });
 
-  useEffect(() => {
-    window.addEventListener('beforeunload', handleUnload);
-    return () => {
-      window.removeEventListener('beforeunload', handleUnload);
-    };
-  }, [handleUnload]);
+  useEffect(() => window.appWindow.onBeforeClose(saveElapsedBeforeClose), [saveElapsedBeforeClose]);
 
-  // Persist elapsed time periodically. Without this the duration exists only in
-  // memory until the session is stopped, so a crash or a quit that outruns the
-  // unload handler loses all of it.
+  // Persist elapsed time periodically so a crash loses at most one interval.
   const checkpointDuration = useEventCallback(() => {
     const session = state.sessions.currentSession;
     if (!session) return;
@@ -112,6 +107,10 @@ const SessionControls: React.FC<{
   }, [isTiming, checkpointDuration]);
 
   const adoptedSessionIdRef = useRef<number | null>(null);
+
+  // Keeps currentSession.status in step with the timer: 'active' only while counting.
+  const markSessionRunning = useEventCallback(() => resumeSession());
+  const markSessionPaused = useEventCallback(() => pauseSession());
 
   const handleStartSession = async () => {
     if (!selectedProjectId) return;
@@ -137,11 +136,12 @@ const SessionControls: React.FC<{
   const handleStartTimer = useCallback(() => {
     startTimeRef.current = now();
     setIsTiming(true);
+    markSessionRunning();
 
     timerIdRef.current = setInterval(() => {
       setElapsedTime(readElapsedSeconds());
     }, 1000);
-  }, [readElapsedSeconds]);
+  }, [readElapsedSeconds, markSessionRunning]);
 
   const handleStopTimer = useCallback(() => {
     if (timerIdRef.current) {
@@ -153,26 +153,60 @@ const SessionControls: React.FC<{
       startTimeRef.current = null;
     }
     setIsTiming(false);
-  }, [readElapsedSeconds]);
+    markSessionPaused();
+  }, [readElapsedSeconds, markSessionPaused]);
 
-  // Pick the clock up from the last checkpoint of a session adopted from a
-  // previous run, and keep counting. Only sessions flagged by RESTORE_SESSION
-  // resume automatically: a session started in this run, or one whose timer was
-  // deliberately stopped, must not start counting on its own.
+  // Leaving the timer page stops timing: keep the time counted so far and pause.
+  const pauseOnLeave = useEventCallback(() => {
+    if (!timerIdRef.current) return;
+
+    handleStopTimer();
+    checkpointDuration();
+  });
+
+  useEffect(() => () => pauseOnLeave(), [pauseOnLeave]);
+
+  // Seed the clock from the saved duration of whichever session is current. Only a
+  // session adopted running through RESTORE_SESSION (a continued one) starts counting.
   useEffect(() => {
     const session = state.sessions.currentSession;
-    const { restoredSessionId } = state.sessions;
-
-    if (!session || restoredSessionId !== session.sessionId) return;
+    if (!session) {
+      // A session that ends and is later continued keeps its id, so forget it.
+      adoptedSessionIdRef.current = null;
+      return;
+    }
     if (adoptedSessionIdRef.current === session.sessionId) return;
 
     adoptedSessionIdRef.current = session.sessionId;
     accumulatedTimeRef.current = session.duration ?? 0;
     setElapsedTime(session.duration ?? 0);
-    handleStartTimer();
+
+    const isContinuedSession = state.sessions.restoredSessionId === session.sessionId;
+    if (isContinuedSession && session.status === 'active') {
+      handleStartTimer();
+    }
   }, [state.sessions, handleStartTimer]);
 
-  const isSessionActive = !!state.sessions.currentSession;
+  const handleNotesSaved = (updatedNotes: string) => {
+    if (!currentSession) return;
+
+    updateSessionNotes(currentSession.sessionId, updatedNotes).catch(error => {
+      console.error('Failed to save session notes:', error);
+    });
+  };
+
+  // Only reachable while paused, so there is no run in progress to fold in.
+  const handleElapsedTimeEdited = (seconds: number) => {
+    if (!currentSession) return;
+
+    accumulatedTimeRef.current = seconds;
+    setElapsedTime(seconds);
+    updateSessionDuration(currentSession.sessionId, seconds).catch(error => {
+      console.error('Failed to save edited session duration:', error);
+    });
+  };
+
+  const isSessionActive = !!currentSession;
 
   return (
     <Container>
@@ -212,7 +246,13 @@ const SessionControls: React.FC<{
               ))}
             </div>
           )}
-          {isSessionActive && notes !== '' && <input type="text" value={notes} disabled />}
+          {currentSession && (
+            <ActiveSessionNotes
+              key={currentSession.sessionId}
+              initialNotes={currentSession.notes ?? ''}
+              onSave={handleNotesSaved}
+            />
+          )}
           {!isSessionsLoading && !isSessionActive && selectedProjectId > 0 && (
             <>
               <Textarea
@@ -240,6 +280,7 @@ const SessionControls: React.FC<{
               onStartTimer={handleStartTimer}
               onStopTimer={handleStopTimer}
               onStopSession={handleStopSession}
+              onElapsedTimeEdited={handleElapsedTimeEdited}
             />
           )}
           {!isSessionsLoading &&

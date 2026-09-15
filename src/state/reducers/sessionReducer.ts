@@ -10,6 +10,30 @@ const initialState: SessionState = {
   restoredSessionId: null,
 };
 
+/** Applies edits to a session wherever it is held: as the current session, in the list, or both. */
+const applySessionChanges = (
+  state: SessionState,
+  sessionId: number,
+  changes: Pick<Partial<Session>, 'notes' | 'duration'>
+): SessionState => {
+  const isCurrentSession = state.currentSession?.sessionId === sessionId;
+  const isListed = state.sessions.some(s => s.sessionId === sessionId);
+
+  if (!isCurrentSession && !isListed) {
+    return { ...state, error: 'Session not found' };
+  }
+
+  return {
+    ...state,
+    currentSession:
+      state.currentSession && isCurrentSession
+        ? { ...state.currentSession, ...changes }
+        : state.currentSession,
+    sessions: state.sessions.map(s => (s.sessionId === sessionId ? { ...s, ...changes } : s)),
+    error: null,
+  };
+};
+
 export const sessionReducer = (
   state: SessionState = initialState,
   action: SessionAction
@@ -36,7 +60,8 @@ export const sessionReducer = (
         startTime: new Date(now()),
         duration: 0,
         notes: action.payload.notes,
-        status: 'active',
+        // Timing has not started yet.
+        status: 'paused',
       };
 
       return {
@@ -48,7 +73,7 @@ export const sessionReducer = (
     }
 
     case ActionType.PAUSE_SESSION: {
-      if (!state.currentSession || state.currentSession.status !== 'active') {
+      if (!state.currentSession) {
         return {
           ...state,
           error: 'No active session to pause',
@@ -66,7 +91,7 @@ export const sessionReducer = (
     }
 
     case ActionType.RESUME_SESSION: {
-      if (!state.currentSession || state.currentSession.status !== 'paused') {
+      if (!state.currentSession) {
         return {
           ...state,
           error: 'No paused session to resume',
@@ -130,23 +155,8 @@ export const sessionReducer = (
       };
     }
 
-    case ActionType.UPDATE_SESSION_NOTES: {
-      const session = state.sessions.find(s => s.sessionId === action.payload.sessionId);
-      if (!session) {
-        return {
-          ...state,
-          error: 'Session not found',
-        };
-      }
-
-      return {
-        ...state,
-        sessions: state.sessions.map(s =>
-          s.sessionId === action.payload.sessionId ? { ...s, notes: action.payload.notes } : s
-        ),
-        error: null,
-      };
-    }
+    case ActionType.UPDATE_SESSION_NOTES:
+      return applySessionChanges(state, action.payload.sessionId, { notes: action.payload.notes });
 
     case ActionType.DELETE_SESSION: {
       return {
@@ -156,22 +166,10 @@ export const sessionReducer = (
       };
     }
 
-    case ActionType.UPDATE_SESSION_DURATION: {
-      const session = state.sessions.find(s => s.sessionId === action.payload.sessionId);
-      if (!session) {
-        return {
-          ...state,
-          error: 'Session not found',
-        };
-      }
-      return {
-        ...state,
-        sessions: state.sessions.map(s =>
-          s.sessionId === action.payload.sessionId ? { ...s, duration: action.payload.duration } : s
-        ),
-        error: null,
-      };
-    }
+    case ActionType.UPDATE_SESSION_DURATION:
+      return applySessionChanges(state, action.payload.sessionId, {
+        duration: action.payload.duration,
+      });
 
     case ActionType.SET_ERROR:
       return {

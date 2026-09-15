@@ -24,21 +24,36 @@ Two boundaries in that stack matter more than the rest:
 
 ### Session durability
 
-A running session's elapsed time lives in refs inside `SessionControls`, so it only reaches SQLite when something writes it. Two mechanisms do:
+A running session's elapsed time lives in refs inside `SessionControls`, so it only reaches SQLite when something writes it. Four mechanisms do:
 
 - **Checkpointing** — while the timer runs, `SessionControls` writes the elapsed seconds every 30s (`CHECKPOINT_INTERVAL_MS`) via `updateSessionDuration`. That handler sets `duration` only, leaving `endTime` NULL, so a checkpointed session still reads as unfinished. This bounds how much tracked time an abnormal exit can lose.
-- **The unload handler** — a `beforeunload` listener ends the session on a clean quit. It is best-effort only: `beforeunload` cannot await, so the write races the window tearing down. Checkpointing, not this, is what makes the time durable.
+- **The close handshake** — closing the window does **not** end the session. `registerCloseHandshake` (`electron/closeHandshake.ts`) cancels the first `close`, sends `appWindow:beforeClose`, and closes for real once the renderer answers `appWindow:readyToClose` — or after 2s, so a hung renderer cannot block quitting. On the renderer side `SessionControls` registers through `window.appWindow.onBeforeClose` and awaits a final `updateSessionDuration`; the bridge (`electron/appWindowBridge.ts`) replies only after every registered handler settles, and replies at once when none are registered. This replaced a `beforeunload` listener that could not await its write.
+- **Editing while paused** — `TimerControls` offers the clock for editing only when the timer is not running, so there is never a run in progress to reconcile. Saving from `ElapsedTimeEditor` replaces the accumulated seconds outright and writes them via `updateSessionDuration`.
+- **Leaving the timer page** — `SessionControls` unmounts when another page is shown, and leaving mid-session is meant to stop timing. Its unmount cleanup folds the run in progress into the elapsed time, writes it via `updateSessionDuration`, and dispatches `PAUSE_SESSION`, so the taskbar dot clears. Coming back seeds the clock from `currentSession.duration`, paused. Which session the clock was seeded from is forgotten whenever no session is current, because a session that ends and is then continued keeps its id.
+
+Notes are edited in place through `ActiveSessionNotes` → `updateSessionNotes`. Both `UPDATE_SESSION_NOTES` and `UPDATE_SESSION_DURATION` apply the change to `currentSession` as well as any listed copy: a session started in this run is not in `sessions` at all, so updating only the list used to report "Session not found" on every checkpoint.
 
 A session becomes the current one through `RESTORE_SESSION` by either of two routes:
 
-- **Automatically**, when the previous run left it unfinished. `restoreSession` only dispatches; the row is already open.
+- **Automatically**, when the previous run left it unfinished. `restoreSession` only dispatches, with `status: 'paused'`; the row is already open.
 - **On request**, when a finished session is continued from the recent-sessions list. `continueSession` first calls `reopenSession` to clear `endTime`, then dispatches. Clearing it matters: an in-progress session must satisfy `endTime IS NULL`, or its own crash recovery would not find it. `startTime` is deliberately left at the original — it records when the work first began, so a continued session's duration keeps accumulating while its start stays put.
 
 Because `appReducer` routes to slice reducers from an explicit `case` list, a session action missing from that list is silently dropped — which is how `RESTORE_SESSION` first shipped inert. `appReducer.test.ts` now asserts the routing contract for every session action.
 
-On startup `TimerPage` looks for a session with no `endTime`, selects its project, and dispatches `RESTORE_SESSION`. That sets `currentSession` **and** `restoredSessionId`; `SessionControls` resumes counting from the stored duration only for the session matching that id. The flag is what distinguishes "left running by a previous run" from "active but the user deliberately stopped the timer" — without it, remounting the component would restart a timer the user had stopped.
+On startup `TimerPage` looks for a session with no `endTime`, selects its project, and dispatches `RESTORE_SESSION`. That sets `currentSession` **and** `restoredSessionId`; `SessionControls` seeds the clock from the stored duration of whichever session is current when it mounts, and starts counting only for the session matching that id whose `status` is `'active'`. A session restored on startup arrives `'paused'` and waits for Start Timing; a continued session arrives `'active'` and counts straight away. The id flag keeps a session that merely reads `'active'` from starting on its own.
 
-Callbacks handed to the unload listener and the checkpoint interval go through `useEventCallback` (`src/state/hooks/useEventCallback.ts`), which keeps a stable identity while reading current state. `useSessions()` returns fresh closures every render, so passing its functions to a long-lived subscription directly forces a choice between a stale closure and resubscribing every render — which for an interval means it never fires.
+`currentSession.status` tracks the timer, not just whether the row is open: `CREATE_SESSION` starts `'paused'`, and `SessionControls` dispatches `RESUME_SESSION` / `PAUSE_SESSION` as timing starts and stops. Both are idempotent. Rows read back from SQLite still derive `'active'` for any open session (`deriveStatus`), which is why `restoreSession` overrides it.
+
+Callbacks handed to the before-close handler and the checkpoint interval go through `useEventCallback` (`src/state/hooks/useEventCallback.ts`), which keeps a stable identity while reading current state. `useSessions()` returns fresh closures every render, so passing its functions to a long-lived subscription directly forces a choice between a stale closure and resubscribing every render — which for an interval means it never fires.
+
+### Window bridge (`window.appWindow`)
+
+Alongside `window.database`, the preload exposes `window.appWindow` for window-level concerns that are not data. It is built by `makeAppWindowShape` (`electron/appWindowBridge.ts`), typed in `src/types/appWindow.ts`, and uses the `IPC_CHANNELS.appWindow` channels.
+
+- **`onBeforeClose(handler)`** — the close handshake described above.
+- **`setTimingIndicator(isTiming)`** — `useTimingIndicator` sends whether `currentSession.status` is `'active'`. It is called from `Layout`, which stays mounted across pages. In the main process `registerTimingIndicator` (`electron/timingIndicator.ts`) sets or clears a red dot with `BrowserWindow.setOverlayIcon`. Taskbar overlays are Windows-only, so nothing is registered elsewhere. The dot comes from PNG data URLs embedded in `electron/timingDotIcon.ts`, so there is no asset path to resolve in packaged builds.
+
+Main-process modules take the slices of `BrowserWindow` and `ipcMain` they use as structural interfaces, so their tests run under the node Vitest config without Electron.
 
 ## Schema and migrations
 
