@@ -46,6 +46,18 @@ describe('sessionReducer', () => {
     expect(newState.currentSession?.status).toBe('paused');
   });
 
+  it('should stamp startTime from the current clock', () => {
+    const clockTime = new Date('2024-01-01T10:00:00');
+    vi.setSystemTime(clockTime);
+
+    const newState = sessionReducer(initialState, {
+      type: ActionType.CREATE_SESSION,
+      payload: { sessionId: 1, projectId: 1 },
+    });
+
+    expect(newState.currentSession?.startTime).toEqual(clockTime);
+  });
+
   it('should not create a new session if one is active', () => {
     const stateWithActiveSession: SessionState = {
       ...initialState,
