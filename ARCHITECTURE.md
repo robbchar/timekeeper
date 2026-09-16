@@ -98,6 +98,25 @@ A new operation touches five files, in this order. Missing the handler typecheck
 4. `electron/database/handlers/*.handlers.ts` — register the `ipcMain.handle`
 5. `src/contexts/DatabaseContext.tsx` — expose it, mapping rows to domain types
 
+## Data access conventions
+
+Carried over from the DB interface cleanup, which is otherwise complete.
+
+- **`DatabaseContext` is the single mapping boundary.** DB rows become domain models there
+  and nowhere else, via `src/contexts/mappers/*Mapping.ts`. Components and hooks never see a
+  raw `DatabaseResponse`.
+- **Columns are camelCase on both sides** — `projectId`, `sessionId`, `tagId`, `createdAt`.
+  Migration 002 renamed the original snake_case columns; no snake_case remains in the schema.
+- **Time crosses the boundary as a string.** `*Database` row types carry SQLite `DATETIME`
+  as `string`; domain types use `Date`. That conversion happens only in the mappers.
+- **A no-op write on a targeted record is an error.** If an operation names an existing
+  record and SQLite reports `changes === 0`, throw rather than treat it as a silent success.
+- **Validation happens twice, deliberately.** Client-side for fast feedback, then again in
+  the main process before persisting — the renderer is not trusted.
+- **Operation naming** follows `getX` / `getXById` / `getXsForY` / `createX` / `updateX` / `deleteX`.
+- **`persistAction` narrows its return type per action** via `DatabasePersistResultMap` in
+  `src/state/services/databaseService.ts`, so call sites infer instead of casting.
+
 ## Sources of truth
 
 - **Renderer↔IPC contract types**: `src/types/database.ts`, `src/types/database-response.ts`
