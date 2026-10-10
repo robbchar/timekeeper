@@ -7,6 +7,8 @@ const host = process.env.TAURI_DEV_HOST;
 // https://vite.dev/config/
 export default defineConfig(() => ({
   plugins: [react()],
+  // Inline config stops Vite searching parent dirs and finding v1's postcss.config.js.
+  css: { postcss: {} },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
