@@ -6,6 +6,9 @@ release/
 # Dependencies
 node_modules/
 
+# v2 is a separate app with its own tooling
+v2/
+
 # Coverage
 coverage/
 

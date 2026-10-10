@@ -4,6 +4,8 @@ A desktop time-tracking application for keeping time against the different contr
 
 Read [ARCHITECTURE.md](ARCHITECTURE.md) before changing anything that crosses the renderer↔main boundary. Longer design notes live in [docs/](docs/).
 
+`v2/` is the in-progress Tauri rewrite: a separate app with its own `package.json`, Cargo workspace and [README](v2/README.md). Nothing below applies to it, and v1's ESLint, Prettier and lint-staged ignore it.
+
 ## Package manager
 
 **This project uses npm, not yarn** — `package-lock.json` is committed and every script assumes npm. This overrides the global "prefer yarn" preference.
