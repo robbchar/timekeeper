@@ -13,6 +13,8 @@ export default defineConfig(() => ({
   test: {
     environment: "jsdom",
     setupFiles: ["src/test-setup.ts"],
+    // A zone with DST, so date tests cover clock changes on every machine.
+    env: { TZ: "America/New_York" },
   },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
