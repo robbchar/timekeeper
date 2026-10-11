@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, Entry, Snapshot, Status, Totals } from "./api";
 import { addDays, DateFormat, DurationFormat, localDay } from "./format";
+import { liveTotals as foldLive } from "./live";
 import { TimerPanel } from "./components/TimerPanel";
 import { TotalsStrip } from "./components/TotalsStrip";
 import { DayList } from "./components/DayList";
@@ -20,10 +21,15 @@ export default function App() {
   const [days, setDays] = useState(PAGE_DAYS);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<"main" | "settings">("main");
+  // Lives here so dismissals survive a trip to Settings.
+  const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
 
   const today = localDay(new Date(now));
 
+  // Only the newest refresh may write state; older responses can land later.
+  const latestRefresh = useRef(0);
   const refresh = useCallback(async () => {
+    const request = ++latestRefresh.current;
     try {
       const t = localDay();
       const [s, e, tot] = await Promise.all([
@@ -31,6 +37,7 @@ export default function App() {
         api.entries(addDays(t, -(days - 1)), t, filter),
         api.totals(filter),
       ]);
+      if (request !== latestRefresh.current) return;
       setSnap(s);
       setStatus(s.status);
       setEntries(e);
@@ -38,7 +45,7 @@ export default function App() {
       setFetchedAt(Date.now());
       setError(null);
     } catch (err) {
-      setError(String(err));
+      if (request === latestRefresh.current) setError(String(err));
     }
   }, [days, filter]);
 
@@ -63,10 +70,12 @@ export default function App() {
       window.removeEventListener("focus", onFocus);
     };
   }, [refresh]);
+  const seenToday = useRef(today);
   useEffect(() => {
+    if (seenToday.current === today) return;
+    seenToday.current = today;
     refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [today]);
+  }, [today, refresh]);
 
   const running = status.running;
   const liveSeconds = running
@@ -75,21 +84,16 @@ export default function App() {
   // Seconds the running timer has added since the last fetch; folded into totals and the list.
   const sinceFetch = running ? Math.max(0, (now - fetchedAt) / 1000) : 0;
   const liveCountsForFilter = running != null && (filter == null || filter === running.projectId);
+  const runningDay = entries.find((e) => e.running)?.day;
 
   const liveEntries = useMemo(
     () => entries.map((e) => (e.running ? { ...e, seconds: e.seconds + sinceFetch } : e)),
     [entries, sinceFetch],
   );
   const liveTotals = useMemo(() => {
-    if (!totals || !liveCountsForFilter) return totals;
-    const add = sinceFetch;
-    return {
-      ...totals,
-      today: totals.today + add,
-      thisWeek: totals.thisWeek + add,
-      thisMonth: totals.thisMonth + add,
-    };
-  }, [totals, liveCountsForFilter, sinceFetch]);
+    if (!totals || !liveCountsForFilter || runningDay == null) return totals;
+    return foldLive(totals, sinceFetch, runningDay, today);
+  }, [totals, liveCountsForFilter, sinceFetch, runningDay, today]);
 
   if (!snap) {
     return <div className="loading">{error ?? "Loading…"}</div>;
@@ -126,14 +130,19 @@ export default function App() {
       </header>
 
       {error && <div className="notice notice--error">{error}</div>}
-      <StartupNotices startup={snap.startup} />
+      <StartupNotices
+        startup={snap.startup}
+        dismissed={dismissed}
+        onDismiss={(k) => setDismissed((d) => new Set(d).add(k))}
+      />
 
       <TimerPanel
         projects={snap.projects}
         lastProjectId={snap.lastProjectId}
         status={status}
         liveSeconds={liveSeconds}
-        todaysEntries={entries.filter((e) => e.day === today)}
+        entries={entries}
+        today={today}
         onChanged={refresh}
       />
 

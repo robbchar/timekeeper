@@ -6,14 +6,16 @@
 //! - the interval runs `startTime` → `startTime + duration`. v1's `endTime` is
 //!   ignored: sessions were closed the next morning, so it measures nothing;
 //! - sessions v1 never closed are imported closed, the same way;
-//! - a NULL duration imports as a zero-length interval so the notes survive.
+//! - a NULL duration imports as a zero-length interval so the notes survive;
+//! - sessions whose project is gone (v1 never enforced foreign keys) or whose
+//!   start can't be parsed are skipped and counted, not fatal.
 //!
 //! The v1 file is opened read-only. Re-running the import skips anything
 //! already imported (matched on the legacy ids).
 
 use crate::{ts, Result};
 use chrono::{DateTime, Duration, NaiveDate, NaiveDateTime, Utc};
-use rusqlite::{params, Connection, OpenFlags};
+use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use serde::Serialize;
 use std::path::Path;
 
@@ -29,6 +31,10 @@ pub struct ImportReport {
     pub missing_durations: usize,
     /// Rows skipped because an earlier import already brought them in.
     pub already_imported: usize,
+    /// Sessions skipped because their v1 project no longer exists.
+    pub orphaned_sessions: usize,
+    /// Sessions skipped because their start time couldn't be parsed.
+    pub unparseable_sessions: usize,
 }
 
 struct V1Session {
@@ -112,13 +118,20 @@ pub fn import_v1(
 
     for s in sessions {
         let Some(start) = parse_v1_time(&s.start) else {
+            report.unparseable_sessions += 1;
             continue;
         };
-        let project_id: i64 = tx.query_row(
-            "SELECT id FROM projects WHERE legacy_project_id = ?1",
-            [s.project_id],
-            |r| r.get(0),
-        )?;
+        let project_id: Option<i64> = tx
+            .query_row(
+                "SELECT id FROM projects WHERE legacy_project_id = ?1",
+                [s.project_id],
+                |r| r.get(0),
+            )
+            .optional()?;
+        let Some(project_id) = project_id else {
+            report.orphaned_sessions += 1;
+            continue;
+        };
         let seconds = s.duration.unwrap_or(0).max(0);
         let inserted = tx.execute(
             "INSERT OR IGNORE INTO entries

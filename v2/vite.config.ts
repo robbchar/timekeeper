@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 // @ts-expect-error type error without @types/node package
@@ -9,6 +10,10 @@ export default defineConfig(() => ({
   plugins: [react()],
   // Inline config stops Vite searching parent dirs and finding v1's postcss.config.js.
   css: { postcss: {} },
+  test: {
+    environment: "jsdom",
+    setupFiles: ["src/test-setup.ts"],
+  },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //

@@ -122,6 +122,31 @@ fn starting_the_running_project_is_a_no_op() {
 }
 
 #[test]
+fn resume_uses_the_last_project_unless_it_is_archived() {
+    let (mut s, a) = store_with_project();
+    let b = s
+        .create_project("Previvor", at("2026-10-01T00:00:00Z"))
+        .unwrap()
+        .id;
+    assert_eq!(s.resume_project_id().unwrap(), Some(a), "no history: first active by name");
+
+    s.start(b, None, at("2026-10-05T15:00:00Z"), day("2026-10-05"))
+        .unwrap();
+    s.stop(at("2026-10-05T16:00:00Z")).unwrap();
+    assert_eq!(s.resume_project_id().unwrap(), Some(b));
+
+    s.conn
+        .execute("UPDATE projects SET archived = 1 WHERE id = ?1", [b])
+        .unwrap();
+    assert_eq!(s.resume_project_id().unwrap(), Some(a));
+
+    s.conn
+        .execute("UPDATE projects SET archived = 1 WHERE id = ?1", [a])
+        .unwrap();
+    assert_eq!(s.resume_project_id().unwrap(), None);
+}
+
+#[test]
 fn the_database_refuses_a_second_running_interval() {
     let (mut s, p) = store_with_project();
     s.start(p, None, at("2026-10-05T15:00:00Z"), day("2026-10-05"))
@@ -341,6 +366,31 @@ fn imports_v1_by_local_day_and_ignores_end_time() {
     std::fs::remove_dir_all(dir).ok();
 }
 
+#[test]
+fn import_skips_and_counts_orphaned_and_unparseable_sessions() {
+    let dir = std::env::temp_dir().join(format!("tk-imp-bad-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let v1 = dir.join("v1.db");
+    v1_fixture(&v1);
+    Connection::open(&v1)
+        .unwrap()
+        .execute_batch(
+            r#"
+            -- project 2 was deleted; v1 never enforced the foreign key
+            INSERT INTO sessions VALUES (20, 2, '2026-09-24T15:00:00.000Z', NULL, 600, 'orphan');
+            INSERT INTO sessions VALUES (21, 3, 'not a time', NULL, 600, 'garbled');
+            "#,
+        )
+        .unwrap();
+
+    let mut s = Store::open_in_memory().unwrap();
+    let r = s.import_v1(&v1, pacific_day).unwrap();
+    assert_eq!(r.entries, 4, "the good sessions still import");
+    assert_eq!(r.orphaned_sessions, 1);
+    assert_eq!(r.unparseable_sessions, 1);
+    std::fs::remove_dir_all(dir).ok();
+}
+
 /// Point `TK_V1_DB` at a copy of the real v1 database to check the import
 /// against it. Skipped otherwise, so no personal data lives in the repo.
 #[test]
@@ -360,16 +410,19 @@ fn imports_real_v1_database_when_provided() {
             |r| Ok((r.get(0)?, r.get(1)?)),
         )
         .unwrap();
-    assert_eq!(r.entries, n);
-    assert_eq!(r.seconds, secs);
+    let skipped = r.orphaned_sessions + r.unparseable_sessions;
+    assert_eq!(r.entries + skipped, n);
+    if skipped == 0 {
+        assert_eq!(r.seconds, secs);
+    }
     let now = Utc::now();
     let all = s
         .entries(day("2000-01-01"), day("2100-01-01"), None, now)
         .unwrap();
     assert_eq!(
         all.iter().map(|e| e.seconds).sum::<i64>(),
-        secs,
-        "derived durations match v1 totals"
+        r.seconds,
+        "derived durations match the imported totals"
     );
     assert!(s.status(now).unwrap().running.is_none());
 }

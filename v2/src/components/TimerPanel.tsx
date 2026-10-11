@@ -7,13 +7,14 @@ interface Props {
   lastProjectId: number | null;
   status: Status;
   liveSeconds: number;
-  todaysEntries: Entry[];
+  entries: Entry[];
+  today: string;
   onChanged: () => void;
 }
 
 const NEW_PROJECT = -1;
 
-export function TimerPanel({ projects, lastProjectId, status, liveSeconds, todaysEntries, onChanged }: Props) {
+export function TimerPanel({ projects, lastProjectId, status, liveSeconds, entries, today, onChanged }: Props) {
   const running = status.running;
   const active = projects.filter((p) => !p.archived);
   const [selected, setSelected] = useState<number | null>(
@@ -28,12 +29,13 @@ export function TimerPanel({ projects, lastProjectId, status, liveSeconds, today
     if (running) setSelected(running.projectId);
   }, [running?.projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // The notes box edits the entry the timer would use: the running one, or
-  // today's entry for the selected project. With neither, it's a draft that
-  // becomes the new entry's notes on Start.
+  // The notes box edits the entry the timer would use: the running one (from
+  // any day, since it can run past midnight), or today's entry for the
+  // selected project. With neither, it's a draft that becomes the new entry's
+  // notes on Start.
   const target =
-    todaysEntries.find((e) => e.id === running?.entryId) ??
-    todaysEntries.find((e) => e.projectId === selected);
+    entries.find((e) => e.id === running?.entryId) ??
+    entries.find((e) => e.day === today && e.projectId === selected);
   const [notes, setNotes] = useState(target?.notes ?? "");
   const targetId = target?.id;
   useEffect(() => setNotes(target?.notes ?? ""), [targetId]); // eslint-disable-line react-hooks/exhaustive-deps

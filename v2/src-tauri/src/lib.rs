@@ -267,16 +267,10 @@ fn toggle_from_tray(app: &AppHandle) {
         let now = Utc::now();
         match store.status(now) {
             Ok(s) if s.running.is_some() => store.stop(now).map(Some),
-            Ok(_) => match store.last_project_id().ok().flatten().or_else(|| {
-                store
-                    .projects()
-                    .ok()?
-                    .into_iter()
-                    .find(|p| !p.archived)
-                    .map(|p| p.id)
-            }) {
-                Some(p) => store.start(p, None, now, today()).map(Some),
-                None => Ok(None),
+            Ok(_) => match store.resume_project_id() {
+                Ok(Some(p)) => store.start(p, None, now, today()).map(Some),
+                Ok(None) => Ok(None),
+                Err(e) => Err(e),
             },
             Err(e) => Err(e),
         }
@@ -289,6 +283,14 @@ fn toggle_from_tray(app: &AppHandle) {
         Ok(None) => show_main(app), // no projects yet
         Err(e) => eprintln!("tray toggle failed: {e}"),
     }
+}
+
+/// A deliberate quit stops the timer now, so the next launch has nothing to recover.
+fn quit(app: &AppHandle) {
+    if let Err(e) = app.state::<AppState>().store.lock().unwrap().stop(Utc::now()) {
+        eprintln!("stopping the timer on quit failed: {e}");
+    }
+    app.exit(0);
 }
 
 fn build_tray(app: &AppHandle) -> tauri::Result<TrayHandles> {
@@ -322,7 +324,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<TrayHandles> {
         .on_menu_event(|app, event| match event.id.as_ref() {
             "toggle" => toggle_from_tray(app),
             "show" => show_main(app),
-            "quit" => app.exit(0),
+            "quit" => quit(app),
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {

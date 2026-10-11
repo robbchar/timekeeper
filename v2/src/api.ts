@@ -52,6 +52,8 @@ export interface ImportReport {
   unclosedSessions: number;
   missingDurations: number;
   alreadyImported: number;
+  orphanedSessions: number;
+  unparseableSessions: number;
 }
 
 export interface Snapshot {

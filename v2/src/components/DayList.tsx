@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { api, Entry } from "../api";
 import { dayHeading, DateFormat, DurationFormat, formatDate, formatDuration, formatShort } from "../format";
 
@@ -58,9 +58,16 @@ function EntryRow({
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(entry.notes);
+  // Escape leaves through blur too; this tells save() to discard.
+  const cancelled = useRef(false);
 
   const save = async () => {
     setEditing(false);
+    if (cancelled.current) {
+      cancelled.current = false;
+      setDraft(entry.notes);
+      return;
+    }
     if (draft.trim() !== entry.notes) {
       await api.setNotes(entry.id, draft);
       onChanged();
@@ -81,13 +88,14 @@ function EntryRow({
             onChange={(e) => setDraft(e.target.value)}
             onBlur={save}
             onKeyDown={(e) => {
+              // Both keys exit through blur, so save() runs exactly once.
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                save();
+                e.currentTarget.blur();
               }
               if (e.key === "Escape") {
-                setDraft(entry.notes);
-                setEditing(false);
+                cancelled.current = true;
+                e.currentTarget.blur();
               }
             }}
           />

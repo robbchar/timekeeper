@@ -355,6 +355,22 @@ impl Store {
             .and_then(|v| v.parse().ok()))
     }
 
+    /// The project a one-click start should use: the last one timed unless it
+    /// is archived or gone, else the first active project.
+    pub fn resume_project_id(&self) -> Result<Option<i64>> {
+        let last = self.last_project_id()?;
+        let active: Vec<Project> = self
+            .projects()?
+            .into_iter()
+            .filter(|p| !p.archived)
+            .collect();
+        Ok(active
+            .iter()
+            .find(|p| Some(p.id) == last)
+            .or(active.first())
+            .map(|p| p.id))
+    }
+
     // ----------------------------------------------------------------- entries
 
     /// Entries whose day falls in `from..=to`, newest first.
