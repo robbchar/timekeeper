@@ -50,9 +50,14 @@ From `v2/`:
 cargo test -p timekeeper-core   # core: schema, timer, totals, import
 npm test -- --run               # UI: Vitest + jsdom, api.ts mocked
 npm run build                   # also the only TypeScript typecheck
+cargo fmt --all --check
+cargo clippy --workspace -- -D warnings
 ```
 
-Vitest defaults to watch mode, so always pass `--run`. There is no lint script.
+Vitest defaults to watch mode, so always pass `--run`. There is no JS lint script.
+
+CI (`.github/workflows/v2.yml`) runs all of the above on PRs touching `v2/`, plus `cargo check` on
+Windows. Clippy warnings fail the build. Clippy needs `dist/` to exist, so run `npm run build` first.
 
 To check the import against real data, point `TK_V1_DB` at a **copy** of a v1 database. The test
 `imports_real_v1_database_when_provided` is skipped without it:
