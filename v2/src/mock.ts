@@ -92,8 +92,12 @@ function sum(from: string, to: string, projectId: number | null) {
     .reduce((n, e) => n + secondsOf(e), 0);
 }
 
-export async function invoke<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {
-  const a = args as Record<string, unknown>;
+// Async like real IPC, so throws surface as rejections.
+export function invoke<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {
+  return Promise.resolve().then(() => handle<T>(cmd, args));
+}
+
+function handle<T>(cmd: string, a: Record<string, unknown>): T {
   switch (cmd) {
     case "snapshot":
       return {
