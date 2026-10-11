@@ -15,9 +15,10 @@ interface Props {
   durationFormat: DurationFormat;
   dateFormat: DateFormat;
   onChanged: () => void;
+  onError: (err: unknown) => void;
 }
 
-export function DayList({ entries, today, durationFormat, dateFormat, onChanged }: Props) {
+export function DayList({ entries, today, durationFormat, dateFormat, onChanged, onError }: Props) {
   const days: [string, Entry[]][] = [];
   for (const e of entries) {
     const last = days[days.length - 1];
@@ -46,6 +47,7 @@ export function DayList({ entries, today, durationFormat, dateFormat, onChanged 
               durationFormat={durationFormat}
               dateFormat={dateFormat}
               onChanged={onChanged}
+              onError={onError}
             />
           ))}
         </div>
@@ -59,28 +61,40 @@ function EntryRow({
   durationFormat,
   dateFormat,
   onChanged,
+  onError,
 }: {
   entry: Entry;
   durationFormat: DurationFormat;
   dateFormat: DateFormat;
   onChanged: () => void;
+  onError: (err: unknown) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(entry.notes);
   // Escape leaves through blur too; this tells save() to discard.
   const cancelled = useRef(false);
+  // Set when a save fails, so reopening the editor shows the draft instead of the saved notes.
+  const unsaved = useRef(false);
 
   const save = async () => {
     setEditing(false);
     if (cancelled.current) {
       cancelled.current = false;
+      unsaved.current = false;
       setDraft(entry.notes);
       return;
     }
     if (draft.trim() !== entry.notes) {
-      await api.setNotes(entry.id, draft);
+      try {
+        await api.setNotes(entry.id, draft);
+      } catch (err) {
+        unsaved.current = true;
+        onError(err);
+        return;
+      }
       onChanged();
     }
+    unsaved.current = false;
   };
 
   return (
@@ -95,7 +109,7 @@ function EntryRow({
             rows={2}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            onBlur={save}
+            onBlur={() => void save()}
             onKeyDown={(e) => {
               // Both keys exit through blur, so save() runs exactly once.
               if (e.key === "Enter" && !e.shiftKey) {
@@ -113,7 +127,7 @@ function EntryRow({
             className={`entry__notes ${entry.notes ? "" : "entry__notes--empty"}`}
             title="Edit notes"
             onClick={() => {
-              setDraft(entry.notes);
+              if (!unsaved.current) setDraft(entry.notes);
               setEditing(true);
             }}
           >
@@ -138,15 +152,15 @@ function CopyButton({ label, text }: { label: string; text: string }) {
       className={`copy ${state === "done" ? "copy--done" : ""}`}
       title={`Copy: ${text}`}
       disabled={!text}
-      onClick={async () => {
-        try {
-          await api.copy(text);
-          setState("done");
-        } catch {
-          setState("failed");
-        }
-        setTimeout(() => setState("idle"), 1200);
-      }}
+      onClick={() =>
+        void api
+          .copy(text)
+          .then(
+            () => setState("done"),
+            () => setState("failed"),
+          )
+          .finally(() => setTimeout(() => setState("idle"), 1200))
+      }
     >
       {state === "done" ? "Copied" : state === "failed" ? "Failed" : label}
     </button>

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api, Entry } from "../api";
 import { DayList } from "./DayList";
@@ -18,7 +18,7 @@ const entry: Entry = {
   running: false,
 };
 
-function editNotes(value: string) {
+function editNotes(value: string, onError = vi.fn()) {
   render(
     <DayList
       entries={[entry]}
@@ -26,6 +26,7 @@ function editNotes(value: string) {
       durationFormat="hms"
       dateFormat="iso"
       onChanged={() => {}}
+      onError={onError}
     />,
   );
   fireEvent.click(screen.getByTitle("Edit notes"));
@@ -49,5 +50,15 @@ describe("DayList notes editing", () => {
     fireEvent.keyDown(box, { key: "Enter" });
     expect(api.setNotes).toHaveBeenCalledTimes(1);
     expect(api.setNotes).toHaveBeenCalledWith(3, "changed");
+  });
+
+  it("reports a failed save and keeps the draft", async () => {
+    vi.mocked(api.setNotes).mockRejectedValueOnce("database is locked");
+    const onError = vi.fn();
+    const box = editNotes("changed", onError);
+    fireEvent.keyDown(box, { key: "Enter" });
+    await waitFor(() => expect(onError).toHaveBeenCalledWith("database is locked"));
+    fireEvent.click(screen.getByTitle("Edit notes"));
+    expect(screen.getByRole("textbox")).toHaveValue("changed");
   });
 });

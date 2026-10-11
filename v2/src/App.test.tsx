@@ -10,6 +10,7 @@ vi.mock("./api", () => ({
     entries: vi.fn(),
     totals: vi.fn(),
     setSetting: vi.fn(() => Promise.resolve()),
+    start: vi.fn(),
     onTimerChanged: vi.fn(() => Promise.resolve(() => {})),
   },
 }));
@@ -71,6 +72,21 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(screen.queryByText(/Imported 2 sessions/)).not.toBeInTheDocument();
+  });
+
+  it("shows an error when starting the timer fails", async () => {
+    vi.mocked(api.start).mockRejectedValueOnce("database is locked");
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Start" }));
+    expect(await screen.findByText("database is locked")).toBeInTheDocument();
+  });
+
+  it("shows an error on the Settings page when saving a setting fails", async () => {
+    vi.mocked(api.setSetting).mockRejectedValueOnce("disk full");
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
+    fireEvent.change(screen.getByLabelText("Time"), { target: { value: "decimal" } });
+    expect(await screen.findByText("disk full")).toBeInTheDocument();
   });
 
   it("ignores an older refresh that resolves after a newer one", async () => {

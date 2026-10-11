@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { api, Entry, Project, Status } from "../api";
 import { formatClock } from "../format";
 
@@ -10,6 +10,7 @@ interface Props {
   entries: Entry[];
   today: string;
   onChanged: () => void;
+  onError: (err: unknown) => void;
 }
 
 const NEW_PROJECT = -1;
@@ -22,6 +23,7 @@ export function TimerPanel({
   entries,
   today,
   onChanged,
+  onError,
 }: Props) {
   const running = status.running;
   const active = projects.filter((p) => !p.archived);
@@ -33,9 +35,12 @@ export function TimerPanel({
   const [busy, setBusy] = useState(false);
 
   // Follow the timer if it was started elsewhere (e.g. the tray).
-  useEffect(() => {
-    if (running) setSelected(running.projectId);
-  }, [running?.projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const runningProjectId = running?.projectId;
+  const [seenRunningProjectId, setSeenRunningProjectId] = useState(runningProjectId);
+  if (runningProjectId !== seenRunningProjectId) {
+    setSeenRunningProjectId(runningProjectId);
+    if (runningProjectId != null) setSelected(runningProjectId);
+  }
 
   // The notes box edits the entry the timer would use: the running one (from
   // any day, since it can run past midnight), or today's entry for the
@@ -46,19 +51,26 @@ export function TimerPanel({
     entries.find((e) => e.day === today && e.projectId === selected);
   const [notes, setNotes] = useState(target?.notes ?? "");
   const targetId = target?.id;
-  useEffect(() => setNotes(target?.notes ?? ""), [targetId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [seenTargetId, setSeenTargetId] = useState(targetId);
+  if (targetId !== seenTargetId) {
+    setSeenTargetId(targetId);
+    setNotes(target?.notes ?? "");
+  }
 
   const saveTimer = useRef<number | undefined>(undefined);
   const scheduleSave = (value: string) => {
     setNotes(value);
     if (targetId == null) return;
     window.clearTimeout(saveTimer.current);
-    saveTimer.current = window.setTimeout(() => api.setNotes(targetId, value), 600);
+    saveTimer.current = window.setTimeout(
+      () => void api.setNotes(targetId, value).catch(onError),
+      600,
+    );
   };
   const flushSave = () => {
     if (targetId == null) return;
     window.clearTimeout(saveTimer.current);
-    if (notes !== target?.notes) api.setNotes(targetId, notes).then(onChanged);
+    if (notes !== target?.notes) void api.setNotes(targetId, notes).then(onChanged, onError);
   };
 
   const act = async (fn: () => Promise<unknown>) => {
@@ -66,6 +78,8 @@ export function TimerPanel({
     try {
       await fn();
       onChanged();
+    } catch (err) {
+      onError(err);
     } finally {
       setBusy(false);
     }
@@ -100,7 +114,7 @@ export function TimerPanel({
             className="timer__new-project"
             onSubmit={(e) => {
               e.preventDefault();
-              addProject();
+              void addProject();
             }}
           >
             <input
@@ -144,7 +158,7 @@ export function TimerPanel({
         <button
           className={`btn btn--primary ${running ? "btn--stop" : ""}`}
           disabled={busy || (!running && selected == null)}
-          onClick={toggle}
+          onClick={() => void toggle()}
         >
           {running ? (isRunningHere ? "Stop" : `Stop ${running.projectName}`) : "Start"}
         </button>
