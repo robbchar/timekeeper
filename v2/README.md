@@ -1,7 +1,9 @@
-# TimeKeeper v2 — proof of concept
+# TimeKeeper v2
 
-Tauri 2 + React/TypeScript + SQLite. A tray-first replacement for the v1 Electron app.
-See the v2 brief in the TimeKeepr project for the reasoning behind the design.
+Tauri 2 + React/TypeScript + SQLite. A tray-first replacement for the v1 Electron app, in progress.
+
+- [ARCHITECTURE.md](ARCHITECTURE.md): layers, data model, times, migrations, v1 import and settings.
+- [CLAUDE.md](CLAUDE.md): rules and checklists for changing the code.
 
 ## Layout
 
@@ -42,7 +44,7 @@ and open <http://localhost:1420>.
   a fresh copy, quit v2 and delete the v2 database folder above.
 - v1 sessions whose project was deleted, or whose start time can't be read, are skipped and counted
   in the import notice rather than failing the import.
-- While trying this out, keep tracking real time in v1. Running both means two separate timers.
+- While v2 is in progress, keep tracking real time in v1. Running both means two separate timers.
 
 ## Behaviour worth knowing
 
@@ -56,16 +58,6 @@ and open <http://localhost:1420>.
   while timing, the next launch stops the timer at the last heartbeat (written every 30s) and says so.
 - Copy buttons on each day's entry: **Time**, **Notes**, **Date**. Formats, and which day the week starts on, are on the Settings page.
 
-## Tests and checks
+## Tests
 
-```bash
-npm test                       # UI (Vitest + jsdom, against a mocked api.ts), runs once
-npm run lint                   # ESLint with type-checked rules
-npm run format:check           # Prettier; `npm run format` fixes
-npm run typecheck
-cargo test -p timekeeper-core
-# Check the import against a copy of a real v1 database (never committed):
-TK_V1_DB=/path/to/copy/of/timekeeper.db cargo test -p timekeeper-core
-```
-
-UI tests run in `America/New_York` so date tests cross DST on every machine. The `v2` workflow runs the four npm checks on PRs that touch `v2/`.
+See [CLAUDE.md](CLAUDE.md#testing).
