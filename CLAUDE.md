@@ -4,7 +4,7 @@ A desktop time-tracking application for keeping time against the different contr
 
 Read [ARCHITECTURE.md](ARCHITECTURE.md) before changing anything that crosses the renderer↔main boundary. Longer design notes live in [docs/](docs/).
 
-`v2/` is the in-progress Tauri rewrite: a separate app with its own `package.json`, Cargo workspace and [README](v2/README.md). Nothing below applies to it, and v1's ESLint, Prettier and lint-staged ignore it.
+`v2/` is the in-progress Tauri rewrite: a separate app with its own `package.json`, Cargo workspace, [README](v2/README.md) and [CLAUDE.md](v2/CLAUDE.md). Nothing below applies to it, and v1's ESLint, Prettier and lint-staged ignore it.
 
 ## Package manager
 
