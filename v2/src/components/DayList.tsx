@@ -1,6 +1,13 @@
 import { useRef, useState } from "react";
 import { api, Entry } from "../api";
-import { dayHeading, DateFormat, DurationFormat, formatDate, formatDuration, formatShort } from "../format";
+import {
+  dayHeading,
+  DateFormat,
+  DurationFormat,
+  formatDate,
+  formatDuration,
+  formatShort,
+} from "../format";
 
 interface Props {
   entries: Entry[];
@@ -28,7 +35,9 @@ export function DayList({ entries, today, durationFormat, dateFormat, onChanged 
         <div className="day" key={day}>
           <div className="day__head">
             <h3>{dayHeading(day, today)}</h3>
-            <span className="day__total">{formatShort(list.reduce((n, e) => n + e.seconds, 0))}</span>
+            <span className="day__total">
+              {formatShort(list.reduce((n, e) => n + e.seconds, 0))}
+            </span>
           </div>
           {list.map((e) => (
             <EntryRow

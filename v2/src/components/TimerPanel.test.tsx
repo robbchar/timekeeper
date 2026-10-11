@@ -4,7 +4,12 @@ import { api, Entry, Project } from "../api";
 import { TimerPanel } from "./TimerPanel";
 
 vi.mock("../api", () => ({
-  api: { setNotes: vi.fn(() => Promise.resolve()), start: vi.fn(), stop: vi.fn(), createProject: vi.fn() },
+  api: {
+    setNotes: vi.fn(() => Promise.resolve()),
+    start: vi.fn(),
+    stop: vi.fn(),
+    createProject: vi.fn(),
+  },
 }));
 
 const project: Project = { id: 1, name: "Acme", color: null, archived: false };

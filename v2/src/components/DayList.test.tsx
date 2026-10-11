@@ -19,7 +19,15 @@ const entry: Entry = {
 };
 
 function editNotes(value: string) {
-  render(<DayList entries={[entry]} today="2026-10-10" durationFormat="hms" dateFormat="iso" onChanged={() => {}} />);
+  render(
+    <DayList
+      entries={[entry]}
+      today="2026-10-10"
+      durationFormat="hms"
+      dateFormat="iso"
+      onChanged={() => {}}
+    />,
+  );
   fireEvent.click(screen.getByTitle("Edit notes"));
   const box = screen.getByRole("textbox");
   fireEvent.change(box, { target: { value } });

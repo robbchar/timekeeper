@@ -52,7 +52,9 @@ const entryWithNotes = (id: number, notes: string): Entry => ({
 beforeEach(() => {
   vi.mocked(api.snapshot).mockReset().mockResolvedValue(snapshot);
   vi.mocked(api.entries).mockReset().mockResolvedValue([]);
-  vi.mocked(api.totals).mockReset().mockResolvedValue({ today: 0, thisWeek: 0, thisMonth: 0, lastMonth: 0 });
+  vi.mocked(api.totals)
+    .mockReset()
+    .mockResolvedValue({ today: 0, thisWeek: 0, thisMonth: 0, lastMonth: 0 });
 });
 
 describe("App", () => {

@@ -30,13 +30,27 @@ for (let i = 1; i <= 40; i++) {
   if (dow === 0) continue;
   const secs = 3600 * (2 + ((i * 7) % 5)) + 60 * ((i * 13) % 60);
   entries.push({
-    id: nextId++, projectId: 1, projectName: projects[0].name, projectColor: projects[0].color,
-    day, notes: notes[i % notes.length], seconds: secs, closedSeconds: secs, running: false,
+    id: nextId++,
+    projectId: 1,
+    projectName: projects[0].name,
+    projectColor: projects[0].color,
+    day,
+    notes: notes[i % notes.length],
+    seconds: secs,
+    closedSeconds: secs,
+    running: false,
   });
   if (i % 9 === 0) {
     entries.push({
-      id: nextId++, projectId: 2, projectName: projects[1].name, projectColor: projects[1].color,
-      day, notes: "kata: filterable list", seconds: 1800, closedSeconds: 1800, running: false,
+      id: nextId++,
+      projectId: 2,
+      projectName: projects[1].name,
+      projectColor: projects[1].color,
+      day,
+      notes: "kata: filterable list",
+      seconds: 1800,
+      closedSeconds: 1800,
+      running: false,
     });
   }
 }
@@ -55,8 +69,11 @@ function status(): Status {
   const e = entries.find((x) => x.id === running!.entryId)!;
   return {
     running: {
-      entryId: e.id, projectId: e.projectId, projectName: e.projectName,
-      intervalStartedAt: new Date(running.startedAt).toISOString(), priorSeconds: e.closedSeconds,
+      entryId: e.id,
+      projectId: e.projectId,
+      projectName: e.projectName,
+      intervalStartedAt: new Date(running.startedAt).toISOString(),
+      priorSeconds: e.closedSeconds,
     },
     elapsedSeconds: secondsOf(e),
   };
@@ -80,21 +97,32 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
   switch (cmd) {
     case "snapshot":
       return {
-        status: status(), projects, lastProjectId, settings,
+        status: status(),
+        projects,
+        lastProjectId,
+        settings,
         startup: { recovered: null, imported: null, importError: null },
         dataDir: "(browser preview: in-memory sample data)",
         v1ImportedAt: null,
       } satisfies Snapshot as T;
     case "start": {
       const projectId = a.projectId as number;
-      if (running && entries.find((e) => e.id === running!.entryId)!.projectId === projectId) return status() as T;
+      if (running && entries.find((e) => e.id === running!.entryId)!.projectId === projectId)
+        return status() as T;
       stop();
       let e = entries.find((x) => x.projectId === projectId && x.day === localDay());
       if (!e) {
         const p = projects.find((x) => x.id === projectId)!;
         e = {
-          id: nextId++, projectId, projectName: p.name, projectColor: p.color, day: localDay(),
-          notes: (a.notes as string | undefined)?.trim() ?? "", seconds: 0, closedSeconds: 0, running: false,
+          id: nextId++,
+          projectId,
+          projectName: p.name,
+          projectColor: p.color,
+          day: localDay(),
+          notes: (a.notes as string | undefined)?.trim() ?? "",
+          seconds: 0,
+          closedSeconds: 0,
+          running: false,
         };
         entries.unshift(e);
       }
@@ -107,7 +135,12 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       return status() as T;
     case "entries":
       return entries
-        .filter((e) => e.day >= (a.from as string) && e.day <= (a.to as string) && (a.projectId == null || e.projectId === a.projectId))
+        .filter(
+          (e) =>
+            e.day >= (a.from as string) &&
+            e.day <= (a.to as string) &&
+            (a.projectId == null || e.projectId === a.projectId),
+        )
         .sort((x, y) => (x.day < y.day ? 1 : x.day > y.day ? -1 : y.id - x.id))
         .map((e) => ({ ...e, seconds: secondsOf(e), running: running?.entryId === e.id })) as T;
     case "totals": {
@@ -119,8 +152,10 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       const lastMonthEnd = addDays(monthFirst, -1);
       const lastMonthFirst = lastMonthEnd.slice(0, 8) + "01";
       return {
-        today: sum(t, t, pid), thisWeek: sum(addDays(t, -dow), t, pid),
-        thisMonth: sum(monthFirst, t, pid), lastMonth: sum(lastMonthFirst, lastMonthEnd, pid),
+        today: sum(t, t, pid),
+        thisWeek: sum(addDays(t, -dow), t, pid),
+        thisMonth: sum(monthFirst, t, pid),
+        lastMonth: sum(lastMonthFirst, lastMonthEnd, pid),
       } satisfies Totals as T;
     }
     case "set_notes": {
@@ -129,7 +164,12 @@ export async function invoke<T>(cmd: string, args: Record<string, unknown> = {})
       return undefined as T;
     }
     case "create_project": {
-      const p: Project = { id: projects.length + 1, name: (a.name as string).trim(), color: null, archived: false };
+      const p: Project = {
+        id: projects.length + 1,
+        name: (a.name as string).trim(),
+        color: null,
+        archived: false,
+      };
       projects.push(p);
       return p as T;
     }

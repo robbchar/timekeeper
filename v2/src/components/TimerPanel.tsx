@@ -14,7 +14,15 @@ interface Props {
 
 const NEW_PROJECT = -1;
 
-export function TimerPanel({ projects, lastProjectId, status, liveSeconds, entries, today, onChanged }: Props) {
+export function TimerPanel({
+  projects,
+  lastProjectId,
+  status,
+  liveSeconds,
+  entries,
+  today,
+  onChanged,
+}: Props) {
   const running = status.running;
   const active = projects.filter((p) => !p.archived);
   const [selected, setSelected] = useState<number | null>(
@@ -101,7 +109,9 @@ export function TimerPanel({ projects, lastProjectId, status, liveSeconds, entri
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
             />
-            <button type="submit" className="btn">Add</button>
+            <button type="submit" className="btn">
+              Add
+            </button>
             {active.length > 0 && (
               <button type="button" className="btn btn--ghost" onClick={() => setAdding(false)}>
                 Cancel

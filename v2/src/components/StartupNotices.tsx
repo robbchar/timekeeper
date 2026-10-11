@@ -23,13 +23,17 @@ export function StartupNotices({ startup, dismissed, onDismiss: dismiss }: Props
             {skipped > 0 &&
               ` ${skipped} sessions were skipped because their project was gone or their start time was unreadable.`}
           </span>
-          <button className="btn btn--ghost" onClick={() => dismiss("import")}>Dismiss</button>
+          <button className="btn btn--ghost" onClick={() => dismiss("import")}>
+            Dismiss
+          </button>
         </div>
       )}
       {importError && !dismissed.has("importError") && (
         <div className="notice notice--error">
           <span>Couldn't import v1 data: {importError}</span>
-          <button className="btn btn--ghost" onClick={() => dismiss("importError")}>Dismiss</button>
+          <button className="btn btn--ghost" onClick={() => dismiss("importError")}>
+            Dismiss
+          </button>
         </div>
       )}
       {recovered && !dismissed.has("recovered") && (
@@ -44,7 +48,9 @@ export function StartupNotices({ startup, dismissed, onDismiss: dismiss }: Props
             })}
             , the last moment the app was running.
           </span>
-          <button className="btn btn--ghost" onClick={() => dismiss("recovered")}>Dismiss</button>
+          <button className="btn btn--ghost" onClick={() => dismiss("recovered")}>
+            Dismiss
+          </button>
         </div>
       )}
     </>
