@@ -457,3 +457,19 @@ button:focus-visible {
     gap: 6px;
   }
 }
+
+/* ------------------------------------------------------------------ crash */
+
+.crash {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 24px;
+}
+.crash__message {
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
