@@ -51,7 +51,9 @@ cargo test -p timekeeper-core   # core: schema, timer, totals, import
 npm test                        # UI: Vitest + jsdom, api.ts mocked; runs once
 npm run lint                    # ESLint, type-checked rules
 npm run format:check            # Prettier; `npm run format` fixes
-npm run typecheck
+npm run typecheck               # `npm run build` also typechecks
+cargo fmt --all --check
+cargo clippy --workspace -- -D warnings
 ```
 
 `npm test` already passes `--run`; calling `npx vitest` directly needs it too, or it starts watch
@@ -59,6 +61,9 @@ mode. UI tests run in `America/New_York`, so date tests cross a DST change on ev
 
 Promise-returning calls must be awaited, `.catch`-ed or `void`-ed (lint enforces it). UI failures
 go to `App`'s error banner through the components' `onError` prop.
+
+CI (`.github/workflows/v2.yml`) runs all of the above on PRs touching `v2/`, plus `cargo check` on
+Windows. Clippy warnings fail the build. Clippy needs `dist/` to exist, so run `npm run build` first.
 
 To check the import against real data, point `TK_V1_DB` at a **copy** of a v1 database. The test
 `imports_real_v1_database_when_provided` is skipped without it:
