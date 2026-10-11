@@ -33,8 +33,13 @@ impl AppState {
     }
 }
 
+// Lock recovery and the ticker's panic guard rely on unwinding; abort would make them dead code.
+#[cfg(not(panic = "unwind"))]
+compile_error!("TimeKeeper must be built with panic = \"unwind\"");
+
 /// A panic while holding the lock poisons it; without this, every later call would panic too.
-/// Recovering is safe because SQLite rolls back an interrupted transaction when it is dropped.
+/// Safe because each `Store` write is one statement or one transaction, which SQLite rolls back if
+/// interrupted.
 fn lock_recovering<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|poisoned| {
         eprintln!("store lock was poisoned by an earlier panic; recovering");
@@ -360,26 +365,45 @@ fn spawn_ticker(app: AppHandle) {
         loop {
             std::thread::sleep(std::time::Duration::from_secs(1));
             ticks += 1;
-            let state = app.state::<AppState>();
-            let status = {
-                let store = state.lock_store();
-                let now = Utc::now();
-                let status = store.status(now);
-                if ticks.is_multiple_of(HEARTBEAT_EVERY_SECS) {
-                    if let Ok(Status {
-                        running: Some(_), ..
-                    }) = &status
-                    {
-                        let _ = store.heartbeat(now);
-                    }
-                }
-                status
-            };
-            if let Ok(status) = status {
-                refresh_tray(&app, &status);
-            }
+            // A panic in one tick is logged by the hook; the ticker keeps going.
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| tick(&app, ticks)));
         }
     });
+}
+
+fn tick(app: &AppHandle, ticks: u64) {
+    let state = app.state::<AppState>();
+    let status = {
+        let store = state.lock_store();
+        let now = Utc::now();
+        let status = store.status(now);
+        if ticks.is_multiple_of(HEARTBEAT_EVERY_SECS) {
+            if let Ok(Status {
+                running: Some(_), ..
+            }) = &status
+            {
+                let _ = store.heartbeat(now);
+            }
+        }
+        status
+    };
+    if let Ok(status) = status {
+        refresh_tray(app, &status);
+    }
+}
+
+/// Release builds have no console, so panics are also appended to `panic.log` in the data dir.
+fn log_panics_to(path: std::path::PathBuf) {
+    let default = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        default(info);
+        let line = format!("{} {info}\n", Utc::now().to_rfc3339());
+        let _ = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .and_then(|mut f| std::io::Write::write_all(&mut f, line.as_bytes()));
+    }));
 }
 
 // ----------------------------------------------------------------------- run
@@ -387,6 +411,7 @@ fn spawn_ticker(app: AppHandle) {
 fn open_store(app: &AppHandle) -> Result<(Store, Startup, String), Box<dyn std::error::Error>> {
     let dir = app.path().app_data_dir()?;
     std::fs::create_dir_all(&dir)?;
+    log_panics_to(dir.join("panic.log"));
     let mut store = Store::open(dir.join("timekeeper.db"))?;
     let mut startup = Startup::default();
 
