@@ -60,7 +60,8 @@ cargo clippy --workspace --all-targets -- -D warnings
 mode. UI tests run in `America/New_York`, so date tests cross a DST change on every machine.
 
 Promise-returning calls must be awaited, `.catch`-ed or `void`-ed (lint enforces it). UI failures
-go to `App`'s error banner through the components' `onError` prop.
+go to `App`'s error banner through the components' `onError` prop. Render errors are caught by
+`ErrorBoundary` in `main.tsx`, which shows the message and a Reload button.
 
 CI (`.github/workflows/v2.yml`) runs all of the above on PRs touching `v2/`, plus `cargo check` and
 core tests on Windows. Clippy warnings fail the build. Clippy needs `dist/` to exist, so run
