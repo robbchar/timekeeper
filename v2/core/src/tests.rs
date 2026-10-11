@@ -1,0 +1,375 @@
+use super::*;
+use chrono::TimeZone;
+
+fn at(s: &str) -> DateTime<Utc> {
+    DateTime::parse_from_rfc3339(s).unwrap().with_timezone(&Utc)
+}
+fn day(s: &str) -> NaiveDate {
+    NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap()
+}
+fn store_with_project() -> (Store, i64) {
+    let s = Store::open_in_memory().unwrap();
+    let p = s
+        .create_project("Elevate", at("2026-10-01T00:00:00Z"))
+        .unwrap();
+    (s, p.id)
+}
+
+#[test]
+fn start_then_stop_records_elapsed_time() {
+    let (mut s, p) = store_with_project();
+    s.start(
+        p,
+        Some("LABS-1"),
+        at("2026-10-05T15:00:00Z"),
+        day("2026-10-05"),
+    )
+    .unwrap();
+    let st = s.status(at("2026-10-05T15:30:00Z")).unwrap();
+    assert_eq!(st.elapsed_seconds, 1800);
+    s.stop(at("2026-10-05T16:00:00Z")).unwrap();
+    assert!(s
+        .status(at("2026-10-05T17:00:00Z"))
+        .unwrap()
+        .running
+        .is_none());
+
+    let e = s
+        .entries(
+            day("2026-10-05"),
+            day("2026-10-05"),
+            None,
+            at("2026-10-05T17:00:00Z"),
+        )
+        .unwrap();
+    assert_eq!(e.len(), 1);
+    assert_eq!(e[0].seconds, 3600);
+    assert_eq!(e[0].notes, "LABS-1");
+    assert!(!e[0].running);
+}
+
+#[test]
+fn restarting_the_same_day_reuses_the_entry() {
+    let (mut s, p) = store_with_project();
+    s.start(
+        p,
+        Some("morning"),
+        at("2026-10-05T15:00:00Z"),
+        day("2026-10-05"),
+    )
+    .unwrap();
+    s.stop(at("2026-10-05T16:00:00Z")).unwrap();
+    s.start(
+        p,
+        Some("ignored"),
+        at("2026-10-05T18:00:00Z"),
+        day("2026-10-05"),
+    )
+    .unwrap();
+    let st = s.status(at("2026-10-05T18:30:00Z")).unwrap();
+    assert_eq!(st.running.as_ref().unwrap().prior_seconds, 3600);
+    assert_eq!(st.elapsed_seconds, 5400);
+
+    let e = s
+        .entries(
+            day("2026-10-05"),
+            day("2026-10-05"),
+            None,
+            at("2026-10-05T18:30:00Z"),
+        )
+        .unwrap();
+    assert_eq!(e.len(), 1);
+    assert_eq!(e[0].notes, "morning");
+    assert!(e[0].running);
+}
+
+#[test]
+fn starting_another_project_stops_the_first() {
+    let (mut s, a) = store_with_project();
+    let b = s
+        .create_project("Katas", at("2026-10-01T00:00:00Z"))
+        .unwrap()
+        .id;
+    s.start(a, None, at("2026-10-05T15:00:00Z"), day("2026-10-05"))
+        .unwrap();
+    s.start(b, None, at("2026-10-05T15:20:00Z"), day("2026-10-05"))
+        .unwrap();
+    let st = s.status(at("2026-10-05T15:30:00Z")).unwrap();
+    assert_eq!(st.running.unwrap().project_id, b);
+    let totals = s
+        .totals(
+            day("2026-10-05"),
+            WeekStart::Monday,
+            Some(a),
+            at("2026-10-05T15:30:00Z"),
+        )
+        .unwrap();
+    assert_eq!(totals.today, 1200);
+}
+
+#[test]
+fn starting_the_running_project_is_a_no_op() {
+    let (mut s, p) = store_with_project();
+    s.start(p, None, at("2026-10-05T15:00:00Z"), day("2026-10-05"))
+        .unwrap();
+    let st = s
+        .start(p, None, at("2026-10-05T15:10:00Z"), day("2026-10-05"))
+        .unwrap();
+    assert_eq!(
+        st.running.unwrap().interval_started_at,
+        "2026-10-05T15:00:00.000Z"
+    );
+}
+
+#[test]
+fn the_database_refuses_a_second_running_interval() {
+    let (mut s, p) = store_with_project();
+    s.start(p, None, at("2026-10-05T15:00:00Z"), day("2026-10-05"))
+        .unwrap();
+    let entry = s
+        .status(at("2026-10-05T15:00:00Z"))
+        .unwrap()
+        .running
+        .unwrap()
+        .entry_id;
+    let err = s.conn.execute(
+        "INSERT INTO intervals (entry_id, start_at, source) VALUES (?1, '2026-10-05T15:05:00.000Z', 'timer')",
+        [entry],
+    );
+    assert!(err.is_err());
+}
+
+#[test]
+fn a_stale_timer_is_closed_at_the_last_heartbeat() {
+    let (mut s, p) = store_with_project();
+    s.start(p, None, at("2026-10-05T15:00:00Z"), day("2026-10-05"))
+        .unwrap();
+    s.heartbeat(at("2026-10-05T17:00:00Z")).unwrap();
+    // App died; relaunched the next morning.
+    let rec = s
+        .recover_stale(at("2026-10-06T14:00:00Z"), Duration::minutes(2))
+        .unwrap();
+    assert_eq!(rec.unwrap().stopped_at, "2026-10-05T17:00:00.000Z");
+    let e = s
+        .entries(
+            day("2026-10-05"),
+            day("2026-10-05"),
+            None,
+            at("2026-10-06T14:00:00Z"),
+        )
+        .unwrap();
+    assert_eq!(e[0].seconds, 7200);
+}
+
+#[test]
+fn a_fresh_heartbeat_leaves_the_timer_running() {
+    let (mut s, p) = store_with_project();
+    s.start(p, None, at("2026-10-05T15:00:00Z"), day("2026-10-05"))
+        .unwrap();
+    s.heartbeat(at("2026-10-05T15:59:30Z")).unwrap();
+    let rec = s
+        .recover_stale(at("2026-10-05T16:00:00Z"), Duration::minutes(2))
+        .unwrap();
+    assert!(rec.is_none());
+    assert!(s
+        .status(at("2026-10-05T16:00:00Z"))
+        .unwrap()
+        .running
+        .is_some());
+}
+
+fn log(s: &mut Store, p: i64, d: &str, hours: i64) {
+    let t = at(&format!("{d}T15:00:00Z"));
+    s.start(p, None, t, day(d)).unwrap();
+    s.stop(t + Duration::hours(hours)).unwrap();
+}
+
+#[test]
+fn totals_bucket_by_local_day_week_and_month() {
+    let (mut s, p) = store_with_project();
+    log(&mut s, p, "2026-09-30", 1); // last month (a Wednesday)
+    log(&mut s, p, "2026-10-04", 2); // Sunday
+    log(&mut s, p, "2026-10-05", 4); // Monday = today
+    let now = at("2026-10-05T23:00:00Z");
+
+    let t = s
+        .totals(day("2026-10-05"), WeekStart::Monday, None, now)
+        .unwrap();
+    assert_eq!(t.today, 4 * 3600);
+    assert_eq!(
+        t.this_week,
+        4 * 3600,
+        "Sunday belongs to the previous Monday-week"
+    );
+    assert_eq!(t.this_month, 6 * 3600);
+    assert_eq!(t.last_month, 3600);
+
+    let t = s
+        .totals(day("2026-10-05"), WeekStart::Sunday, None, now)
+        .unwrap();
+    assert_eq!(
+        t.this_week,
+        6 * 3600,
+        "with Sunday weeks, Sunday starts this week"
+    );
+}
+
+#[test]
+fn last_month_handles_january() {
+    let (mut s, p) = store_with_project();
+    log(&mut s, p, "2025-12-31", 3);
+    log(&mut s, p, "2025-12-01", 1);
+    let t = s
+        .totals(
+            day("2026-01-02"),
+            WeekStart::Monday,
+            None,
+            at("2026-01-02T20:00:00Z"),
+        )
+        .unwrap();
+    assert_eq!(t.last_month, 4 * 3600);
+    assert_eq!(t.this_month, 0);
+}
+
+#[test]
+fn totals_include_the_running_interval() {
+    let (mut s, p) = store_with_project();
+    s.start(p, None, at("2026-10-05T15:00:00Z"), day("2026-10-05"))
+        .unwrap();
+    let t = s
+        .totals(
+            day("2026-10-05"),
+            WeekStart::Monday,
+            None,
+            at("2026-10-05T15:45:00Z"),
+        )
+        .unwrap();
+    assert_eq!(t.today, 2700);
+}
+
+#[test]
+fn migrations_are_idempotent() {
+    let dir = std::env::temp_dir().join(format!("tk-mig-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("t.db");
+    drop(Store::open(&path).unwrap());
+    let s = Store::open(&path).unwrap();
+    let v: i64 = s
+        .conn
+        .query_row("PRAGMA user_version", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(v, schema::CURRENT_VERSION);
+    std::fs::remove_dir_all(dir).ok();
+}
+
+// ------------------------------------------------------------------ v1 import
+
+/// Builds a small v1 database with the v1 schema, covering the awkward cases
+/// seen in the real data.
+fn v1_fixture(path: &std::path::Path) {
+    let c = Connection::open(path).unwrap();
+    c.execute_batch(
+        r#"
+        CREATE TABLE projects (projectId INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
+            description TEXT, color TEXT, createdAt DATETIME DEFAULT CURRENT_TIMESTAMP);
+        CREATE TABLE sessions (sessionId INTEGER PRIMARY KEY AUTOINCREMENT, projectId INTEGER NOT NULL,
+            startTime DATETIME NOT NULL, endTime DATETIME, duration INTEGER, notes TEXT);
+        CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        INSERT INTO settings VALUES ('schema_version', '4');
+        INSERT INTO projects (projectId, name, createdAt) VALUES (1, 'Previvor -  Beta ', '2025-05-19 17:42:13');
+        INSERT INTO projects (projectId, name, createdAt) VALUES (3, 'Elevate', '2026-01-27 22:14:55');
+        -- normal: closed the next morning, endTime meaningless
+        INSERT INTO sessions VALUES (10, 3, '2026-09-21T14:15:00.000Z', '2026-09-22T14:00:00.000Z', 7524, 'LABS-734');
+        -- never closed
+        INSERT INTO sessions VALUES (11, 1, '2025-06-19T15:09:44.367Z', NULL, NULL, '6/19');
+        -- never closed but has a duration
+        INSERT INTO sessions VALUES (12, 1, '2025-07-22T14:28:36.818Z', NULL, 2, '7/22');
+        -- evening start in Pacific time = next day in UTC
+        INSERT INTO sessions VALUES (13, 3, '2026-09-23T03:30:00.000Z', '2026-09-23T05:00:00.000Z', 5400, 'late');
+        "#,
+    )
+    .unwrap();
+}
+
+fn pacific_day(t: DateTime<Utc>) -> NaiveDate {
+    (t - Duration::hours(7)).date_naive()
+}
+
+#[test]
+fn imports_v1_by_local_day_and_ignores_end_time() {
+    let dir = std::env::temp_dir().join(format!("tk-imp-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let v1 = dir.join("v1.db");
+    v1_fixture(&v1);
+
+    let mut s = Store::open_in_memory().unwrap();
+    let r = s.import_v1(&v1, pacific_day).unwrap();
+    assert_eq!(r.projects, 2);
+    assert_eq!(r.entries, 4);
+    assert_eq!(r.seconds, 7524 + 2 + 5400);
+    assert_eq!(r.unclosed_sessions, 2);
+    assert_eq!(r.missing_durations, 1);
+
+    let now = Utc.with_ymd_and_hms(2026, 10, 10, 0, 0, 0).unwrap();
+    let all = s
+        .entries(day("2025-01-01"), day("2026-12-31"), None, now)
+        .unwrap();
+    let late = all.iter().find(|e| e.notes == "late").unwrap();
+    assert_eq!(
+        late.day, "2026-09-22",
+        "8:30pm Pacific stays on the local day"
+    );
+    let normal = all.iter().find(|e| e.notes == "LABS-734").unwrap();
+    assert_eq!(normal.seconds, 7524);
+    assert!(
+        all.iter().all(|e| !e.running),
+        "unclosed v1 sessions must not import as running"
+    );
+    assert_eq!(
+        s.projects()
+            .unwrap()
+            .iter()
+            .filter(|p| p.name == "Previvor -  Beta")
+            .count(),
+        1
+    );
+
+    // Running it again changes nothing.
+    let again = s.import_v1(&v1, pacific_day).unwrap();
+    assert_eq!(again.entries, 0);
+    assert_eq!(again.already_imported, 6);
+    std::fs::remove_dir_all(dir).ok();
+}
+
+/// Point `TK_V1_DB` at a copy of the real v1 database to check the import
+/// against it. Skipped otherwise, so no personal data lives in the repo.
+#[test]
+fn imports_real_v1_database_when_provided() {
+    let Ok(path) = std::env::var("TK_V1_DB") else {
+        return;
+    };
+    let mut s = Store::open_in_memory().unwrap();
+    let r = s.import_v1(&path, pacific_day).unwrap();
+    eprintln!("{r:#?}");
+    let v1 =
+        Connection::open_with_flags(&path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+    let (n, secs): (usize, i64) = v1
+        .query_row(
+            "SELECT COUNT(*), COALESCE(SUM(duration), 0) FROM sessions",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(r.entries, n);
+    assert_eq!(r.seconds, secs);
+    let now = Utc::now();
+    let all = s
+        .entries(day("2000-01-01"), day("2100-01-01"), None, now)
+        .unwrap();
+    assert_eq!(
+        all.iter().map(|e| e.seconds).sum::<i64>(),
+        secs,
+        "derived durations match v1 totals"
+    );
+    assert!(s.status(now).unwrap().running.is_none());
+}

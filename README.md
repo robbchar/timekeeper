@@ -2,6 +2,8 @@
 
 A desktop time tracking application built with Electron, React, and TypeScript.
 
+> **v2 is in progress.** [`v2/`](v2/) holds the Tauri rewrite: a separate app with its own `package.json`, Cargo workspace and [README](v2/README.md). The rest of this README covers v1, the Electron app at the repo root, whose lint and format tooling ignores `v2/`.
+
 ## 🚀 Features
 
 - Track time spent on different projects
@@ -80,7 +82,8 @@ timekeeper/
 │   └── utils/        # Utility functions
 ├── electron/          # Electron main process
 ├── public/          # Static assets
-└── docs/           # Documentation
+├── docs/           # Documentation
+└── v2/            # v2 rewrite (Tauri), a separate app
 ```
 
 ## 🧪 Testing
