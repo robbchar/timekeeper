@@ -89,6 +89,21 @@ describe("App", () => {
     expect(await screen.findByText("disk full")).toBeInTheDocument();
   });
 
+  it("shows uncaught errors and unhandled rejections in the banner", async () => {
+    render(<App />);
+    await screen.findByText("TimeKeeper");
+    act(() => {
+      window.dispatchEvent(new ErrorEvent("error", { error: new Error("timer blew up") }));
+    });
+    expect(screen.getByText("Error: timer blew up")).toBeInTheDocument();
+    act(() => {
+      window.dispatchEvent(
+        Object.assign(new Event("unhandledrejection"), { reason: "listen failed" }),
+      );
+    });
+    expect(screen.getByText("listen failed")).toBeInTheDocument();
+  });
+
   it("ignores an older refresh that resolves after a newer one", async () => {
     render(<App />);
     await screen.findByText("TimeKeeper");

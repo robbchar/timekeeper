@@ -65,6 +65,18 @@ export default function App() {
     };
   }, [refresh]);
 
+  // Errors outside render (handlers, timers, stray promises) go to the banner too.
+  useEffect(() => {
+    const onError = (e: ErrorEvent) => reportError(e.error ?? e.message);
+    const onRejection = (e: PromiseRejectionEvent) => reportError(e.reason);
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onRejection);
+    return () => {
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onRejection);
+    };
+  }, [reportError]);
+
   // Live clock. Also re-fetch when the window regains focus or the day rolls over.
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);

@@ -1,13 +1,12 @@
-import { Component, ReactNode } from "react";
+import { Component, ErrorInfo, ReactNode } from "react";
 
 interface Props {
   children: ReactNode;
-  onReload?: () => void;
 }
 
 // Boxed so a thrown `undefined` or `null` still counts as a failure.
 interface State {
-  failure: { error: unknown } | null;
+  failure: { error: unknown; componentStack?: string } | null;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -17,17 +16,30 @@ export class ErrorBoundary extends Component<Props, State> {
     return { failure: { error } };
   }
 
+  // Keep the stacks on screen: the console is gone once the user reloads.
+  componentDidCatch(error: unknown, info: ErrorInfo) {
+    this.setState({ failure: { error, componentStack: info.componentStack ?? undefined } });
+  }
+
   render() {
     const { failure } = this.state;
     if (!failure) return this.props.children;
-    const reload = this.props.onReload ?? (() => window.location.reload());
+    const { error, componentStack } = failure;
+    const stack = [error instanceof Error ? error.stack : undefined, componentStack]
+      .filter(Boolean)
+      .join("\n");
     return (
       <div className="crash" role="alert">
         <h1>Something went wrong</h1>
-        <p className="crash__message">
-          {failure.error instanceof Error ? failure.error.message : String(failure.error)}
-        </p>
-        <button className="btn btn--primary" onClick={reload}>
+        {/* String() matches App's error banner and names errors with no message. */}
+        <p className="crash__message">{String(error)}</p>
+        {stack && (
+          <details>
+            <summary>Details</summary>
+            <pre className="crash__message">{stack}</pre>
+          </details>
+        )}
+        <button className="btn btn--primary" onClick={() => window.location.reload()}>
           Reload
         </button>
       </div>
