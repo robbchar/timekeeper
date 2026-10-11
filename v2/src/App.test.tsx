@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api, Entry, ImportReport, Snapshot } from "./api";
 import App from "./App";
@@ -108,5 +108,20 @@ describe("App", () => {
     await act(async () => resolveStale([entryWithNotes(1, "stale")]));
 
     expect(screen.getByTitle("Edit notes")).toHaveTextContent("fresh");
+  });
+
+  it("keeps an action error through a refresh until dismissed", async () => {
+    vi.mocked(api.start).mockRejectedValueOnce("database is locked");
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Start" }));
+    const banner = (await screen.findByText("database is locked")).closest(".notice")!;
+
+    const fetches = vi.mocked(api.snapshot).mock.calls.length;
+    fireEvent.focus(window);
+    await waitFor(() => expect(api.snapshot).toHaveBeenCalledTimes(fetches + 1));
+    expect(screen.getByText("database is locked")).toBeInTheDocument();
+
+    fireEvent.click(within(banner as HTMLElement).getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByText("database is locked")).not.toBeInTheDocument();
   });
 });

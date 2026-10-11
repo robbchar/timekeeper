@@ -73,14 +73,15 @@ function EntryRow({
   const [draft, setDraft] = useState(entry.notes);
   // Escape leaves through blur too; this tells save() to discard.
   const cancelled = useRef(false);
-  // Set when a save fails, so reopening the editor shows the draft instead of the saved notes.
-  const unsaved = useRef(false);
+  // The saved notes a failed draft was based on; the draft is dropped once they change elsewhere.
+  const [failedBase, setFailedBase] = useState<string | null>(null);
+  const unsaved = failedBase === entry.notes;
 
   const save = async () => {
     setEditing(false);
     if (cancelled.current) {
       cancelled.current = false;
-      unsaved.current = false;
+      setFailedBase(null);
       setDraft(entry.notes);
       return;
     }
@@ -88,13 +89,13 @@ function EntryRow({
       try {
         await api.setNotes(entry.id, draft);
       } catch (err) {
-        unsaved.current = true;
+        setFailedBase(entry.notes);
         onError(err);
         return;
       }
       onChanged();
     }
-    unsaved.current = false;
+    setFailedBase(null);
   };
 
   return (
@@ -124,14 +125,14 @@ function EntryRow({
           />
         ) : (
           <button
-            className={`entry__notes ${entry.notes ? "" : "entry__notes--empty"}`}
+            className={`entry__notes ${unsaved ? "entry__notes--unsaved" : entry.notes ? "" : "entry__notes--empty"}`}
             title="Edit notes"
             onClick={() => {
-              if (!unsaved.current) setDraft(entry.notes);
+              if (!unsaved) setDraft(entry.notes);
               setEditing(true);
             }}
           >
-            {entry.notes || "Add notes"}
+            {unsaved ? draft : entry.notes || "Add notes"}
           </button>
         )}
       </div>

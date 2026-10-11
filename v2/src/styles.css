@@ -323,6 +323,13 @@ button:focus-visible {
   color: var(--muted);
   font-style: italic;
 }
+.entry__notes--unsaved {
+  color: var(--stop);
+}
+.entry__notes--unsaved::after {
+  content: " (not saved)";
+  font-style: italic;
+}
 .entry__edit {
   width: 100%;
   resize: vertical;

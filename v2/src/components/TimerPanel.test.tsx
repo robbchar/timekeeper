@@ -114,4 +114,27 @@ describe("TimerPanel", () => {
     fireEvent.blur(notes);
     await waitFor(() => expect(onError).toHaveBeenCalledWith("database is locked"));
   });
+
+  it("keeps the timer running when saving notes on Stop fails", async () => {
+    vi.mocked(api.setNotes).mockRejectedValueOnce("database is locked");
+    vi.mocked(api.stop).mockClear();
+    const onError = vi.fn();
+    const onChanged = vi.fn();
+    render(
+      <TimerPanel
+        {...defaults}
+        status={runningAcme}
+        entries={[lateEntry]}
+        onChanged={onChanged}
+        onError={onError}
+      />,
+    );
+
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "edited" } });
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    await waitFor(() => expect(onError).toHaveBeenCalledWith("database is locked"));
+    expect(api.stop).not.toHaveBeenCalled();
+    expect(onChanged).not.toHaveBeenCalled();
+    expect(screen.getByRole("textbox")).toHaveValue("edited");
+  });
 });

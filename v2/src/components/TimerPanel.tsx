@@ -67,10 +67,13 @@ export function TimerPanel({
       600,
     );
   };
-  const flushSave = () => {
-    if (targetId == null) return;
+  // Resolves true if it saved; rejects if the save fails.
+  const flushSave = async () => {
+    if (targetId == null) return false;
     window.clearTimeout(saveTimer.current);
-    if (notes !== target?.notes) void api.setNotes(targetId, notes).then(onChanged, onError);
+    if (notes === target?.notes) return false;
+    await api.setNotes(targetId, notes);
+    return true;
   };
 
   const act = async (fn: () => Promise<unknown>) => {
@@ -88,7 +91,8 @@ export function TimerPanel({
   const toggle = () =>
     act(async () => {
       if (running) {
-        flushSave();
+        // A failed save aborts the stop, so the refresh can't discard the typed notes.
+        await flushSave();
         await api.stop();
       } else if (selected != null) {
         await api.start(selected, targetId == null ? notes : undefined);
@@ -170,7 +174,7 @@ export function TimerPanel({
         placeholder={target ? "What are you working on?" : "Notes for today — saved when you start"}
         value={notes}
         onChange={(e) => scheduleSave(e.target.value)}
-        onBlur={flushSave}
+        onBlur={() => void flushSave().then((saved) => saved && onChanged(), onError)}
       />
     </section>
   );

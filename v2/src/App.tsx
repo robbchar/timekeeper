@@ -20,6 +20,8 @@ export default function App() {
   const [filter, setFilter] = useState<number | null>(null);
   const [days, setDays] = useState(PAGE_DAYS);
   const [error, setError] = useState<string | null>(null);
+  // Failed user actions; kept apart from `error` so a later refresh can't clear them.
+  const [actionError, setActionError] = useState<string | null>(null);
   const [view, setView] = useState<"main" | "settings">("main");
   // Lives here so dismissals survive a trip to Settings.
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
@@ -48,7 +50,7 @@ export default function App() {
       if (request === latestRefresh.current) setError(String(err));
     }
   }, [days, filter]);
-  const reportError = useCallback((err: unknown) => setError(String(err)), []);
+  const reportError = useCallback((err: unknown) => setActionError(String(err)), []);
 
   useEffect(() => {
     // refresh() sets state only after awaiting, never synchronously.
@@ -113,7 +115,19 @@ export default function App() {
     }
     await refresh();
   };
-  const errorBanner = error && <div className="notice notice--error">{error}</div>;
+  const errorBanner = (
+    <>
+      {error && <div className="notice notice--error">{error}</div>}
+      {actionError && (
+        <div className="notice notice--error">
+          <span>{actionError}</span>
+          <button className="btn btn--ghost" onClick={() => setActionError(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
+    </>
+  );
 
   if (view === "settings") {
     return (

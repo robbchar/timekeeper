@@ -136,3 +136,11 @@ describe("localDay", () => {
     expect(localDay(new Date(2026, 0, 5, 23, 59))).toBe("2026-01-05");
   });
 });
+
+describe("test time zone", () => {
+  it("has a DST change, so the DST cases above are meaningful", () => {
+    expect(new Date(2026, 2, 9).getTimezoneOffset()).not.toBe(
+      new Date(2026, 2, 7).getTimezoneOffset(),
+    );
+  });
+});
