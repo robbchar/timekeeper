@@ -24,6 +24,10 @@ src/components/       React UI
   It also owns things only a desktop shell can decide: what time it is, what "local" means, where
   files live, the tray, the window and the heartbeat. Logic that could live in `core` belongs in
   `core`.
+  A panic doesn't take the app down: builds must unwind (a `compile_error!` enforces it), a
+  poisoned `Store` lock is recovered, the ticker survives a failed tick, and panics are appended
+  to `<app data dir>/panic.log`. This is safe because every `Store` write is a single statement or
+  a single transaction.
 - **`src/api.ts`** is the single typed boundary. It is the only file under `src/` that imports
   `@tauri-apps/*`. Components and hooks import `api` and never call `invoke` themselves.
 - Outside Tauri (`"__TAURI_INTERNALS__"` absent, e.g. `npm run dev` in a browser), `api.ts` routes

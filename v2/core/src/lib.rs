@@ -142,6 +142,10 @@ const SECONDS_SQL: &str = "CAST(ROUND(COALESCE(SUM(
         (julianday(COALESCE(i.end_at, :now)) - julianday(i.start_at)) * 86400.0
     ), 0)) AS INTEGER)";
 
+/// Ends every open interval at `?1`, never before its own start.
+const CLOSE_OPEN_INTERVALS: &str =
+    "UPDATE intervals SET end_at = MAX(start_at, ?1) WHERE end_at IS NULL";
+
 pub struct Store {
     conn: Connection,
 }
@@ -269,10 +273,11 @@ impl Store {
             if r.project_id == project_id {
                 return self.status(now);
             }
-            self.stop(now)?;
         }
 
+        // Closing the previous interval shares the transaction, so a switch is all-or-nothing.
         let tx = self.conn.transaction()?;
+        tx.execute(CLOSE_OPEN_INTERVALS, [ts(now)])?;
         let existing: Option<i64> = tx
             .query_row(
                 "SELECT id FROM entries WHERE project_id = ?1 AND day = ?2 ORDER BY id DESC LIMIT 1",
@@ -311,10 +316,7 @@ impl Store {
     }
 
     pub fn stop(&mut self, now: DateTime<Utc>) -> Result<Status> {
-        self.conn.execute(
-            "UPDATE intervals SET end_at = MAX(start_at, ?1) WHERE end_at IS NULL",
-            [ts(now)],
-        )?;
+        self.conn.execute(CLOSE_OPEN_INTERVALS, [ts(now)])?;
         self.status(now)
     }
 

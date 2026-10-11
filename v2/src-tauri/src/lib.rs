@@ -4,7 +4,7 @@
 use chrono::{DateTime, Duration, Local, NaiveDate, Utc};
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard};
 use tauri::{
     image::Image,
     menu::{Menu, MenuItem, PredefinedMenuItem},
@@ -25,6 +25,27 @@ struct AppState {
     startup: Startup,
     /// Where the v2 database lives, shown on the Settings page.
     data_dir: String,
+}
+
+impl AppState {
+    fn lock_store(&self) -> MutexGuard<'_, Store> {
+        lock_recovering(&self.store)
+    }
+}
+
+// Lock recovery and the ticker's panic guard rely on unwinding; abort would make them dead code.
+#[cfg(not(panic = "unwind"))]
+compile_error!("TimeKeeper must be built with panic = \"unwind\"");
+
+/// A panic while holding the lock poisons it; without this, every later call would panic too.
+/// Safe because each `Store` write is one statement or one transaction, which SQLite rolls back if
+/// interrupted.
+fn lock_recovering<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|poisoned| {
+        eprintln!("store lock was poisoned by an earlier panic; recovering");
+        m.clear_poison();
+        poisoned.into_inner()
+    })
 }
 
 #[derive(Clone, Serialize, Default)]
@@ -61,7 +82,7 @@ fn err(e: impl std::fmt::Display) -> String {
 
 #[tauri::command]
 fn snapshot(state: State<AppState>) -> Result<Snapshot, String> {
-    let store = state.store.lock().unwrap();
+    let store = state.lock_store();
     let mut settings = std::collections::HashMap::new();
     for key in UI_SETTINGS {
         if let Some(v) = store.setting(key).map_err(err)? {
@@ -87,9 +108,7 @@ fn start(
     notes: Option<String>,
 ) -> Result<Status, String> {
     let status = state
-        .store
-        .lock()
-        .unwrap()
+        .lock_store()
         .start(project_id, notes.as_deref(), Utc::now(), today())
         .map_err(err)?;
     refresh_tray(&app, &status);
@@ -98,7 +117,7 @@ fn start(
 
 #[tauri::command]
 fn stop(app: AppHandle, state: State<AppState>) -> Result<Status, String> {
-    let status = state.store.lock().unwrap().stop(Utc::now()).map_err(err)?;
+    let status = state.lock_store().stop(Utc::now()).map_err(err)?;
     refresh_tray(&app, &status);
     Ok(status)
 }
@@ -112,16 +131,14 @@ fn entries(
 ) -> Result<Vec<Entry>, String> {
     let parse = |s: &str| NaiveDate::parse_from_str(s, "%Y-%m-%d").map_err(err);
     state
-        .store
-        .lock()
-        .unwrap()
+        .lock_store()
         .entries(parse(&from)?, parse(&to)?, project_id, Utc::now())
         .map_err(err)
 }
 
 #[tauri::command]
 fn totals(state: State<AppState>, project_id: Option<i64>) -> Result<Totals, String> {
-    let store = state.store.lock().unwrap();
+    let store = state.lock_store();
     let week_start = WeekStart::from_setting(store.setting("week_start").map_err(err)?.as_deref());
     store
         .totals(today(), week_start, project_id, Utc::now())
@@ -131,9 +148,7 @@ fn totals(state: State<AppState>, project_id: Option<i64>) -> Result<Totals, Str
 #[tauri::command]
 fn set_notes(state: State<AppState>, entry_id: i64, notes: String) -> Result<(), String> {
     state
-        .store
-        .lock()
-        .unwrap()
+        .lock_store()
         .set_notes(entry_id, &notes, Utc::now())
         .map_err(err)
 }
@@ -141,9 +156,7 @@ fn set_notes(state: State<AppState>, entry_id: i64, notes: String) -> Result<(),
 #[tauri::command]
 fn create_project(state: State<AppState>, name: String) -> Result<Project, String> {
     state
-        .store
-        .lock()
-        .unwrap()
+        .lock_store()
         .create_project(&name, Utc::now())
         .map_err(err)
 }
@@ -153,12 +166,7 @@ fn set_setting(state: State<AppState>, key: String, value: String) -> Result<(),
     if !UI_SETTINGS.contains(&key.as_str()) {
         return Err(format!("unknown setting {key}"));
     }
-    state
-        .store
-        .lock()
-        .unwrap()
-        .set_setting(&key, &value)
-        .map_err(err)
+    state.lock_store().set_setting(&key, &value).map_err(err)
 }
 
 // ---------------------------------------------------------------------- tray
@@ -263,7 +271,7 @@ fn show_main(app: &AppHandle) {
 fn toggle_from_tray(app: &AppHandle) {
     let state = app.state::<AppState>();
     let result = {
-        let mut store = state.store.lock().unwrap();
+        let mut store = state.lock_store();
         let now = Utc::now();
         match store.status(now) {
             Ok(s) if s.running.is_some() => store.stop(now).map(Some),
@@ -287,13 +295,7 @@ fn toggle_from_tray(app: &AppHandle) {
 
 /// A deliberate quit stops the timer now, so the next launch has nothing to recover.
 fn quit(app: &AppHandle) {
-    if let Err(e) = app
-        .state::<AppState>()
-        .store
-        .lock()
-        .unwrap()
-        .stop(Utc::now())
-    {
+    if let Err(e) = app.state::<AppState>().lock_store().stop(Utc::now()) {
         eprintln!("stopping the timer on quit failed: {e}");
     }
     app.exit(0);
@@ -363,26 +365,45 @@ fn spawn_ticker(app: AppHandle) {
         loop {
             std::thread::sleep(std::time::Duration::from_secs(1));
             ticks += 1;
-            let state = app.state::<AppState>();
-            let status = {
-                let store = state.store.lock().unwrap();
-                let now = Utc::now();
-                let status = store.status(now);
-                if ticks.is_multiple_of(HEARTBEAT_EVERY_SECS) {
-                    if let Ok(Status {
-                        running: Some(_), ..
-                    }) = &status
-                    {
-                        let _ = store.heartbeat(now);
-                    }
-                }
-                status
-            };
-            if let Ok(status) = status {
-                refresh_tray(&app, &status);
-            }
+            // A panic in one tick is logged by the hook; the ticker keeps going.
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| tick(&app, ticks)));
         }
     });
+}
+
+fn tick(app: &AppHandle, ticks: u64) {
+    let state = app.state::<AppState>();
+    let status = {
+        let store = state.lock_store();
+        let now = Utc::now();
+        let status = store.status(now);
+        if ticks.is_multiple_of(HEARTBEAT_EVERY_SECS) {
+            if let Ok(Status {
+                running: Some(_), ..
+            }) = &status
+            {
+                let _ = store.heartbeat(now);
+            }
+        }
+        status
+    };
+    if let Ok(status) = status {
+        refresh_tray(app, &status);
+    }
+}
+
+/// Release builds have no console, so panics are also appended to `panic.log` in the data dir.
+fn log_panics_to(path: std::path::PathBuf) {
+    let default = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        default(info);
+        let line = format!("{} {info}\n", Utc::now().to_rfc3339());
+        let _ = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .and_then(|mut f| std::io::Write::write_all(&mut f, line.as_bytes()));
+    }));
 }
 
 // ----------------------------------------------------------------------- run
@@ -390,6 +411,7 @@ fn spawn_ticker(app: AppHandle) {
 fn open_store(app: &AppHandle) -> Result<(Store, Startup, String), Box<dyn std::error::Error>> {
     let dir = app.path().app_data_dir()?;
     std::fs::create_dir_all(&dir)?;
+    log_panics_to(dir.join("panic.log"));
     let mut store = Store::open(dir.join("timekeeper.db"))?;
     let mut startup = Startup::default();
 
@@ -454,4 +476,23 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running TimeKeeper");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lock_recovering_survives_a_poisoned_lock() {
+        let m = Mutex::new(1);
+        let _ = std::panic::catch_unwind(|| {
+            let _guard = m.lock().unwrap();
+            panic!("poison it");
+        });
+        assert!(m.is_poisoned());
+
+        *lock_recovering(&m) += 1;
+        assert_eq!(*lock_recovering(&m), 2);
+        assert!(!m.is_poisoned());
+    }
 }
