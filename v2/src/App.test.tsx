@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api, Entry, ImportReport, Snapshot } from "./api";
 import App from "./App";
@@ -10,6 +10,7 @@ vi.mock("./api", () => ({
     entries: vi.fn(),
     totals: vi.fn(),
     setSetting: vi.fn(() => Promise.resolve()),
+    start: vi.fn(),
     onTimerChanged: vi.fn(() => Promise.resolve(() => {})),
   },
 }));
@@ -52,7 +53,9 @@ const entryWithNotes = (id: number, notes: string): Entry => ({
 beforeEach(() => {
   vi.mocked(api.snapshot).mockReset().mockResolvedValue(snapshot);
   vi.mocked(api.entries).mockReset().mockResolvedValue([]);
-  vi.mocked(api.totals).mockReset().mockResolvedValue({ today: 0, thisWeek: 0, thisMonth: 0, lastMonth: 0 });
+  vi.mocked(api.totals)
+    .mockReset()
+    .mockResolvedValue({ today: 0, thisWeek: 0, thisMonth: 0, lastMonth: 0 });
 });
 
 describe("App", () => {
@@ -69,6 +72,21 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(screen.queryByText(/Imported 2 sessions/)).not.toBeInTheDocument();
+  });
+
+  it("shows an error when starting the timer fails", async () => {
+    vi.mocked(api.start).mockRejectedValueOnce("database is locked");
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Start" }));
+    expect(await screen.findByText("database is locked")).toBeInTheDocument();
+  });
+
+  it("shows an error on the Settings page when saving a setting fails", async () => {
+    vi.mocked(api.setSetting).mockRejectedValueOnce("disk full");
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
+    fireEvent.change(screen.getByLabelText("Time"), { target: { value: "decimal" } });
+    expect(await screen.findByText("disk full")).toBeInTheDocument();
   });
 
   it("ignores an older refresh that resolves after a newer one", async () => {
@@ -90,5 +108,20 @@ describe("App", () => {
     await act(async () => resolveStale([entryWithNotes(1, "stale")]));
 
     expect(screen.getByTitle("Edit notes")).toHaveTextContent("fresh");
+  });
+
+  it("keeps an action error through a refresh until dismissed", async () => {
+    vi.mocked(api.start).mockRejectedValueOnce("database is locked");
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Start" }));
+    const banner = (await screen.findByText("database is locked")).closest(".notice")!;
+
+    const fetches = vi.mocked(api.snapshot).mock.calls.length;
+    fireEvent.focus(window);
+    await waitFor(() => expect(api.snapshot).toHaveBeenCalledTimes(fetches + 1));
+    expect(screen.getByText("database is locked")).toBeInTheDocument();
+
+    fireEvent.click(within(banner as HTMLElement).getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByText("database is locked")).not.toBeInTheDocument();
   });
 });

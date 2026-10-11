@@ -40,7 +40,12 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.45 system-ui, "Segoe UI", Ubuntu, Cantarell, sans-serif;
+  font:
+    14px/1.45 system-ui,
+    "Segoe UI",
+    Ubuntu,
+    Cantarell,
+    sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -170,7 +175,9 @@ button:focus-visible {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  transition: background 0.2s, border-color 0.2s;
+  transition:
+    background 0.2s,
+    border-color 0.2s;
 }
 .timer--running {
   background: var(--running-bg);
@@ -314,6 +321,13 @@ button:focus-visible {
 }
 .entry__notes--empty {
   color: var(--muted);
+  font-style: italic;
+}
+.entry__notes--unsaved {
+  color: var(--stop);
+}
+.entry__notes--unsaved::after {
+  content: " (not saved)";
   font-style: italic;
 }
 .entry__edit {

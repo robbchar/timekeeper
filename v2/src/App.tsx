@@ -15,11 +15,13 @@ export default function App() {
   const [status, setStatus] = useState<Status>({ running: null, elapsedSeconds: 0 });
   const [entries, setEntries] = useState<Entry[]>([]);
   const [totals, setTotals] = useState<Totals | null>(null);
-  const [fetchedAt, setFetchedAt] = useState(Date.now());
-  const [now, setNow] = useState(Date.now());
+  const [fetchedAt, setFetchedAt] = useState(() => Date.now());
+  const [now, setNow] = useState(() => Date.now());
   const [filter, setFilter] = useState<number | null>(null);
   const [days, setDays] = useState(PAGE_DAYS);
   const [error, setError] = useState<string | null>(null);
+  // Failed user actions; kept apart from `error` so a later refresh can't clear them.
+  const [actionError, setActionError] = useState<string | null>(null);
   const [view, setView] = useState<"main" | "settings">("main");
   // Lives here so dismissals survive a trip to Settings.
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
@@ -48,22 +50,25 @@ export default function App() {
       if (request === latestRefresh.current) setError(String(err));
     }
   }, [days, filter]);
+  const reportError = useCallback((err: unknown) => setActionError(String(err)), []);
 
   useEffect(() => {
-    refresh();
+    // refresh() sets state only after awaiting, never synchronously.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void refresh();
   }, [refresh]);
 
   useEffect(() => {
-    const unlisten = api.onTimerChanged(refresh);
+    const unlisten = api.onTimerChanged(() => void refresh());
     return () => {
-      unlisten.then((fn) => fn());
+      void unlisten.then((fn) => fn());
     };
   }, [refresh]);
 
   // Live clock. Also re-fetch when the window regains focus or the day rolls over.
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
-    const onFocus = () => refresh();
+    const onFocus = () => void refresh();
     window.addEventListener("focus", onFocus);
     return () => {
       clearInterval(id);
@@ -74,7 +79,7 @@ export default function App() {
   useEffect(() => {
     if (seenToday.current === today) return;
     seenToday.current = today;
-    refresh();
+    void refresh();
   }, [today, refresh]);
 
   const running = status.running;
@@ -102,9 +107,27 @@ export default function App() {
   const durationFormat = (snap.settings.duration_format as DurationFormat) ?? "hms";
   const dateFormat = (snap.settings.date_format as DateFormat) ?? "iso";
   const saveSetting = async (key: string, value: string) => {
-    await api.setSetting(key, value);
-    refresh();
+    try {
+      await api.setSetting(key, value);
+    } catch (err) {
+      reportError(err);
+      return;
+    }
+    await refresh();
   };
+  const errorBanner = (
+    <>
+      {error && <div className="notice notice--error">{error}</div>}
+      {actionError && (
+        <div className="notice notice--error">
+          <span>{actionError}</span>
+          <button className="btn btn--ghost" onClick={() => setActionError(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
+    </>
+  );
 
   if (view === "settings") {
     return (
@@ -115,7 +138,8 @@ export default function App() {
             Done
           </button>
         </header>
-        <SettingsPage snapshot={snap} onChange={saveSetting} />
+        {errorBanner}
+        <SettingsPage snapshot={snap} onChange={(k, v) => void saveSetting(k, v)} />
       </div>
     );
   }
@@ -129,7 +153,7 @@ export default function App() {
         </button>
       </header>
 
-      {error && <div className="notice notice--error">{error}</div>}
+      {errorBanner}
       <StartupNotices
         startup={snap.startup}
         dismissed={dismissed}
@@ -143,7 +167,8 @@ export default function App() {
         liveSeconds={liveSeconds}
         entries={entries}
         today={today}
-        onChanged={refresh}
+        onChanged={() => void refresh()}
+        onError={reportError}
       />
 
       <TotalsStrip
@@ -158,7 +183,8 @@ export default function App() {
         today={today}
         durationFormat={durationFormat}
         dateFormat={dateFormat}
-        onChanged={refresh}
+        onChanged={() => void refresh()}
+        onError={reportError}
       />
 
       <button className="more" onClick={() => setDays((d) => d + PAGE_DAYS)}>

@@ -54,12 +54,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Lint
+        run: npm run lint
+
+      - name: Check formatting
+        run: npm run format:check
+
       # Also produces dist/, which tauri::generate_context! needs at compile time.
       - name: Build frontend
         run: npm run build
 
       - name: Frontend tests
-        run: npm test -- --run
+        run: npm test
 
       - name: cargo clippy
         run: cargo clippy --workspace --all-targets -- -D warnings

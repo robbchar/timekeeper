@@ -1,6 +1,13 @@
 import { useRef, useState } from "react";
 import { api, Entry } from "../api";
-import { dayHeading, DateFormat, DurationFormat, formatDate, formatDuration, formatShort } from "../format";
+import {
+  dayHeading,
+  DateFormat,
+  DurationFormat,
+  formatDate,
+  formatDuration,
+  formatShort,
+} from "../format";
 
 interface Props {
   entries: Entry[];
@@ -8,9 +15,10 @@ interface Props {
   durationFormat: DurationFormat;
   dateFormat: DateFormat;
   onChanged: () => void;
+  onError: (err: unknown) => void;
 }
 
-export function DayList({ entries, today, durationFormat, dateFormat, onChanged }: Props) {
+export function DayList({ entries, today, durationFormat, dateFormat, onChanged, onError }: Props) {
   const days: [string, Entry[]][] = [];
   for (const e of entries) {
     const last = days[days.length - 1];
@@ -28,7 +36,9 @@ export function DayList({ entries, today, durationFormat, dateFormat, onChanged 
         <div className="day" key={day}>
           <div className="day__head">
             <h3>{dayHeading(day, today)}</h3>
-            <span className="day__total">{formatShort(list.reduce((n, e) => n + e.seconds, 0))}</span>
+            <span className="day__total">
+              {formatShort(list.reduce((n, e) => n + e.seconds, 0))}
+            </span>
           </div>
           {list.map((e) => (
             <EntryRow
@@ -37,6 +47,7 @@ export function DayList({ entries, today, durationFormat, dateFormat, onChanged 
               durationFormat={durationFormat}
               dateFormat={dateFormat}
               onChanged={onChanged}
+              onError={onError}
             />
           ))}
         </div>
@@ -50,28 +61,41 @@ function EntryRow({
   durationFormat,
   dateFormat,
   onChanged,
+  onError,
 }: {
   entry: Entry;
   durationFormat: DurationFormat;
   dateFormat: DateFormat;
   onChanged: () => void;
+  onError: (err: unknown) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(entry.notes);
   // Escape leaves through blur too; this tells save() to discard.
   const cancelled = useRef(false);
+  // The saved notes a failed draft was based on; the draft is dropped once they change elsewhere.
+  const [failedBase, setFailedBase] = useState<string | null>(null);
+  const unsaved = failedBase === entry.notes;
 
   const save = async () => {
     setEditing(false);
     if (cancelled.current) {
       cancelled.current = false;
+      setFailedBase(null);
       setDraft(entry.notes);
       return;
     }
     if (draft.trim() !== entry.notes) {
-      await api.setNotes(entry.id, draft);
+      try {
+        await api.setNotes(entry.id, draft);
+      } catch (err) {
+        setFailedBase(entry.notes);
+        onError(err);
+        return;
+      }
       onChanged();
     }
+    setFailedBase(null);
   };
 
   return (
@@ -86,7 +110,7 @@ function EntryRow({
             rows={2}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            onBlur={save}
+            onBlur={() => void save()}
             onKeyDown={(e) => {
               // Both keys exit through blur, so save() runs exactly once.
               if (e.key === "Enter" && !e.shiftKey) {
@@ -101,14 +125,14 @@ function EntryRow({
           />
         ) : (
           <button
-            className={`entry__notes ${entry.notes ? "" : "entry__notes--empty"}`}
+            className={`entry__notes ${unsaved ? "entry__notes--unsaved" : entry.notes ? "" : "entry__notes--empty"}`}
             title="Edit notes"
             onClick={() => {
-              setDraft(entry.notes);
+              if (!unsaved) setDraft(entry.notes);
               setEditing(true);
             }}
           >
-            {entry.notes || "Add notes"}
+            {unsaved ? draft : entry.notes || "Add notes"}
           </button>
         )}
       </div>
@@ -129,15 +153,15 @@ function CopyButton({ label, text }: { label: string; text: string }) {
       className={`copy ${state === "done" ? "copy--done" : ""}`}
       title={`Copy: ${text}`}
       disabled={!text}
-      onClick={async () => {
-        try {
-          await api.copy(text);
-          setState("done");
-        } catch {
-          setState("failed");
-        }
-        setTimeout(() => setState("idle"), 1200);
-      }}
+      onClick={() =>
+        void api
+          .copy(text)
+          .then(
+            () => setState("done"),
+            () => setState("failed"),
+          )
+          .finally(() => setTimeout(() => setState("idle"), 1200))
+      }
     >
       {state === "done" ? "Copied" : state === "failed" ? "Failed" : label}
     </button>
