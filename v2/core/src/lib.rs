@@ -509,10 +509,5 @@ impl Store {
     }
 }
 
-// Deliberate clippy::len_zero to prove CI fails; reverted next commit.
-pub fn ci_canary(v: &[u8]) -> bool {
-    v.len() == 0
-}
-
 #[cfg(test)]
 mod tests;
