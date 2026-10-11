@@ -40,13 +40,16 @@ and open <http://localhost:1420>.
   **read-only** and never changed.
 - The import is one-time. Time you keep recording in v1 afterwards won't appear in v2. To re-import
   a fresh copy, quit v2 and delete the v2 database folder above.
+- v1 sessions whose project was deleted, or whose start time can't be read, are skipped and counted
+  in the import notice rather than failing the import.
 - While trying this out, keep tracking real time in v1. Running both means two separate timers.
 
 ## Behaviour worth knowing
 
-- Closing the window hides it; the app lives in the tray. Quit from the tray menu.
+- Closing the window hides it; the app lives in the tray. Quit from the tray menu. Quitting stops a
+  running timer at that moment.
 - Left-click the tray icon to open the window. The tray menu shows the running time and can
-  start/stop the last-used project. While timing, the tray icon gets a red dot, and on Windows the
+  start/stop the last-used project (or the first active one, if that project is archived). While timing, the tray icon gets a red dot, and on Windows the
   taskbar button gets a red-dot badge too. Windows 11 hides new tray icons in the "^" overflow;
   drag it onto the taskbar to keep it visible.
 - The running timer is an open interval in the database, so a crash loses nothing. If the app dies
@@ -56,6 +59,7 @@ and open <http://localhost:1420>.
 ## Tests
 
 ```bash
+npm test -- --run              # UI (Vitest + jsdom, against a mocked api.ts)
 cargo test -p timekeeper-core
 # Check the import against a copy of a real v1 database (never committed):
 TK_V1_DB=/path/to/copy/of/timekeeper.db cargo test -p timekeeper-core

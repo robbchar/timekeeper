@@ -1,11 +1,15 @@
-import { useState } from "react";
 import { Snapshot } from "../api";
 import { formatShort } from "../format";
 
-export function StartupNotices({ startup }: { startup: Snapshot["startup"] }) {
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
-  const dismiss = (k: string) => setDismissed((d) => new Set(d).add(k));
+interface Props {
+  startup: Snapshot["startup"];
+  dismissed: ReadonlySet<string>;
+  onDismiss: (key: string) => void;
+}
+
+export function StartupNotices({ startup, dismissed, onDismiss: dismiss }: Props) {
   const { imported, recovered, importError } = startup;
+  const skipped = imported ? imported.orphanedSessions + imported.unparseableSessions : 0;
 
   return (
     <>
@@ -16,6 +20,8 @@ export function StartupNotices({ startup }: { startup: Snapshot["startup"] }) {
             {imported.projects} projects from TimeKeeper v1. Your v1 data was not changed.
             {imported.unclosedSessions > 0 &&
               ` ${imported.unclosedSessions} sessions v1 never closed were imported as finished.`}
+            {skipped > 0 &&
+              ` ${skipped} sessions were skipped because their project was gone or their start time was unreadable.`}
           </span>
           <button className="btn btn--ghost" onClick={() => dismiss("import")}>Dismiss</button>
         </div>
