@@ -19,10 +19,11 @@ src/components/       React UI
 - **`core`** holds every rule about the data: schema, migrations, the timer, totals and the v1
   import. It has no GUI dependencies and is tested on its own against in-memory SQLite. Its public
   surface is `Store` (`core/src/lib.rs`).
-- **`src-tauri/src/lib.rs`** adapts `core` to the app. Each command locks the `Store`, calls one
-  method, maps the error to a string and, if the timer changed, refreshes the tray. It also owns
-  things only a desktop shell can decide: what time it is, what "local" means, where files live,
-  the tray, the window and the heartbeat. Logic that could live in `core` belongs in `core`.
+- **`src-tauri/src/lib.rs`** adapts `core` to the app. Each command locks the `Store`, calls `Store`
+  methods (usually one), maps the error to a string and, if the timer changed, refreshes the tray.
+  It also owns things only a desktop shell can decide: what time it is, what "local" means, where
+  files live, the tray, the window and the heartbeat. Logic that could live in `core` belongs in
+  `core`.
 - **`src/api.ts`** is the single typed boundary. It is the only file under `src/` that imports
   `@tauri-apps/*`. Components and hooks import `api` and never call `invoke` themselves.
 - Outside Tauri (`"__TAURI_INTERNALS__"` absent, e.g. `npm run dev` in a browser), `api.ts` routes
@@ -36,14 +37,15 @@ camelCase throughout.
 
 Defined in `core/src/schema.rs`.
 
-| Table       | Holds                                                                  |
-| ----------- | ---------------------------------------------------------------------- |
-| `projects`  | name, color, archived flag, `legacy_project_id` (v1 id, unique)        |
-| `entries`   | one project on one local day, plus notes; `legacy_session_id` (unique) |
-| `intervals` | `start_at`, `end_at` (NULL = running), `source`                        |
-| `settings`  | key/value strings                                                      |
+| Table       | Holds                                                           |
+| ----------- | --------------------------------------------------------------- |
+| `projects`  | name, color, archived flag, `legacy_project_id` (v1 id, unique) |
+| `entries`   | a project, a local day and notes; `legacy_session_id` (unique)  |
+| `intervals` | `start_at`, `end_at` (NULL = running), `source`                 |
+| `settings`  | key/value strings                                               |
 
-- **An entry is a project + a local day + notes.** It has no duration column.
+- **An entry is a project + a local day + notes.** It has no duration column. `(project_id, day)`
+  is not unique: the v1 import makes one entry per session, and `start` reuses the newest one.
 - **An entry's duration is the sum of its intervals.** Nothing stores a total, so nothing can
   drift out of sync with the intervals.
 - **An open interval is the running timer.** There is no separate "timer" state. The partial unique
@@ -52,8 +54,9 @@ Defined in `core/src/schema.rs`.
 - `source` is `timer`, `manual` or `import`, enforced by a `CHECK`.
 - Deleting a project cascades to its entries and their intervals.
 
-Because the running timer is a row, a crash loses nothing. The shell writes a heartbeat every 30
-seconds. At startup, `recover_stale` closes any interval whose heartbeat is more than two minutes
+Because the running timer is a row, a crash loses nothing. While timing, the shell writes a
+heartbeat every 30 seconds (and `start` writes one at once); `heartbeat_at` is not updated while
+idle. At startup, `recover_stale` closes any interval whose heartbeat is more than two minutes
 old at the last heartbeat time, and the UI says so.
 
 ## Times and days
@@ -64,8 +67,9 @@ old at the last heartbeat time, and the UI says so.
   time zone for its rules. `Store` methods take `now: DateTime<Utc>` and `today: NaiveDate`, and the
   import takes a `local_day` closure. The shell supplies them from `today()` and `local_day()` in
   `src-tauri/src/lib.rs`.
-- This keeps `core` deterministic in tests. The import's report timestamp is the one place `core`
-  calls `Utc::now()`; it is UTC and doesn't affect any day boundary.
+- This keeps `core` deterministic in tests. The import is the one place `core` calls
+  `Utc::now()`: for the `v1_imported_at` setting and as `created_at` for v1 projects whose
+  `createdAt` can't be parsed. Both are UTC and don't affect any day boundary.
 
 ## Migrations
 
@@ -85,15 +89,8 @@ bumps `user_version` in that same transaction, so a failed step leaves the datab
   only if v1's database exists at `<config dir>/timekeeper/timekeeper.db`. It never runs from the UI.
 - **Read-only:** the v1 file is opened with `SQLITE_OPEN_READ_ONLY`. v2 never writes to it.
 - **One transaction:** the whole import commits or none of it does, and it sets `v1_imported_at`.
-- **Mapping rules** (the module doc in `import.rs` is the source of truth):
-  - each v1 session becomes one entry with one `import` interval;
-  - the entry's day is the local date of `startTime`;
-  - the interval runs `startTime` → `startTime + duration`. v1's `endTime` is ignored because it was
-    usually set the next morning;
-  - sessions v1 never closed are imported closed;
-  - a NULL duration imports as a zero-length interval so the notes survive;
-  - sessions whose project is gone, or whose start can't be parsed, are skipped and counted. They
-    don't fail the import.
+- **Mapping rules:** see the module doc in `import.rs`, the source of truth. In short, each v1
+  session becomes one entry with one `import` interval of `startTime` + `duration`.
 - **Safe to re-run:** rows are inserted with `INSERT OR IGNORE` keyed on the legacy ids, and
   duplicates are counted as `already_imported`.
 - The result (or error) is passed to the UI in `Startup` and shown once.
@@ -103,14 +100,15 @@ bumps `user_version` in that same transaction, so a failed step leaves the datab
 Settings are rows in the `settings` table. The UI may only read and write the keys in `UI_SETTINGS`
 in `src-tauri/src/lib.rs`:
 
-| Key               | Values                         |
-| ----------------- | ------------------------------ |
-| `duration_format` | default `hms` (frontend)       |
-| `date_format`     | default `iso` (frontend)       |
-| `week_start`      | `monday` (default) or `sunday` |
+| Key               | Values                            |
+| ----------------- | --------------------------------- |
+| `duration_format` | default `hms` (frontend)          |
+| `date_format`     | default `iso` (frontend)          |
+| `week_start`      | `sunday`; anything else is Monday |
 
-`set_setting` rejects any other key, and `snapshot` returns only these. Internal keys
-(`v1_imported_at`, `heartbeat_at`) share the table but are not UI-writable.
+`set_setting` rejects any other key but does not validate values, and `snapshot` returns only these.
+Internal keys (`v1_imported_at`, `heartbeat_at`, `last_project_id`) share the table but are not
+UI-writable.
 
 ## Shell behavior
 

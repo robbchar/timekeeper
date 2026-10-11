@@ -60,9 +60,4 @@ and open <http://localhost:1420>.
 
 ## Tests
 
-```bash
-npm test -- --run              # UI (Vitest + jsdom, against a mocked api.ts)
-cargo test -p timekeeper-core
-# Check the import against a copy of a real v1 database (never committed):
-TK_V1_DB=/path/to/copy/of/timekeeper.db cargo test -p timekeeper-core
-```
+See [CLAUDE.md](CLAUDE.md#testing).

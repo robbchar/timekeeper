@@ -22,7 +22,8 @@ npm (`package-lock.json` is committed). There are no path aliases.
 
 ## Adding an operation
 
-Four places, in order. Skipping the mock still typechecks; it fails in `npm run dev`:
+Four places, in order. Commands are called by string name, so skipping step 2's registration or the
+mock still typechecks and passes UI tests; it fails at runtime (in the app, or in `npm run dev`):
 
 1. `core/src/lib.rs`: a `Store` method, plus a test in `core/src/tests.rs`
 2. `src-tauri/src/lib.rs`: a `#[tauri::command]` that calls it, registered in `generate_handler!`
