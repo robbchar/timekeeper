@@ -6,6 +6,16 @@ on:
     paths:
       - "v2/**"
       - ".github/workflows/v2.yml"
+  # Runs on main seed the caches that PRs restore from.
+  push:
+    branches: [main]
+    paths:
+      - "v2/**"
+      - ".github/workflows/v2.yml"
+
+concurrency:
+  group: v2-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 defaults:
   run:
@@ -18,14 +28,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Installs the toolchain and components pinned in v2/rust-toolchain.toml.
+      - name: Install Rust toolchain
+        run: rustup toolchain install
+
+      - name: cargo fmt
+        run: cargo fmt --all --check
+
       - name: Install Tauri system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -54,11 +67,8 @@ jobs:
       - name: Frontend tests
         run: npm test
 
-      - name: cargo fmt
-        run: cargo fmt --all --check
-
       - name: cargo clippy
-        run: cargo clippy --workspace -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Core tests
         run: cargo test -p timekeeper-core
@@ -69,7 +79,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust toolchain
+        run: rustup toolchain install
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -81,3 +92,6 @@ jobs:
 
       - name: cargo check
         run: cargo check -p timekeeper
+
+      - name: Core tests
+        run: cargo test -p timekeeper-core

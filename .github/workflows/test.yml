@@ -3,6 +3,9 @@ name: Test all
 on:
   pull_request:
     branches: [main]
+    paths-ignore:
+      - "v2/**"
+      - ".github/workflows/v2.yml"
 
 jobs:
   test-all:

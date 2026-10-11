@@ -21,7 +21,8 @@ One-time prerequisites:
 2. **Microsoft C++ Build Tools**: from <https://visualstudio.microsoft.com/visual-cpp-build-tools/>,
    choose "Desktop development with C++".
 3. **WebView2**: already present on Windows 10/11.
-4. **Node 26**: the version is pinned in `.nvmrc` (`nvm use` / `fnm use`).
+4. **Node 26**: pinned in `.nvmrc` (`nvm use` / `fnm use`); `npm install` refuses older versions.
+5. The Rust version is pinned in `rust-toolchain.toml`; rustup installs it on first build.
 
 Then, from this folder:
 
