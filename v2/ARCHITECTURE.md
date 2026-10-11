@@ -1,0 +1,124 @@
+# TimeKeeper v2 architecture
+
+How v2 is put together and the rules that keep it that way. For running the app and what it does
+for the user, see the [README](README.md). For the checklist when changing code, see
+[CLAUDE.md](CLAUDE.md).
+
+## Layers
+
+```
+core/                 timekeeper-core: pure Rust, owns SQLite
+  ↑
+src-tauri/src/lib.rs  thin #[tauri::command]s, tray, window, startup
+  ↑  invoke()
+src/api.ts            the only frontend file that calls the backend
+  ↑
+src/components/       React UI
+```
+
+- **`core`** holds every rule about the data: schema, migrations, the timer, totals and the v1
+  import. It has no GUI dependencies and is tested on its own against in-memory SQLite. Its public
+  surface is `Store` (`core/src/lib.rs`).
+- **`src-tauri/src/lib.rs`** adapts `core` to the app. Each command locks the `Store`, calls one
+  method, maps the error to a string and, if the timer changed, refreshes the tray. It also owns
+  things only a desktop shell can decide: what time it is, what "local" means, where files live,
+  the tray, the window and the heartbeat. Logic that could live in `core` belongs in `core`.
+- **`src/api.ts`** is the single typed boundary. It is the only file under `src/` that imports
+  `@tauri-apps/*`. Components and hooks import `api` and never call `invoke` themselves.
+- Outside Tauri (`"__TAURI_INTERNALS__"` absent, e.g. `npm run dev` in a browser), `api.ts` routes
+  every call to `src/mock.ts`, an in-memory backend with sample data. UI tests mock `./api` itself.
+
+Rust types returned to the UI use `#[serde(rename_all = "camelCase")]`, and Tauri maps camelCase
+command arguments (`projectId`) to snake_case parameters (`project_id`), so TypeScript stays
+camelCase throughout.
+
+## Data model
+
+Defined in `core/src/schema.rs`.
+
+| Table       | Holds                                                                  |
+| ----------- | ---------------------------------------------------------------------- |
+| `projects`  | name, color, archived flag, `legacy_project_id` (v1 id, unique)        |
+| `entries`   | one project on one local day, plus notes; `legacy_session_id` (unique) |
+| `intervals` | `start_at`, `end_at` (NULL = running), `source`                        |
+| `settings`  | key/value strings                                                      |
+
+- **An entry is a project + a local day + notes.** It has no duration column.
+- **An entry's duration is the sum of its intervals.** Nothing stores a total, so nothing can
+  drift out of sync with the intervals.
+- **An open interval is the running timer.** There is no separate "timer" state. The partial unique
+  index `one_running_interval` (`ON intervals((1)) WHERE end_at IS NULL`) lets at most one interval
+  in the whole database be open, so two timers cannot run even if the code has a bug.
+- `source` is `timer`, `manual` or `import`, enforced by a `CHECK`.
+- Deleting a project cascades to its entries and their intervals.
+
+Because the running timer is a row, a crash loses nothing. The shell writes a heartbeat every 30
+seconds. At startup, `recover_stale` closes any interval whose heartbeat is more than two minutes
+old at the last heartbeat time, and the UI says so.
+
+## Times and days
+
+- **Instants are stored as UTC RFC 3339 strings** (`start_at`, `end_at`, `created_at`, …).
+- **Days are local `YYYY-MM-DD` strings** (`entries.day`).
+- **Only the shell decides what "now" and "local" mean.** `core` never reads the clock or the local
+  time zone for its rules. `Store` methods take `now: DateTime<Utc>` and `today: NaiveDate`, and the
+  import takes a `local_day` closure. The shell supplies them from `today()` and `local_day()` in
+  `src-tauri/src/lib.rs`.
+- This keeps `core` deterministic in tests. The import's report timestamp is the one place `core`
+  calls `Utc::now()`; it is UTC and doesn't affect any day boundary.
+
+## Migrations
+
+`MIGRATIONS` in `core/src/schema.rs` is an ordered list of SQL steps. `PRAGMA user_version` records
+how many have been applied. On open, `migrate` runs each pending step in its own transaction and
+bumps `user_version` in that same transaction, so a failed step leaves the database untouched.
+
+- Add a migration by **appending** to `MIGRATIONS`.
+- **Never edit an applied migration.** Databases that already ran it won't run it again.
+- There is no separate "create tables" schema: new databases run every migration from step 1.
+
+## v1 import
+
+`core/src/import.rs`, called by the shell from `open_store` at startup.
+
+- **When it runs:** only when the v2 store is empty and the `v1_imported_at` setting is unset, and
+  only if v1's database exists at `<config dir>/timekeeper/timekeeper.db`. It never runs from the UI.
+- **Read-only:** the v1 file is opened with `SQLITE_OPEN_READ_ONLY`. v2 never writes to it.
+- **One transaction:** the whole import commits or none of it does, and it sets `v1_imported_at`.
+- **Mapping rules** (the module doc in `import.rs` is the source of truth):
+  - each v1 session becomes one entry with one `import` interval;
+  - the entry's day is the local date of `startTime`;
+  - the interval runs `startTime` → `startTime + duration`. v1's `endTime` is ignored because it was
+    usually set the next morning;
+  - sessions v1 never closed are imported closed;
+  - a NULL duration imports as a zero-length interval so the notes survive;
+  - sessions whose project is gone, or whose start can't be parsed, are skipped and counted. They
+    don't fail the import.
+- **Safe to re-run:** rows are inserted with `INSERT OR IGNORE` keyed on the legacy ids, and
+  duplicates are counted as `already_imported`.
+- The result (or error) is passed to the UI in `Startup` and shown once.
+
+## Settings
+
+Settings are rows in the `settings` table. The UI may only read and write the keys in `UI_SETTINGS`
+in `src-tauri/src/lib.rs`:
+
+| Key               | Values                         |
+| ----------------- | ------------------------------ |
+| `duration_format` | default `hms` (frontend)       |
+| `date_format`     | default `iso` (frontend)       |
+| `week_start`      | `monday` (default) or `sunday` |
+
+`set_setting` rejects any other key, and `snapshot` returns only these. Internal keys
+(`v1_imported_at`, `heartbeat_at`) share the table but are not UI-writable.
+
+## Shell behavior
+
+- **Tray-first.** Closing the window hides it. The app quits only from the tray menu.
+- **Quitting stops the timer** at that moment, so the timer never runs while the app is closed.
+- **Single instance.** Launching again shows the existing window.
+- **Indicators.** While timing, the tray icon gets a red dot. On Windows the taskbar button gets an
+  overlay badge.
+- **Tray changes reach the UI** through the `timer-changed` event, which `api.onTimerChanged`
+  subscribes to.
+- The database lives at `<app data dir>/timekeeper.db` (identifier `dev.cathedraltree.timekeeper`).
