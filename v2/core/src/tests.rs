@@ -128,7 +128,11 @@ fn resume_uses_the_last_project_unless_it_is_archived() {
         .create_project("Previvor", at("2026-10-01T00:00:00Z"))
         .unwrap()
         .id;
-    assert_eq!(s.resume_project_id().unwrap(), Some(a), "no history: first active by name");
+    assert_eq!(
+        s.resume_project_id().unwrap(),
+        Some(a),
+        "no history: first active by name"
+    );
 
     s.start(b, None, at("2026-10-05T15:00:00Z"), day("2026-10-05"))
         .unwrap();

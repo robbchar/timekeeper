@@ -287,7 +287,13 @@ fn toggle_from_tray(app: &AppHandle) {
 
 /// A deliberate quit stops the timer now, so the next launch has nothing to recover.
 fn quit(app: &AppHandle) {
-    if let Err(e) = app.state::<AppState>().store.lock().unwrap().stop(Utc::now()) {
+    if let Err(e) = app
+        .state::<AppState>()
+        .store
+        .lock()
+        .unwrap()
+        .stop(Utc::now())
+    {
         eprintln!("stopping the timer on quit failed: {e}");
     }
     app.exit(0);
@@ -362,7 +368,7 @@ fn spawn_ticker(app: AppHandle) {
                 let store = state.store.lock().unwrap();
                 let now = Utc::now();
                 let status = store.status(now);
-                if ticks % HEARTBEAT_EVERY_SECS == 0 {
+                if ticks.is_multiple_of(HEARTBEAT_EVERY_SECS) {
                     if let Ok(Status {
                         running: Some(_), ..
                     }) = &status

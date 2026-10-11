@@ -21,6 +21,7 @@ One-time prerequisites:
 2. **Microsoft C++ Build Tools**: from <https://visualstudio.microsoft.com/visual-cpp-build-tools/>,
    choose "Desktop development with C++".
 3. **WebView2**: already present on Windows 10/11.
+4. **Node 26**: the version is pinned in `.nvmrc` (`nvm use` / `fnm use`).
 
 Then, from this folder:
 
