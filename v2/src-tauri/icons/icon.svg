@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <rect x="32" y="32" width="960" height="960" rx="216" fill="#1f7a6d"/>
+  <g fill="none" stroke="#fff" stroke-linecap="round">
+    <circle cx="512" cy="512" r="320" stroke-width="88"/>
+    <!-- 10:10, both hands in the top half; the timing dot sits bottom-right -->
+    <path d="M512 512 L373 414 M512 512 L711 397" stroke-width="96"/>
+  </g>
+  <circle cx="512" cy="512" r="64" fill="#fff"/>
+</svg>

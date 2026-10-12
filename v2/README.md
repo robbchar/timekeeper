@@ -33,6 +33,10 @@ npm run tauri dev      # first build takes a few minutes; later ones are fast
 
 `npm run tauri build` produces an installer under `target/release/bundle/`.
 
+The app icon's source is `src-tauri/icons/icon.svg`. After editing it, regenerate the sizes with
+`npm run tauri icon src-tauri/icons/icon.svg`, then delete the `android/`, `ios/` and `64x64.png`
+outputs. Keep the mark out of the bottom-right corner, where the timing dot goes.
+
 To work on the UI alone in a browser (in-memory sample data, no Rust needed): `npm run dev`
 and open <http://localhost:1420>.
 
