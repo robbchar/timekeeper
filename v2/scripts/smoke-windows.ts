@@ -17,9 +17,11 @@ type Row = Record<string, unknown>;
 
 interface App {
   child: ChildProcess;
-  /** Resolves with the exit code. */
+  /** Resolves with the exit code, or null if it never started. */
   exited: Promise<number | null>;
   alive: () => boolean;
+  /** Why the process couldn't be started, if it couldn't. */
+  spawnError: () => Error | undefined;
 }
 
 const launched: App[] = [];
@@ -38,13 +40,20 @@ function launch(dataDir: string, extraEnv: Record<string, string> = {}): App {
     },
   });
   let running = true;
-  const exited = new Promise<number | null>((done) =>
+  let spawnError: Error | undefined;
+  const exited = new Promise<number | null>((done) => {
     child.once("exit", (code) => {
       running = false;
       done(code);
-    }),
-  );
-  const app = { child, exited, alive: () => running };
+    });
+    // Without a listener a spawn failure crashes the script; "exit" may never follow it.
+    child.once("error", (error) => {
+      running = false;
+      spawnError = error;
+      done(null);
+    });
+  });
+  const app = { child, exited, alive: () => running, spawnError: () => spawnError };
   launched.push(app);
   return app;
 }
@@ -82,6 +91,8 @@ async function waitFor<T>(
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (!app.alive()) {
+      const spawnError = app.spawnError();
+      if (spawnError) throw new Error(`app failed to start: ${spawnError.message}`);
       throw new Error(`app exited while waiting for ${what} (is another v2 instance running?)`);
     }
     let value: T | undefined;

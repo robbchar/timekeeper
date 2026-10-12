@@ -3,7 +3,7 @@
 
 mod overrides;
 
-use chrono::{DateTime, Duration, Local, NaiveDate, Utc};
+use chrono::{DateTime, Local, NaiveDate, Utc};
 use overrides::Overrides;
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -16,10 +16,6 @@ use tauri::{
 };
 use timekeeper_core::{Entry, ImportReport, Project, Recovered, Status, Store, Totals, WeekStart};
 
-/// A timer with no heartbeat for this long was left running by a run that
-/// ended without stopping it.
-const STALE_AFTER: i64 = 2; // minutes
-const HEARTBEAT_EVERY_SECS: u64 = 30;
 /// Settings the UI is allowed to write.
 const UI_SETTINGS: &[&str] = &["duration_format", "date_format", "week_start"];
 
@@ -445,12 +441,7 @@ fn open_store(
         }
     }
 
-    let stale_after = overrides
-        .stale_after_secs
-        .map_or(Duration::minutes(STALE_AFTER), |s| {
-            Duration::seconds(s as i64)
-        });
-    startup.recovered = store.recover_stale(Utc::now(), stale_after)?;
+    startup.recovered = store.recover_stale(Utc::now(), overrides.stale_after)?;
     Ok((store, startup, dir.display().to_string()))
 }
 
@@ -474,10 +465,7 @@ pub fn run() {
             let tray = build_tray(&handle)?;
             app.manage(tray);
             refresh_tray(&handle, &status);
-            spawn_ticker(
-                handle,
-                overrides.heartbeat_secs.unwrap_or(HEARTBEAT_EVERY_SECS),
-            );
+            spawn_ticker(handle, overrides.heartbeat_every_secs);
             Ok(())
         })
         .on_window_event(|window, event| {

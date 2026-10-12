@@ -1,21 +1,38 @@
-//! Debug-only environment overrides, so `scripts/smoke-windows.ts` can run the app against a temp
-//! data dir with short timings. Release builds ignore the environment.
+//! Startup settings that debug builds can override from the environment, so
+//! `scripts/smoke-windows.ts` can run the app against a temp data dir with short timings.
+//! Release builds ignore the environment and get the defaults.
 
+use chrono::Duration;
 use std::path::PathBuf;
 
+/// A timer with no heartbeat for this long was left running by a run that
+/// ended without stopping it.
+const STALE_AFTER_SECS: u64 = 2 * 60;
+const HEARTBEAT_EVERY_SECS: u64 = 30;
 /// The most seconds `chrono::Duration::seconds` accepts.
 const MAX_SECS: u64 = i64::MAX as u64 / 1_000;
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Overrides {
     /// `TK_DATA_DIR`: replaces the per-user app data dir.
     pub data_dir: Option<PathBuf>,
     /// `TK_V1_IMPORT_DB`: the v1 database the first-run import reads.
     pub v1_import_db: Option<PathBuf>,
     /// `TK_HEARTBEAT_SECS`: how often a running timer writes its heartbeat.
-    pub heartbeat_secs: Option<u64>,
+    pub heartbeat_every_secs: u64,
     /// `TK_STALE_AFTER_SECS`: heartbeat age at which startup closes a running timer.
-    pub stale_after_secs: Option<u64>,
+    pub stale_after: Duration,
+}
+
+impl Default for Overrides {
+    fn default() -> Self {
+        Self {
+            data_dir: None,
+            v1_import_db: None,
+            heartbeat_every_secs: HEARTBEAT_EVERY_SECS,
+            stale_after: Duration::seconds(STALE_AFTER_SECS as i64),
+        }
+    }
 }
 
 impl Overrides {
@@ -29,21 +46,20 @@ impl Overrides {
 
     fn parse(var: impl Fn(&str) -> Option<String>) -> Result<Self, String> {
         let set = |key: &str| var(key).filter(|v| !v.is_empty());
-        let secs = |key: &str| {
-            set(key)
-                .map(|v| match v.parse::<u64>() {
-                    Ok(n) if n > 0 && n <= MAX_SECS => Ok(n),
-                    _ => Err(format!(
-                        "{key} must be a positive whole number of seconds, got {v:?}"
-                    )),
-                })
-                .transpose()
+        let secs = |key: &str, default: u64| match set(key) {
+            None => Ok(default),
+            Some(v) => match v.parse::<u64>() {
+                Ok(n) if n > 0 && n <= MAX_SECS => Ok(n),
+                _ => Err(format!(
+                    "{key} must be a positive whole number of seconds, got {v:?}"
+                )),
+            },
         };
         Ok(Self {
             data_dir: set("TK_DATA_DIR").map(PathBuf::from),
             v1_import_db: set("TK_V1_IMPORT_DB").map(PathBuf::from),
-            heartbeat_secs: secs("TK_HEARTBEAT_SECS")?,
-            stale_after_secs: secs("TK_STALE_AFTER_SECS")?,
+            heartbeat_every_secs: secs("TK_HEARTBEAT_SECS", HEARTBEAT_EVERY_SECS)?,
+            stale_after: Duration::seconds(secs("TK_STALE_AFTER_SECS", STALE_AFTER_SECS)? as i64),
         })
     }
 }
@@ -80,8 +96,8 @@ mod tests {
             Overrides {
                 data_dir: Some(PathBuf::from("C:\\tmp\\tk")),
                 v1_import_db: Some(PathBuf::from("C:\\tmp\\v1.db")),
-                heartbeat_secs: Some(1),
-                stale_after_secs: Some(5),
+                heartbeat_every_secs: 1,
+                stale_after: Duration::seconds(5),
             }
         );
     }
@@ -101,5 +117,9 @@ mod tests {
             assert!(err.contains("TK_HEARTBEAT_SECS"), "{err}");
         }
         assert!(parse(&[("TK_STALE_AFTER_SECS", "0")]).is_err());
+        let max = MAX_SECS.to_string();
+        assert!(parse(&[("TK_STALE_AFTER_SECS", &max)]).is_ok());
+        let over = (MAX_SECS + 1).to_string();
+        assert!(parse(&[("TK_STALE_AFTER_SECS", &over)]).is_err());
     }
 }
