@@ -92,9 +92,17 @@ function sum(from: string, to: string, projectId: number | null) {
     .reduce((n, e) => n + secondsOf(e), 0);
 }
 
-// Async like real IPC, so throws surface as rejections.
+// A refusal the real core would return; only these become Tauri-style string rejections.
+class Refused extends Error {}
+
+// Async like real IPC, so throws surface as rejections; Tauri rejects with the message string.
 export function invoke<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {
-  return Promise.resolve().then(() => handle<T>(cmd, args));
+  return (
+    Promise.resolve()
+      .then(() => handle<T>(cmd, args))
+      // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- matches Tauri's string rejections
+      .catch((err: unknown) => Promise.reject(err instanceof Refused ? err.message : err))
+  );
 }
 
 function handle<T>(cmd: string, a: Record<string, unknown>): T {
@@ -210,8 +218,8 @@ function handle<T>(cmd: string, a: Record<string, unknown>): T {
     case "delete_entry": {
       const id = a.entryId as number;
       const i = entries.findIndex((x) => x.id === id);
-      if (i < 0) throw new Error(`entry ${id} not found`);
-      if (running?.entryId === id) throw new Error(`stop the timer before deleting entry ${id}`);
+      if (i < 0) throw new Refused(`entry ${id} not found`);
+      if (running?.entryId === id) throw new Refused(`stop the timer before deleting entry ${id}`);
       entries.splice(i, 1);
       return undefined as T;
     }

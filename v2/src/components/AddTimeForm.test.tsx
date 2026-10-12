@@ -14,7 +14,7 @@ const projects: Project[] = [
 ];
 
 function open(props: Partial<Parameters<typeof AddTimeForm>[0]> = {}) {
-  const onChanged = vi.fn();
+  const onChanged = vi.fn(() => Promise.resolve());
   const onError = vi.fn();
   render(
     <AddTimeForm

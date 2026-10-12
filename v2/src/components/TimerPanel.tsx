@@ -9,7 +9,7 @@ interface Props {
   liveSeconds: number;
   entries: Entry[];
   today: string;
-  onChanged: () => void;
+  onChanged: () => Promise<void>;
   onError: (err: unknown) => void;
 }
 
@@ -80,7 +80,7 @@ export function TimerPanel({
     setBusy(true);
     try {
       await fn();
-      onChanged();
+      void onChanged();
     } catch (err) {
       onError(err);
     } finally {
@@ -174,7 +174,7 @@ export function TimerPanel({
         placeholder={target ? "What are you working on?" : "Notes for today — saved when you start"}
         value={notes}
         onChange={(e) => scheduleSave(e.target.value)}
-        onBlur={() => void flushSave().then((saved) => saved && onChanged(), onError)}
+        onBlur={() => void flushSave().then((saved) => (saved ? onChanged() : undefined), onError)}
       />
     </section>
   );

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { api, Entry } from "../api";
 import {
   dayHeading,
@@ -17,7 +17,7 @@ interface Props {
   today: string;
   durationFormat: DurationFormat;
   dateFormat: DateFormat;
-  onChanged: () => void;
+  onChanged: () => Promise<void>;
   onError: (err: unknown) => void;
 }
 
@@ -69,7 +69,7 @@ function EntryRow({
   entry: Entry;
   durationFormat: DurationFormat;
   dateFormat: DateFormat;
-  onChanged: () => void;
+  onChanged: () => Promise<void>;
   onError: (err: unknown) => void;
 }) {
   const notes = useInlineEdit(
@@ -78,7 +78,7 @@ function EntryRow({
     async (draft) => {
       if (draft.trim() === entry.notes) return;
       await api.setNotes(entry.id, draft);
-      onChanged();
+      void onChanged();
     },
     onError,
   );
@@ -87,31 +87,50 @@ function EntryRow({
   if (pending && pending.base !== entry.seconds) setPending(null);
   const seconds = pending?.seconds ?? entry.seconds;
   const [confirming, setConfirming] = useState(false);
-  const deleteButton = useRef<HTMLButtonElement>(null);
+  const [deleting, setDeleting] = useState(false);
+  // Hidden once deleted, so a stale or failed refresh can't offer it again.
+  const [deleted, setDeleted] = useState(false);
+  const row = useRef<HTMLDivElement>(null);
   // Set when the confirm closes, so focus goes back to the Delete button instead of the body.
   const restoreFocus = useRef(false);
 
-  useEffect(() => {
-    if (!confirming && restoreFocus.current) {
-      restoreFocus.current = false;
-      deleteButton.current?.focus();
-    }
-  }, [confirming]);
+  const closeConfirm = () => {
+    restoreFocus.current = true;
+    setConfirming(false);
+  };
 
   const remove = async () => {
+    setDeleting(true);
     try {
       await api.deleteEntry(entry.id);
     } catch (err) {
-      setConfirming(false);
-      restoreFocus.current = true;
+      setDeleting(false);
+      closeConfirm();
       onError(err);
       return;
     }
-    onChanged();
+    focusNeighbour();
+    setDeleted(true);
+    void onChanged();
   };
 
+  // Hands focus to the next row's Delete (or the previous one), not the body.
+  const focusNeighbour = () => {
+    const self = row.current;
+    if (!self) return;
+    const others = Array.from(
+      self.closest(".days")?.querySelectorAll<HTMLButtonElement>(".copy--delete") ?? [],
+    ).filter((b) => !self.contains(b));
+    const next =
+      others.find((b) => self.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) ??
+      others[others.length - 1];
+    next?.focus();
+  };
+
+  if (deleted) return null;
+
   return (
-    <div className={`entry ${entry.running ? "entry--running" : ""}`}>
+    <div ref={row} className={`entry ${entry.running ? "entry--running" : ""}`}>
       <span className="entry__dot" style={{ background: entry.projectColor ?? "var(--muted)" }} />
       <div className="entry__body">
         <div className="entry__project">{entry.projectName}</div>
@@ -152,20 +171,19 @@ function EntryRow({
       />
       <div className="entry__copy">
         {confirming ? (
-          <DeleteConfirm
-            onConfirm={() => void remove()}
-            onCancel={() => {
-              setConfirming(false);
-              restoreFocus.current = true;
-            }}
-          />
+          <DeleteConfirm busy={deleting} onConfirm={() => void remove()} onCancel={closeConfirm} />
         ) : (
           <>
             <CopyButton label="Time" text={formatDuration(seconds, durationFormat)} />
             <CopyButton label="Notes" text={entry.notes} />
             <CopyButton label="Date" text={formatDate(entry.day, dateFormat)} />
             <button
-              ref={deleteButton}
+              ref={(el) => {
+                if (el && restoreFocus.current) {
+                  restoreFocus.current = false;
+                  el.focus();
+                }
+              }}
               className="copy copy--delete"
               title="Delete entry"
               onClick={() => setConfirming(true)}
@@ -196,7 +214,7 @@ function DurationCell({
   shown: number;
   setPending: (pending: Pending | null) => void;
   durationFormat: DurationFormat;
-  onChanged: () => void;
+  onChanged: () => Promise<void>;
   onError: (err: unknown) => void;
 }) {
   const [invalid, setInvalid] = useState(false);
@@ -221,7 +239,7 @@ function DurationCell({
       } finally {
         setSaving(false);
       }
-      onChanged();
+      void onChanged();
     },
     onError,
   );
@@ -267,8 +285,15 @@ function DurationCell({
   );
 }
 
-function DeleteConfirm({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
-  const [busy, setBusy] = useState(false);
+function DeleteConfirm({
+  busy,
+  onConfirm,
+  onCancel,
+}: {
+  busy: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
   return (
     <div
       className="entry__confirm"
@@ -279,14 +304,7 @@ function DeleteConfirm({ onConfirm, onCancel }: { onConfirm: () => void; onCance
       }}
     >
       <span>Delete entry?</span>
-      <button
-        className="copy copy--delete"
-        disabled={busy}
-        onClick={() => {
-          setBusy(true);
-          onConfirm();
-        }}
-      >
+      <button className="copy copy--delete" disabled={busy} onClick={onConfirm}>
         Delete
       </button>
       <button className="copy" autoFocus disabled={busy} onClick={onCancel}>
