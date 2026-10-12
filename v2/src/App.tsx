@@ -195,7 +195,7 @@ export default function App() {
         today={today}
         durationFormat={durationFormat}
         dateFormat={dateFormat}
-        onChanged={() => void refresh()}
+        onChanged={refresh}
         onError={reportError}
       />
 

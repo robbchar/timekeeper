@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { api, Entry } from "../api";
 import {
   dayHeading,
@@ -14,7 +14,7 @@ interface Props {
   today: string;
   durationFormat: DurationFormat;
   dateFormat: DateFormat;
-  onChanged: () => void;
+  onChanged: () => Promise<void>;
   onError: (err: unknown) => void;
 }
 
@@ -66,7 +66,7 @@ function EntryRow({
   entry: Entry;
   durationFormat: DurationFormat;
   dateFormat: DateFormat;
-  onChanged: () => void;
+  onChanged: () => Promise<void>;
   onError: (err: unknown) => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -77,27 +77,26 @@ function EntryRow({
   const [failedBase, setFailedBase] = useState<string | null>(null);
   const unsaved = failedBase === entry.notes;
   const [confirming, setConfirming] = useState(false);
-  const deleteButton = useRef<HTMLButtonElement>(null);
+  const [deleting, setDeleting] = useState(false);
   // Set when the confirm closes, so focus goes back to the Delete button instead of the body.
   const restoreFocus = useRef(false);
 
-  useEffect(() => {
-    if (!confirming && restoreFocus.current) {
-      restoreFocus.current = false;
-      deleteButton.current?.focus();
-    }
-  }, [confirming]);
+  const closeConfirm = () => {
+    restoreFocus.current = true;
+    setConfirming(false);
+  };
 
   const remove = async () => {
+    setDeleting(true);
     try {
       await api.deleteEntry(entry.id);
+      // A good refresh unmounts the row; if the row is still here after it, don't leave it locked.
+      await onChanged();
     } catch (err) {
-      setConfirming(false);
-      restoreFocus.current = true;
       onError(err);
-      return;
     }
-    onChanged();
+    setDeleting(false);
+    closeConfirm();
   };
 
   const save = async () => {
@@ -116,7 +115,7 @@ function EntryRow({
         onError(err);
         return;
       }
-      onChanged();
+      void onChanged();
     }
     setFailedBase(null);
   };
@@ -162,20 +161,19 @@ function EntryRow({
       <div className="entry__duration">{formatDuration(entry.seconds, durationFormat)}</div>
       <div className="entry__copy">
         {confirming ? (
-          <DeleteConfirm
-            onConfirm={() => void remove()}
-            onCancel={() => {
-              setConfirming(false);
-              restoreFocus.current = true;
-            }}
-          />
+          <DeleteConfirm busy={deleting} onConfirm={() => void remove()} onCancel={closeConfirm} />
         ) : (
           <>
             <CopyButton label="Time" text={formatDuration(entry.seconds, durationFormat)} />
             <CopyButton label="Notes" text={entry.notes} />
             <CopyButton label="Date" text={formatDate(entry.day, dateFormat)} />
             <button
-              ref={deleteButton}
+              ref={(el) => {
+                if (el && restoreFocus.current) {
+                  restoreFocus.current = false;
+                  el.focus();
+                }
+              }}
               className="copy copy--delete"
               title="Delete entry"
               onClick={() => setConfirming(true)}
@@ -189,8 +187,15 @@ function EntryRow({
   );
 }
 
-function DeleteConfirm({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
-  const [busy, setBusy] = useState(false);
+function DeleteConfirm({
+  busy,
+  onConfirm,
+  onCancel,
+}: {
+  busy: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
   return (
     <div
       className="entry__confirm"
@@ -201,14 +206,7 @@ function DeleteConfirm({ onConfirm, onCancel }: { onConfirm: () => void; onCance
       }}
     >
       <span>Delete entry?</span>
-      <button
-        className="copy copy--delete"
-        disabled={busy}
-        onClick={() => {
-          setBusy(true);
-          onConfirm();
-        }}
-      >
+      <button className="copy copy--delete" disabled={busy} onClick={onConfirm}>
         Delete
       </button>
       <button className="copy" autoFocus disabled={busy} onClick={onCancel}>

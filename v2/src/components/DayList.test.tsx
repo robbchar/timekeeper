@@ -22,7 +22,7 @@ const entry: Entry = {
   running: false,
 };
 
-const list = (e: Entry, onError: (err: unknown) => void, onChanged = () => {}) => (
+const list = (e: Entry, onError: (err: unknown) => void, onChanged = () => Promise.resolve()) => (
   <DayList
     entries={[e]}
     today="2026-10-10"
@@ -90,7 +90,7 @@ describe("DayList deleting", () => {
 
   function openConfirm(e = entry) {
     const onError = vi.fn();
-    const onChanged = vi.fn();
+    const onChanged = vi.fn(() => Promise.resolve());
     render(list(e, onError, onChanged));
     fireEvent.click(screen.getByTitle("Delete entry"));
     return { onError, onChanged, group: screen.getByRole("group", { name: "Confirm delete" }) };
@@ -121,6 +121,26 @@ describe("DayList deleting", () => {
     fireEvent.keyDown(group, { key: "Escape" });
     expect(screen.queryByRole("group", { name: "Confirm delete" })).toBeNull();
     expect(api.deleteEntry).not.toHaveBeenCalled();
+    expect(screen.getByTitle("Delete entry")).toHaveFocus();
+  });
+
+  it("locks the confirm while the delete is in flight", () => {
+    vi.mocked(api.deleteEntry).mockReturnValueOnce(new Promise(() => {}));
+    const { group } = openConfirm();
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    fireEvent.keyDown(group, { key: "Escape" });
+    expect(screen.getByRole("group", { name: "Confirm delete" })).toBeInTheDocument();
+  });
+
+  it("unlocks the row if it is still listed after the refresh", async () => {
+    // The entries prop never changes here, as when a refresh fails after a good delete.
+    const { onChanged } = openConfirm();
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(screen.getByTitle("Delete entry")).toHaveFocus());
+    expect(onChanged).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("group", { name: "Confirm delete" })).toBeNull();
   });
 
   it("reports a refused delete of the running entry", async () => {

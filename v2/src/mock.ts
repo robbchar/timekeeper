@@ -92,9 +92,14 @@ function sum(from: string, to: string, projectId: number | null) {
     .reduce((n, e) => n + secondsOf(e), 0);
 }
 
-// Async like real IPC, so throws surface as rejections.
+// Async like real IPC, so throws surface as rejections; Tauri rejects with the message string.
 export function invoke<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {
-  return Promise.resolve().then(() => handle<T>(cmd, args));
+  return (
+    Promise.resolve()
+      .then(() => handle<T>(cmd, args))
+      // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- matches Tauri's string rejections
+      .catch((err: unknown) => Promise.reject(err instanceof Error ? err.message : err))
+  );
 }
 
 function handle<T>(cmd: string, a: Record<string, unknown>): T {
