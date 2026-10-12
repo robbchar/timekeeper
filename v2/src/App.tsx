@@ -185,7 +185,7 @@ export default function App() {
         liveSeconds={liveSeconds}
         entries={entries}
         today={today}
-        onChanged={() => void refresh()}
+        onChanged={refresh}
         onError={reportError}
       />
 
@@ -200,7 +200,7 @@ export default function App() {
         projects={snap.projects}
         lastProjectId={snap.lastProjectId}
         today={today}
-        onChanged={() => void refresh()}
+        onChanged={refresh}
         onError={reportError}
       />
 
@@ -209,7 +209,7 @@ export default function App() {
         today={today}
         durationFormat={durationFormat}
         dateFormat={dateFormat}
-        onChanged={() => void refresh()}
+        onChanged={refresh}
         onError={reportError}
       />
 

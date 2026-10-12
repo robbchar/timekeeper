@@ -55,7 +55,7 @@ const defaults: Props = {
   liveSeconds: 0,
   entries: [],
   today: "2026-10-10",
-  onChanged: () => {},
+  onChanged: () => Promise.resolve(),
   onError: () => {},
 };
 
@@ -138,7 +138,7 @@ describe("TimerPanel", () => {
     vi.mocked(api.setNotes).mockRejectedValueOnce("database is locked");
     vi.mocked(api.stop).mockClear();
     const onError = vi.fn();
-    const onChanged = vi.fn();
+    const onChanged = vi.fn(() => Promise.resolve());
     render(
       <TimerPanel
         {...defaults}

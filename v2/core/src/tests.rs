@@ -313,7 +313,7 @@ fn deleting_the_running_entry_is_refused() {
 
 #[test]
 fn deleting_an_unknown_entry_is_not_found() {
-    let (s, _) = store_with_project();
+    let (mut s, _) = store_with_project();
     assert!(matches!(s.delete_entry(99), Err(Error::EntryNotFound(99))));
 }
 

@@ -6,7 +6,7 @@ interface Props {
   projects: Project[];
   lastProjectId: number | null;
   today: string;
-  onChanged: () => void;
+  onChanged: () => Promise<void>;
   onError: (err: unknown) => void;
 }
 
@@ -49,7 +49,7 @@ export function AddTimeForm({ projects, lastProjectId, today, onChanged, onError
       setBusy(false);
     }
     setOpen(false);
-    onChanged();
+    void onChanged();
   };
 
   if (!open) {

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api, Entry } from "../api";
 import { DayList } from "./DayList";
@@ -23,7 +23,7 @@ const entry: Entry = {
   running: false,
 };
 
-const list = (e: Entry, onError: (err: unknown) => void, onChanged = () => {}) => (
+const list = (e: Entry, onError: (err: unknown) => void, onChanged = () => Promise.resolve()) => (
   <DayList
     entries={[e]}
     today="2026-10-10"
@@ -194,7 +194,7 @@ describe("DayList deleting", () => {
 
   function openConfirm(e = entry) {
     const onError = vi.fn();
-    const onChanged = vi.fn();
+    const onChanged = vi.fn(() => Promise.resolve());
     render(list(e, onError, onChanged));
     fireEvent.click(screen.getByTitle("Delete entry"));
     return { onError, onChanged, group: screen.getByRole("group", { name: "Confirm delete" }) };
@@ -225,6 +225,46 @@ describe("DayList deleting", () => {
     fireEvent.keyDown(group, { key: "Escape" });
     expect(screen.queryByRole("group", { name: "Confirm delete" })).toBeNull();
     expect(api.deleteEntry).not.toHaveBeenCalled();
+    expect(screen.getByTitle("Delete entry")).toHaveFocus();
+  });
+
+  it("locks the confirm while the delete is in flight", () => {
+    vi.mocked(api.deleteEntry).mockReturnValueOnce(new Promise(() => {}));
+    const { group } = openConfirm();
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(screen.getByRole("button", { name: "Delete" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    fireEvent.keyDown(group, { key: "Escape" });
+    expect(screen.getByRole("group", { name: "Confirm delete" })).toBeInTheDocument();
+  });
+
+  it("hides a deleted row even if the refresh leaves it listed", async () => {
+    // The entries prop never changes here, as when a refresh fails or is superseded.
+    const { onChanged } = openConfirm();
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(screen.queryByText("original")).toBeNull());
+    expect(onChanged).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTitle("Delete entry")).toBeNull();
+    expect(api.deleteEntry).toHaveBeenCalledTimes(1);
+  });
+
+  it("moves focus to the next row's Delete after a delete", async () => {
+    const other = { ...entry, id: 4, notes: "other" };
+    render(
+      <DayList
+        entries={[entry, other]}
+        today="2026-10-10"
+        durationFormat="hms"
+        dateFormat="iso"
+        onChanged={() => Promise.resolve()}
+        onError={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getAllByTitle("Delete entry")[0]);
+    const group = screen.getByRole("group", { name: "Confirm delete" });
+    fireEvent.click(within(group).getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(screen.queryByText("original")).toBeNull());
+    expect(screen.getByTitle("Delete entry")).toHaveFocus();
   });
 
   it("reports a refused delete of the running entry", async () => {
