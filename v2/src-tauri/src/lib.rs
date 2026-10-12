@@ -1,7 +1,10 @@
 //! Tauri shell: wires `timekeeper-core` to a tray icon and the web UI.
 //! Everything about the data lives in the core crate; this file only adapts it.
 
-use chrono::{DateTime, Duration, Local, NaiveDate, Utc};
+mod overrides;
+
+use chrono::{DateTime, Local, NaiveDate, Utc};
+use overrides::Overrides;
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard};
@@ -13,10 +16,6 @@ use tauri::{
 };
 use timekeeper_core::{Entry, ImportReport, Project, Recovered, Status, Store, Totals, WeekStart};
 
-/// A timer with no heartbeat for this long was left running by a run that
-/// ended without stopping it.
-const STALE_AFTER: i64 = 2; // minutes
-const HEARTBEAT_EVERY_SECS: u64 = 30;
 /// Settings the UI is allowed to write.
 const UI_SETTINGS: &[&str] = &["duration_format", "date_format", "week_start"];
 
@@ -375,25 +374,27 @@ fn build_tray(app: &AppHandle) -> tauri::Result<TrayHandles> {
 }
 
 /// Keeps the tray's elapsed time current and writes the heartbeat.
-fn spawn_ticker(app: AppHandle) {
+fn spawn_ticker(app: AppHandle, heartbeat_every_secs: u64) {
     std::thread::spawn(move || {
         let mut ticks: u64 = 0;
         loop {
             std::thread::sleep(std::time::Duration::from_secs(1));
             ticks += 1;
             // A panic in one tick is logged by the hook; the ticker keeps going.
-            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| tick(&app, ticks)));
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                tick(&app, ticks, heartbeat_every_secs)
+            }));
         }
     });
 }
 
-fn tick(app: &AppHandle, ticks: u64) {
+fn tick(app: &AppHandle, ticks: u64, heartbeat_every_secs: u64) {
     let state = app.state::<AppState>();
     let status = {
         let store = state.lock_store();
         let now = Utc::now();
         let status = store.status(now);
-        if ticks.is_multiple_of(HEARTBEAT_EVERY_SECS) {
+        if ticks.is_multiple_of(heartbeat_every_secs) {
             if let Ok(Status {
                 running: Some(_), ..
             }) = &status
@@ -424,8 +425,14 @@ fn log_panics_to(path: std::path::PathBuf) {
 
 // ----------------------------------------------------------------------- run
 
-fn open_store(app: &AppHandle) -> Result<(Store, Startup, String), Box<dyn std::error::Error>> {
-    let dir = app.path().app_data_dir()?;
+fn open_store(
+    app: &AppHandle,
+    overrides: &Overrides,
+) -> Result<(Store, Startup, String), Box<dyn std::error::Error>> {
+    let dir = match &overrides.data_dir {
+        Some(dir) => dir.clone(),
+        None => app.path().app_data_dir()?,
+    };
     std::fs::create_dir_all(&dir)?;
     log_panics_to(dir.join("panic.log"));
     let mut store = Store::open(dir.join("timekeeper.db"))?;
@@ -434,11 +441,14 @@ fn open_store(app: &AppHandle) -> Result<(Store, Startup, String), Box<dyn std::
     // First run: bring in v1's data. v1 (Electron) kept its database in the
     // per-user config dir under "timekeeper"; it is opened read-only.
     if store.is_empty()? && store.setting("v1_imported_at")?.is_none() {
-        let v1 = app
-            .path()
-            .config_dir()?
-            .join("timekeeper")
-            .join("timekeeper.db");
+        let v1 = match &overrides.v1_import_db {
+            Some(path) => path.clone(),
+            None => app
+                .path()
+                .config_dir()?
+                .join("timekeeper")
+                .join("timekeeper.db"),
+        };
         if v1.exists() {
             match store.import_v1(&v1, local_day) {
                 Ok(report) => startup.imported = Some(report),
@@ -447,7 +457,7 @@ fn open_store(app: &AppHandle) -> Result<(Store, Startup, String), Box<dyn std::
         }
     }
 
-    startup.recovered = store.recover_stale(Utc::now(), Duration::minutes(STALE_AFTER))?;
+    startup.recovered = store.recover_stale(Utc::now(), overrides.stale_after)?;
     Ok((store, startup, dir.display().to_string()))
 }
 
@@ -460,7 +470,8 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
             let handle = app.handle().clone();
-            let (store, startup, data_dir) = open_store(&handle)?;
+            let overrides = Overrides::from_env()?;
+            let (store, startup, data_dir) = open_store(&handle, &overrides)?;
             let status = store.status(Utc::now())?;
             app.manage(AppState {
                 store: Mutex::new(store),
@@ -470,7 +481,7 @@ pub fn run() {
             let tray = build_tray(&handle)?;
             app.manage(tray);
             refresh_tray(&handle, &status);
-            spawn_ticker(handle);
+            spawn_ticker(handle, overrides.heartbeat_every_secs);
             Ok(())
         })
         .on_window_event(|window, event| {

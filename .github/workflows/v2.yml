@@ -60,6 +60,10 @@ jobs:
       - name: Check formatting
         run: npm run format:check
 
+      # Covers scripts/, which the build's tsc doesn't include.
+      - name: Typecheck
+        run: npm run typecheck
+
       # Also produces dist/, which tauri::generate_context! needs at compile time.
       - name: Build frontend
         run: npm run build
@@ -72,6 +76,9 @@ jobs:
 
       - name: Core tests
         run: cargo test -p timekeeper-core
+
+      - name: Shell tests
+        run: cargo test -p timekeeper
 
   windows:
     runs-on: windows-latest
