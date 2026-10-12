@@ -167,6 +167,16 @@ function handle<T>(cmd: string, a: Record<string, unknown>): T {
       if (e) e.notes = (a.notes as string).trim();
       return undefined as T;
     }
+    case "set_entry_seconds": {
+      const e = entries.find((x) => x.id === a.entryId);
+      if (!e) throw new Error(`entry ${String(a.entryId)} not found`);
+      if (running?.entryId === e.id) throw new Error("stop the timer before editing its duration");
+      const seconds = a.seconds as number;
+      if (seconds < 0) throw new Error("duration can't be negative");
+      if (seconds > 24 * 3600) throw new Error("duration can't exceed 24 hours");
+      e.closedSeconds = seconds;
+      return undefined as T;
+    }
     case "delete_entry": {
       const id = a.entryId as number;
       const i = entries.findIndex((x) => x.id === id);

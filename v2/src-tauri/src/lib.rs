@@ -3,7 +3,7 @@
 
 mod overrides;
 
-use chrono::{DateTime, Local, NaiveDate, Utc};
+use chrono::{DateTime, Duration, Local, NaiveDate, Utc};
 use overrides::Overrides;
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -72,6 +72,14 @@ fn today() -> NaiveDate {
 }
 fn local_day(t: DateTime<Utc>) -> NaiveDate {
     t.with_timezone(&Local).date_naive()
+}
+/// Noon on local day `d`, or an hour later if the zone skips noon.
+fn local_noon(d: NaiveDate) -> DateTime<Utc> {
+    let noon = d.and_hms_opt(12, 0, 0).expect("12:00:00 is a valid time");
+    [noon, noon + Duration::hours(1)]
+        .into_iter()
+        .find_map(|t| t.and_local_timezone(Local).earliest())
+        .map_or_else(|| noon.and_utc(), |t| t.with_timezone(&Utc))
 }
 fn err(e: impl std::fmt::Display) -> String {
     e.to_string()
@@ -149,6 +157,14 @@ fn set_notes(state: State<AppState>, entry_id: i64, notes: String) -> Result<(),
     state
         .lock_store()
         .set_notes(entry_id, &notes, Utc::now())
+        .map_err(err)
+}
+
+#[tauri::command]
+fn set_entry_seconds(state: State<AppState>, entry_id: i64, seconds: i64) -> Result<(), String> {
+    state
+        .lock_store()
+        .set_entry_seconds(entry_id, seconds, Utc::now(), local_noon)
         .map_err(err)
 }
 
@@ -487,6 +503,7 @@ pub fn run() {
             entries,
             totals,
             set_notes,
+            set_entry_seconds,
             delete_entry,
             create_project,
             set_setting
