@@ -277,6 +277,51 @@ fn totals_include_the_running_interval() {
 }
 
 #[test]
+fn deleting_an_entry_removes_its_intervals_and_time() {
+    let (mut s, p) = store_with_project();
+    log(&mut s, p, "2026-10-05", 2);
+    let now = at("2026-10-05T23:00:00Z");
+    let entry = s
+        .entries(day("2026-10-05"), day("2026-10-05"), None, now)
+        .unwrap()[0]
+        .id;
+
+    s.delete_entry(entry).unwrap();
+
+    assert!(s
+        .entries(day("2026-10-05"), day("2026-10-05"), None, now)
+        .unwrap()
+        .is_empty());
+    let intervals: i64 = s
+        .conn
+        .query_row("SELECT COUNT(*) FROM intervals", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(intervals, 0);
+    let t = s
+        .totals(day("2026-10-05"), WeekStart::Monday, None, now)
+        .unwrap();
+    assert_eq!(t.today, 0);
+}
+
+#[test]
+fn deleting_the_running_entry_is_refused() {
+    let (mut s, p) = store_with_project();
+    s.start(p, None, at("2026-10-05T15:00:00Z"), day("2026-10-05"))
+        .unwrap();
+    let now = at("2026-10-05T15:30:00Z");
+    let entry = s.status(now).unwrap().running.unwrap().entry_id;
+
+    assert!(matches!(s.delete_entry(entry), Err(Error::EntryRunning(id)) if id == entry));
+    assert_eq!(s.status(now).unwrap().elapsed_seconds, 1800);
+}
+
+#[test]
+fn deleting_an_unknown_entry_is_not_found() {
+    let (s, _) = store_with_project();
+    assert!(matches!(s.delete_entry(99), Err(Error::EntryNotFound(99))));
+}
+
+#[test]
 fn migrations_are_idempotent() {
     let dir = std::env::temp_dir().join(format!("tk-mig-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
