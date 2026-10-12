@@ -339,6 +339,20 @@ button:focus-visible {
   font-variant-numeric: tabular-nums;
   font-size: 15px;
 }
+.entry__duration-button {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: inherit;
+  cursor: text;
+}
+.entry__duration-edit {
+  width: 10ch;
+  text-align: right;
+}
+.entry__duration-edit--invalid {
+  outline: 2px solid var(--stop);
+}
 .entry__copy {
   display: flex;
   gap: 4px;

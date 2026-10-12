@@ -47,6 +47,13 @@ export function formatClock(seconds: number): string {
   return `${Math.floor(s / 3600)}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
 }
 
+/** Parses "h:mm" or "h:mm:ss" into seconds; null if it's neither. */
+export function parseDuration(text: string): number | null {
+  const m = /^(\d+):([0-5]\d)(?::([0-5]\d))?$/.exec(text.trim());
+  if (!m) return null;
+  return Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3] ?? 0);
+}
+
 function parseDay(day: string): Date {
   const [y, m, d] = day.split("-").map(Number);
   return new Date(y, m - 1, d);

@@ -7,6 +7,7 @@ import {
   formatDuration,
   formatShort,
   localDay,
+  parseDuration,
 } from "./format";
 
 describe("formatDuration", () => {
@@ -48,6 +49,25 @@ describe("formatDuration", () => {
   it("clamps negative durations to zero", () => {
     expect(formatDuration(-5, "hms")).toBe("00:00:00");
   });
+});
+
+describe("parseDuration", () => {
+  it.each([
+    ["2:15", 8100],
+    ["2:15:30", 8130],
+    ["0:00", 0],
+    ["100:05", 360300],
+    [" 1:02:03 ", 3723],
+  ])("parses %j as %s seconds", (text, expected) => {
+    expect(parseDuration(text)).toBe(expected);
+  });
+
+  it.each(["", "2", "2:5", "2:60", "1:00:60", "1.5", "-1:00", "1:00:00:00", "a:bc"])(
+    "rejects %j",
+    (text) => {
+      expect(parseDuration(text)).toBeNull();
+    },
+  );
 });
 
 describe("formatShort", () => {

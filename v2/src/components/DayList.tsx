@@ -4,9 +4,11 @@ import {
   dayHeading,
   DateFormat,
   DurationFormat,
+  formatClock,
   formatDate,
   formatDuration,
   formatShort,
+  parseDuration,
 } from "../format";
 
 interface Props {
@@ -136,13 +138,105 @@ function EntryRow({
           </button>
         )}
       </div>
-      <div className="entry__duration">{formatDuration(entry.seconds, durationFormat)}</div>
+      <DurationCell
+        entry={entry}
+        durationFormat={durationFormat}
+        onChanged={onChanged}
+        onError={onError}
+      />
       <div className="entry__copy">
         <CopyButton label="Time" text={formatDuration(entry.seconds, durationFormat)} />
         <CopyButton label="Notes" text={entry.notes} />
         <CopyButton label="Date" text={formatDate(entry.day, dateFormat)} />
       </div>
     </div>
+  );
+}
+
+function DurationCell({
+  entry,
+  durationFormat,
+  onChanged,
+  onError,
+}: {
+  entry: Entry;
+  durationFormat: DurationFormat;
+  onChanged: () => void;
+  onError: (err: unknown) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [invalid, setInvalid] = useState(false);
+  const cancelled = useRef(false);
+  // A value being saved, or a failed draft, keyed to the seconds it was edited from.
+  const [pending, setPending] = useState<{ seconds: number; base: number } | null>(null);
+  const [failedBase, setFailedBase] = useState<number | null>(null);
+  const shown = pending?.base === entry.seconds ? pending.seconds : entry.seconds;
+
+  if (entry.running) {
+    return <div className="entry__duration">{formatDuration(entry.seconds, durationFormat)}</div>;
+  }
+
+  const save = async () => {
+    setEditing(false);
+    setInvalid(false);
+    const seconds = parseDuration(draft);
+    if (cancelled.current || seconds === null) {
+      cancelled.current = false;
+      setFailedBase(null);
+      return;
+    }
+    setFailedBase(null);
+    if (seconds === entry.seconds) return;
+    const base = entry.seconds;
+    setPending({ seconds, base });
+    try {
+      await api.setEntrySeconds(entry.id, seconds);
+    } catch (err) {
+      setPending(null);
+      setFailedBase(base);
+      onError(err);
+      return;
+    }
+    onChanged();
+  };
+
+  return editing ? (
+    <input
+      className={`entry__duration entry__duration-edit ${invalid ? "entry__duration-edit--invalid" : ""}`}
+      aria-label="Duration"
+      aria-invalid={invalid}
+      autoFocus
+      value={draft}
+      onChange={(e) => {
+        setDraft(e.target.value);
+        setInvalid(false);
+      }}
+      onBlur={() => void save()}
+      onKeyDown={(e) => {
+        // Both keys exit through blur, so save() runs exactly once.
+        if (e.key === "Enter") {
+          e.preventDefault();
+          if (parseDuration(draft) === null) setInvalid(true);
+          else e.currentTarget.blur();
+        }
+        if (e.key === "Escape") {
+          cancelled.current = true;
+          e.currentTarget.blur();
+        }
+      }}
+    />
+  ) : (
+    <button
+      className="entry__duration entry__duration-button"
+      title="Edit duration (h:mm or h:mm:ss)"
+      onClick={() => {
+        if (failedBase !== entry.seconds) setDraft(formatClock(entry.seconds));
+        setEditing(true);
+      }}
+    >
+      {formatDuration(shown, durationFormat)}
+    </button>
   );
 }
 
