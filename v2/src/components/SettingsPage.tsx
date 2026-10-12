@@ -1,12 +1,15 @@
 import { Snapshot } from "../api";
 import { DATE_FORMATS, DateFormat, DURATION_FORMATS, DurationFormat } from "../format";
+import { ProjectSettings } from "./ProjectSettings";
 
 interface Props {
   snapshot: Snapshot;
-  onChange: (key: string, value: string) => void;
+  onSetting: (key: string, value: string) => void;
+  onProjectsChanged: () => Promise<void>;
+  onError: (err: unknown) => void;
 }
 
-export function SettingsPage({ snapshot, onChange }: Props) {
+export function SettingsPage({ snapshot, onSetting, onProjectsChanged, onError }: Props) {
   const s = snapshot.settings;
   const durationFormat = (s.duration_format as DurationFormat) ?? "hms";
   const dateFormat = (s.date_format as DateFormat) ?? "iso";
@@ -14,6 +17,13 @@ export function SettingsPage({ snapshot, onChange }: Props) {
 
   return (
     <div className="settings-page">
+      <ProjectSettings
+        projects={snapshot.projects}
+        palette={snapshot.palette}
+        onChanged={onProjectsChanged}
+        onError={onError}
+      />
+
       <section className="panel">
         <h2>Copying</h2>
         <p className="panel__hint">
@@ -24,7 +34,7 @@ export function SettingsPage({ snapshot, onChange }: Props) {
           <select
             id="duration-format"
             value={durationFormat}
-            onChange={(e) => onChange("duration_format", e.target.value)}
+            onChange={(e) => onSetting("duration_format", e.target.value)}
           >
             {Object.entries(DURATION_FORMATS).map(([k, v]) => (
               <option key={k} value={k}>
@@ -38,7 +48,7 @@ export function SettingsPage({ snapshot, onChange }: Props) {
           <select
             id="date-format"
             value={dateFormat}
-            onChange={(e) => onChange("date_format", e.target.value)}
+            onChange={(e) => onSetting("date_format", e.target.value)}
           >
             {Object.entries(DATE_FORMATS).map(([k, v]) => (
               <option key={k} value={k}>
@@ -56,7 +66,7 @@ export function SettingsPage({ snapshot, onChange }: Props) {
           <select
             id="week-start"
             value={weekStart}
-            onChange={(e) => onChange("week_start", e.target.value)}
+            onChange={(e) => onSetting("week_start", e.target.value)}
           >
             <option value="monday">Monday</option>
             <option value="sunday">Sunday</option>

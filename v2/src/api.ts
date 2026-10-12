@@ -59,7 +59,10 @@ export interface ImportReport {
 export interface Snapshot {
   status: Status;
   projects: Project[];
-  lastProjectId: number | null;
+  /** Project color keys; see `projectColor`. */
+  palette: string[];
+  /** The last project timed unless it's archived, else the first active one. */
+  resumeProjectId: number | null;
   settings: Record<string, string>;
   startup: {
     recovered: { projectName: string; stoppedAt: string } | null;
@@ -91,6 +94,12 @@ export const api = {
     call<void>("set_entry_seconds", { entryId, seconds }),
   deleteEntry: (entryId: number) => call<void>("delete_entry", { entryId }),
   createProject: (name: string) => call<Project>("create_project", { name }),
+  renameProject: (projectId: number, name: string) =>
+    call<void>("rename_project", { projectId, name }),
+  setProjectColor: (projectId: number, color: string) =>
+    call<void>("set_project_color", { projectId, color }),
+  setProjectArchived: (projectId: number, archived: boolean) =>
+    call<void>("set_project_archived", { projectId, archived }),
   setSetting: (key: string, value: string) => call<void>("set_setting", { key, value }),
 
   copy: (text: string) => (inTauri ? writeText(text) : navigator.clipboard.writeText(text)),

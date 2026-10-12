@@ -124,10 +124,9 @@ pub struct Recovered {
     pub stopped_at: String,
 }
 
-/// Colors handed to projects that don't have one, in order.
-pub const PALETTE: &[&str] = &[
-    "#2a9d8f", "#e76f51", "#457b9d", "#e9c46a", "#8d6cab", "#6a994e",
-];
+/// Project color keys, in the order new projects get them. The UI maps each to a
+/// `--project-<key>` CSS token, so adding one means adding the token too.
+pub const PALETTE: &[&str] = &["teal", "coral", "blue", "gold", "purple", "green"];
 
 pub(crate) fn palette_color(n: i64) -> &'static str {
     PALETTE[(n.max(0) as usize) % PALETTE.len()]
@@ -263,6 +262,37 @@ impl Store {
             color: Some(color.to_string()),
             archived: false,
         })
+    }
+
+    pub fn rename_project(&self, id: i64, name: &str) -> Result<()> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(Error::Invalid("project name is empty".into()));
+        }
+        self.update_project(id, "UPDATE projects SET name = ?2 WHERE id = ?1", name)
+    }
+
+    pub fn set_project_color(&self, id: i64, color: &str) -> Result<()> {
+        if !PALETTE.contains(&color) {
+            return Err(Error::Invalid(format!("unknown project color {color:?}")));
+        }
+        self.update_project(id, "UPDATE projects SET color = ?2 WHERE id = ?1", color)
+    }
+
+    /// Archived projects drop out of the timer's picker; their entries are untouched.
+    pub fn set_project_archived(&self, id: i64, archived: bool) -> Result<()> {
+        self.update_project(
+            id,
+            "UPDATE projects SET archived = ?2 WHERE id = ?1",
+            archived,
+        )
+    }
+
+    fn update_project(&self, id: i64, sql: &str, value: impl rusqlite::ToSql) -> Result<()> {
+        match self.conn.execute(sql, params![id, value])? {
+            0 => Err(Error::ProjectNotFound(id)),
+            _ => Ok(()),
+        }
     }
 
     fn project_name(&self, id: i64) -> Result<String> {

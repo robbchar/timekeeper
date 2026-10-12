@@ -59,6 +59,8 @@ and open <http://localhost:1420>.
 - The running timer is an open interval in the database, so a crash loses nothing. If the app dies
   while timing, the next launch stops the timer at the last heartbeat (written every 30s) and says so.
 - Copy buttons on each day's entry: **Time**, **Notes**, **Date**. Formats, and which day the week starts on, are on the Settings page.
+- Projects are renamed, recolored and archived on the Settings page. An archived project leaves the
+  timer's list but keeps its history and stays in the totals filter.
 
 ## Tests
 

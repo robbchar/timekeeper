@@ -15,7 +15,7 @@ use tauri::{
     AppHandle, Emitter, Manager, State, WindowEvent, Wry,
 };
 use timekeeper_core::{
-    Entry, ImportReport, ManualTime, Project, Recovered, Status, Store, Totals, WeekStart,
+    Entry, ImportReport, ManualTime, Project, Recovered, Status, Store, Totals, WeekStart, PALETTE,
 };
 
 /// Settings the UI is allowed to write.
@@ -62,7 +62,10 @@ struct Startup {
 struct Snapshot {
     status: Status,
     projects: Vec<Project>,
-    last_project_id: Option<i64>,
+    /// Project color keys; the UI styles each with a `--project-<key>` token.
+    palette: &'static [&'static str],
+    /// The project a one-click start uses (`Store::resume_project_id`).
+    resume_project_id: Option<i64>,
     settings: std::collections::HashMap<String, String>,
     startup: Startup,
     data_dir: String,
@@ -101,7 +104,8 @@ fn snapshot(state: State<AppState>) -> Result<Snapshot, String> {
     Ok(Snapshot {
         status: store.status(Utc::now()).map_err(err)?,
         projects: store.projects().map_err(err)?,
-        last_project_id: store.last_project_id().map_err(err)?,
+        palette: PALETTE,
+        resume_project_id: store.resume_project_id().map_err(err)?,
         settings,
         startup: state.startup.clone(),
         data_dir: state.data_dir.clone(),
@@ -215,6 +219,35 @@ fn create_project(state: State<AppState>, name: String) -> Result<Project, Strin
     state
         .lock_store()
         .create_project(&name, Utc::now())
+        .map_err(err)
+}
+
+/// The ticker picks up the new name for the tray within a second.
+#[tauri::command]
+fn rename_project(state: State<AppState>, project_id: i64, name: String) -> Result<(), String> {
+    state
+        .lock_store()
+        .rename_project(project_id, &name)
+        .map_err(err)
+}
+
+#[tauri::command]
+fn set_project_color(state: State<AppState>, project_id: i64, color: String) -> Result<(), String> {
+    state
+        .lock_store()
+        .set_project_color(project_id, &color)
+        .map_err(err)
+}
+
+#[tauri::command]
+fn set_project_archived(
+    state: State<AppState>,
+    project_id: i64,
+    archived: bool,
+) -> Result<(), String> {
+    state
+        .lock_store()
+        .set_project_archived(project_id, archived)
         .map_err(err)
 }
 
@@ -544,6 +577,9 @@ pub fn run() {
             set_entry_seconds,
             delete_entry,
             create_project,
+            rename_project,
+            set_project_color,
+            set_project_archived,
             set_setting
         ])
         .run(tauri::generate_context!())
