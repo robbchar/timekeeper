@@ -47,6 +47,17 @@ export function formatClock(seconds: number): string {
   return `${Math.floor(s / 3600)}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
 }
 
+/** Matches `MAX_ENTRY_SECONDS` in core. */
+export const MAX_DURATION_SECONDS = 24 * 3600;
+
+/** Parses "h:mm" or "h:mm:ss" into seconds; null if it's neither or over 24 hours. */
+export function parseDuration(text: string): number | null {
+  const m = /^(\d+):([0-5]\d)(?::([0-5]\d))?$/.exec(text.trim());
+  if (!m) return null;
+  const seconds = Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3] ?? 0);
+  return seconds <= MAX_DURATION_SECONDS ? seconds : null;
+}
+
 function parseDay(day: string): Date {
   const [y, m, d] = day.split("-").map(Number);
   return new Date(y, m - 1, d);

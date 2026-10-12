@@ -3,7 +3,7 @@
 
 mod overrides;
 
-use chrono::{DateTime, Local, NaiveDate, Utc};
+use chrono::{DateTime, Duration, Local, NaiveDate, Utc};
 use overrides::Overrides;
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -14,7 +14,9 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, State, WindowEvent, Wry,
 };
-use timekeeper_core::{Entry, ImportReport, Project, Recovered, Status, Store, Totals, WeekStart};
+use timekeeper_core::{
+    Entry, ImportReport, ManualTime, Project, Recovered, Status, Store, Totals, WeekStart,
+};
 
 /// Settings the UI is allowed to write.
 const UI_SETTINGS: &[&str] = &["duration_format", "date_format", "week_start"];
@@ -72,6 +74,14 @@ fn today() -> NaiveDate {
 }
 fn local_day(t: DateTime<Utc>) -> NaiveDate {
     t.with_timezone(&Local).date_naive()
+}
+/// Noon on local day `d`, or an hour later if the zone skips noon.
+fn local_noon(d: NaiveDate) -> DateTime<Utc> {
+    let noon = d.and_hms_opt(12, 0, 0).expect("12:00:00 is a valid time");
+    [noon, noon + Duration::hours(1)]
+        .into_iter()
+        .find_map(|t| t.and_local_timezone(Local).earliest())
+        .map_or_else(|| noon.and_utc(), |t| t.with_timezone(&Utc))
 }
 fn err(e: impl std::fmt::Display) -> String {
     e.to_string()
@@ -149,6 +159,49 @@ fn set_notes(state: State<AppState>, entry_id: i64, notes: String) -> Result<(),
     state
         .lock_store()
         .set_notes(entry_id, &notes, Utc::now())
+        .map_err(err)
+}
+
+#[tauri::command]
+fn add_manual_time(
+    app: AppHandle,
+    state: State<AppState>,
+    project_id: i64,
+    day: String,
+    seconds: i64,
+    notes: Option<String>,
+) -> Result<Entry, String> {
+    let day = NaiveDate::parse_from_str(&day, "%Y-%m-%d").map_err(err)?;
+    let now = Utc::now();
+    let mut store = state.lock_store();
+    let entry = store
+        .add_manual_time(
+            ManualTime {
+                project_id,
+                day,
+                seconds,
+                notes: notes.as_deref(),
+            },
+            now,
+            today(),
+            local_noon(day),
+        )
+        .map_err(err)?;
+    // The time is saved; the tray refresh is best-effort. The UI refreshes itself.
+    if entry.running {
+        if let Ok(status) = store.status(now) {
+            drop(store);
+            refresh_tray(&app, &status);
+        }
+    }
+    Ok(entry)
+}
+
+#[tauri::command]
+fn set_entry_seconds(state: State<AppState>, entry_id: i64, seconds: i64) -> Result<(), String> {
+    state
+        .lock_store()
+        .set_entry_seconds(entry_id, seconds, Utc::now(), local_noon)
         .map_err(err)
 }
 
@@ -487,6 +540,8 @@ pub fn run() {
             entries,
             totals,
             set_notes,
+            add_manual_time,
+            set_entry_seconds,
             delete_entry,
             create_project,
             set_setting
@@ -511,5 +566,14 @@ mod tests {
         *lock_recovering(&m) += 1;
         assert_eq!(*lock_recovering(&m), 2);
         assert!(!m.is_poisoned());
+    }
+
+    #[test]
+    fn local_noon_is_noon_on_that_local_day() {
+        for d in ["2026-03-08", "2026-03-29", "2026-07-15", "2026-11-01"] {
+            let day = NaiveDate::parse_from_str(d, "%Y-%m-%d").unwrap();
+            let local = local_noon(day).with_timezone(&Local).naive_local();
+            assert_eq!(local, day.and_hms_opt(12, 0, 0).unwrap(), "{d}");
+        }
     }
 }

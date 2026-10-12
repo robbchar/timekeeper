@@ -4,6 +4,7 @@ import { addDays, DateFormat, DurationFormat, localDay } from "./format";
 import { liveTotals as foldLive } from "./live";
 import { TimerPanel } from "./components/TimerPanel";
 import { TotalsStrip } from "./components/TotalsStrip";
+import { AddTimeForm } from "./components/AddTimeForm";
 import { DayList } from "./components/DayList";
 import { SettingsPage } from "./components/SettingsPage";
 import { StartupNotices } from "./components/StartupNotices";
@@ -188,6 +189,14 @@ export default function App() {
         projects={snap.projects}
         filter={filter}
         onFilter={setFilter}
+      />
+
+      <AddTimeForm
+        projects={snap.projects}
+        lastProjectId={snap.lastProjectId}
+        today={today}
+        onChanged={refresh}
+        onError={reportError}
       />
 
       <DayList
