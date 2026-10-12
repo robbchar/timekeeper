@@ -88,3 +88,10 @@ export function addDays(day: string, n: number): string {
   d.setDate(d.getDate() + n);
   return localDay(d);
 }
+
+/** Seconds in `h:mm` or `h:mm:ss`, or null if the text isn't one of those. */
+export function parseDuration(text: string): number | null {
+  const m = /^(\d+):([0-5]\d)(?::([0-5]\d))?$/.exec(text.trim());
+  if (!m) return null;
+  return Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3] ?? 0);
+}

@@ -84,6 +84,9 @@ export const api = {
     call<Entry[]>("entries", { from, to, projectId }),
   totals: (projectId: number | null) => call<Totals>("totals", { projectId }),
   setNotes: (entryId: number, notes: string) => call<void>("set_notes", { entryId, notes }),
+  /** Adds `seconds` to `day`'s entry for the project, creating it if needed. */
+  addManualTime: (projectId: number, day: string, seconds: number, notes?: string) =>
+    call<Entry>("add_manual_time", { projectId, day, seconds, notes }),
   createProject: (name: string) => call<Project>("create_project", { name }),
   setSetting: (key: string, value: string) => call<void>("set_setting", { key, value }),
 

@@ -430,3 +430,181 @@ fn imports_real_v1_database_when_provided() {
     );
     assert!(s.status(now).unwrap().running.is_none());
 }
+
+fn manual<'a>(project_id: i64, d: &str, seconds: i64, notes: Option<&'a str>) -> ManualTime<'a> {
+    ManualTime {
+        project_id,
+        day: day(d),
+        seconds,
+        notes,
+    }
+}
+
+fn intervals_of(s: &Store, entry_id: i64) -> Vec<(String, Option<String>, String)> {
+    let mut stmt = s
+        .conn
+        .prepare(
+            "SELECT start_at, end_at, source FROM intervals WHERE entry_id = ?1 ORDER BY start_at",
+        )
+        .unwrap();
+    stmt.query_map([entry_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+        .unwrap()
+        .collect::<rusqlite::Result<_>>()
+        .unwrap()
+}
+
+#[test]
+fn manual_time_on_an_empty_past_day_creates_an_entry_ending_at_the_fallback() {
+    let (mut s, p) = store_with_project();
+    let e = s
+        .add_manual_time(
+            manual(p, "2026-10-03", 7200, Some("LABS-9")),
+            at("2026-10-05T15:00:00Z"),
+            day("2026-10-05"),
+            at("2026-10-03T16:00:00Z"),
+        )
+        .unwrap();
+    assert_eq!(e.day, "2026-10-03");
+    assert_eq!(e.seconds, 7200);
+    assert_eq!(e.notes, "LABS-9");
+    assert!(!e.running);
+    assert_eq!(
+        intervals_of(&s, e.id),
+        vec![(
+            "2026-10-03T14:00:00.000Z".to_string(),
+            Some("2026-10-03T16:00:00.000Z".to_string()),
+            "manual".to_string()
+        )]
+    );
+}
+
+#[test]
+fn manual_time_extends_an_existing_entry_before_its_first_interval() {
+    let (mut s, p) = store_with_project();
+    s.start(p, None, at("2026-10-03T15:00:00Z"), day("2026-10-03"))
+        .unwrap();
+    s.stop(at("2026-10-03T16:00:00Z")).unwrap();
+
+    let e = s
+        .add_manual_time(
+            manual(p, "2026-10-03", 1800, None),
+            at("2026-10-05T15:00:00Z"),
+            day("2026-10-05"),
+            at("2026-10-03T19:00:00Z"),
+        )
+        .unwrap();
+    assert_eq!(e.seconds, 5400);
+    let iv = intervals_of(&s, e.id);
+    assert_eq!(iv.len(), 2);
+    assert_eq!(
+        iv[0],
+        (
+            "2026-10-03T14:30:00.000Z".to_string(),
+            Some("2026-10-03T15:00:00.000Z".to_string()),
+            "manual".to_string()
+        )
+    );
+    let totals = s
+        .totals(
+            day("2026-10-05"),
+            WeekStart::Monday,
+            None,
+            at("2026-10-05T15:00:00Z"),
+        )
+        .unwrap();
+    assert_eq!(totals.this_month, 5400);
+}
+
+#[test]
+fn manual_time_on_the_running_entry_adds_to_it_and_keeps_timing() {
+    let (mut s, p) = store_with_project();
+    s.start(p, None, at("2026-10-05T15:00:00Z"), day("2026-10-05"))
+        .unwrap();
+
+    let e = s
+        .add_manual_time(
+            manual(p, "2026-10-05", 7200, None),
+            at("2026-10-05T15:30:00Z"),
+            day("2026-10-05"),
+            at("2026-10-05T16:00:00Z"),
+        )
+        .unwrap();
+    assert!(e.running);
+    assert_eq!(e.seconds, 7200 + 1800);
+
+    let st = s.status(at("2026-10-05T16:00:00Z")).unwrap();
+    let r = st.running.unwrap();
+    assert_eq!(r.entry_id, e.id);
+    assert_eq!(r.prior_seconds, 7200);
+    assert_eq!(st.elapsed_seconds, 7200 + 3600);
+}
+
+#[test]
+fn manual_time_appends_notes_to_an_existing_entry() {
+    let (mut s, p) = store_with_project();
+    let (now, today, end) = (
+        at("2026-10-05T15:00:00Z"),
+        day("2026-10-05"),
+        at("2026-10-04T16:00:00Z"),
+    );
+    s.add_manual_time(manual(p, "2026-10-04", 60, Some("first")), now, today, end)
+        .unwrap();
+    let e = s
+        .add_manual_time(
+            manual(p, "2026-10-04", 60, Some("  second ")),
+            now,
+            today,
+            end,
+        )
+        .unwrap();
+    assert_eq!(e.notes, "first\nsecond");
+    let e = s
+        .add_manual_time(manual(p, "2026-10-04", 60, Some("  ")), now, today, end)
+        .unwrap();
+    assert_eq!(e.notes, "first\nsecond");
+    assert_eq!(e.seconds, 180);
+}
+
+#[test]
+fn manual_time_sets_notes_on_an_entry_without_any() {
+    let (mut s, p) = store_with_project();
+    s.start(p, None, at("2026-10-04T15:00:00Z"), day("2026-10-04"))
+        .unwrap();
+    s.stop(at("2026-10-04T16:00:00Z")).unwrap();
+    let e = s
+        .add_manual_time(
+            manual(p, "2026-10-04", 60, Some("late note")),
+            at("2026-10-05T15:00:00Z"),
+            day("2026-10-05"),
+            at("2026-10-04T16:00:00Z"),
+        )
+        .unwrap();
+    assert_eq!(e.notes, "late note");
+}
+
+#[test]
+fn manual_time_rejects_bad_input() {
+    let (mut s, p) = store_with_project();
+    let now = at("2026-10-05T15:00:00Z");
+    let today = day("2026-10-05");
+    let end = at("2026-10-05T16:00:00Z");
+    for m in [
+        manual(p, "2026-10-05", 0, None),
+        manual(p, "2026-10-05", -5, None),
+        manual(p, "2026-10-05", 24 * 3600 + 1, None),
+        manual(p, "2026-10-06", 60, None),
+    ] {
+        assert!(matches!(
+            s.add_manual_time(m, now, today, end),
+            Err(Error::Invalid(_))
+        ));
+    }
+    assert!(matches!(
+        s.add_manual_time(manual(p + 99, "2026-10-05", 60, None), now, today, end),
+        Err(Error::ProjectNotFound(_))
+    ));
+    assert!(s
+        .entries(day("2026-10-01"), today, None, now)
+        .unwrap()
+        .is_empty());
+}

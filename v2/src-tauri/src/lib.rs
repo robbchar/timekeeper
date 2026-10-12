@@ -11,7 +11,9 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, State, WindowEvent, Wry,
 };
-use timekeeper_core::{Entry, ImportReport, Project, Recovered, Status, Store, Totals, WeekStart};
+use timekeeper_core::{
+    Entry, ImportReport, ManualTime, Project, Recovered, Status, Store, Totals, WeekStart,
+};
 
 /// A timer with no heartbeat for this long was left running by a run that
 /// ended without stopping it.
@@ -151,6 +153,48 @@ fn set_notes(state: State<AppState>, entry_id: i64, notes: String) -> Result<(),
         .lock_store()
         .set_notes(entry_id, &notes, Utc::now())
         .map_err(err)
+}
+
+/// Local noon of `day` in UTC: where manual time lands on a day with no intervals.
+fn local_noon(day: NaiveDate) -> DateTime<Utc> {
+    let noon = day.and_hms_opt(12, 0, 0).expect("noon is a valid time");
+    noon.and_local_timezone(Local)
+        .earliest()
+        .map_or_else(|| noon.and_utc(), |t| t.with_timezone(&Utc))
+}
+
+#[tauri::command]
+fn add_manual_time(
+    app: AppHandle,
+    state: State<AppState>,
+    project_id: i64,
+    day: String,
+    seconds: i64,
+    notes: Option<String>,
+) -> Result<Entry, String> {
+    let day = NaiveDate::parse_from_str(&day, "%Y-%m-%d").map_err(err)?;
+    let now = Utc::now();
+    let mut store = state.lock_store();
+    let entry = store
+        .add_manual_time(
+            ManualTime {
+                project_id,
+                day,
+                seconds,
+                notes: notes.as_deref(),
+            },
+            now,
+            today(),
+            local_noon(day),
+        )
+        .map_err(err)?;
+    if entry.running {
+        let status = store.status(now).map_err(err)?;
+        drop(store);
+        refresh_tray(&app, &status);
+        let _ = app.emit("timer-changed", ());
+    }
+    Ok(entry)
 }
 
 #[tauri::command]
@@ -471,6 +515,7 @@ pub fn run() {
             entries,
             totals,
             set_notes,
+            add_manual_time,
             create_project,
             set_setting
         ])

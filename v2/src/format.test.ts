@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  parseDuration,
   addDays,
   dayHeading,
   formatClock,
@@ -143,4 +144,26 @@ describe("test time zone", () => {
       new Date(2026, 2, 7).getTimezoneOffset(),
     );
   });
+});
+
+describe("parseDuration", () => {
+  it("reads h:mm", () => {
+    expect(parseDuration("2:15")).toBe(2 * 3600 + 15 * 60);
+    expect(parseDuration("0:05")).toBe(300);
+  });
+
+  it("reads h:mm:ss", () => {
+    expect(parseDuration("1:02:03")).toBe(3723);
+  });
+
+  it("ignores surrounding whitespace", () => {
+    expect(parseDuration(" 1:30 ")).toBe(5400);
+  });
+
+  it.each(["", "2", "2:5", "1:60", "1:00:60", "a:bc", "-1:00", "1:00:00:00", "1.5"])(
+    "rejects %j",
+    (text) => {
+      expect(parseDuration(text)).toBeNull();
+    },
+  );
 });

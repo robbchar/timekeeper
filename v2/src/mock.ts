@@ -167,6 +167,39 @@ function handle<T>(cmd: string, a: Record<string, unknown>): T {
       if (e) e.notes = (a.notes as string).trim();
       return undefined as T;
     }
+    case "add_manual_time": {
+      const projectId = a.projectId as number;
+      const day = a.day as string;
+      const seconds = a.seconds as number;
+      const note = (a.notes as string | undefined)?.trim() ?? "";
+      if (!(seconds > 0 && seconds <= 24 * 3600))
+        throw new Error("manual time must be between 1 second and 24 hours");
+      if (day > localDay()) throw new Error(`can't add time to a future day (${day})`);
+      const p = projects.find((x) => x.id === projectId);
+      if (!p) throw new Error(`project ${projectId} not found`);
+      let e = entries.find((x) => x.projectId === projectId && x.day === day);
+      if (!e) {
+        e = {
+          id: nextId++,
+          projectId,
+          projectName: p.name,
+          projectColor: p.color,
+          day,
+          notes: note,
+          seconds: 0,
+          closedSeconds: 0,
+          running: false,
+        };
+        entries.unshift(e);
+      } else if (note) {
+        e.notes = e.notes
+          ? `${e.notes}
+${note}`
+          : note;
+      }
+      e.closedSeconds += seconds;
+      return { ...e, seconds: secondsOf(e), running: running?.entryId === e.id } as T;
+    }
     case "create_project": {
       const p: Project = {
         id: projects.length + 1,
