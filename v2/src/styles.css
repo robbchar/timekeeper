@@ -498,6 +498,9 @@ button:focus-visible {
   color: var(--muted);
   font-size: 13px;
 }
+.panel__action {
+  align-self: flex-start;
+}
 .field {
   display: grid;
   grid-template-columns: 140px minmax(0, 260px);

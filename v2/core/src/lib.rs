@@ -12,7 +12,7 @@
 mod import;
 mod schema;
 
-pub use import::ImportReport;
+pub use import::{ImportReport, V1Data};
 
 use chrono::{DateTime, Datelike, Duration, NaiveDate, SecondsFormat, Utc};
 use rusqlite::{params, Connection, OptionalExtension};
@@ -31,6 +31,8 @@ pub enum Error {
     EntryRunning(i64),
     #[error("{0}")]
     Invalid(String),
+    #[error("no v1 database at {}", .0.display())]
+    NoV1Database(std::path::PathBuf),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -726,13 +728,25 @@ impl Store {
         Ok(())
     }
 
-    /// Imports a v1 (Electron) database, opened read-only. See `import.rs`.
+    /// Imports a v1 (Electron) database read by `V1Data::read`. See `import.rs`.
     pub fn import_v1(
         &mut self,
-        v1_path: impl AsRef<Path>,
+        v1: V1Data,
         local_day: impl Fn(DateTime<Utc>) -> NaiveDate,
     ) -> Result<ImportReport> {
-        import::import_v1(&mut self.conn, v1_path.as_ref(), local_day)
+        let open = import::OpenSessions::ImportClosed;
+        import::import_v1(&mut self.conn, v1, open, local_day)
+    }
+
+    /// Brings in v1 sessions recorded since the last import. Sessions v1 hasn't
+    /// ended yet are left for a later run, so they arrive with their full time.
+    pub fn import_v1_again(
+        &mut self,
+        v1: V1Data,
+        local_day: impl Fn(DateTime<Utc>) -> NaiveDate,
+    ) -> Result<ImportReport> {
+        let open = import::OpenSessions::Skip;
+        import::import_v1(&mut self.conn, v1, open, local_day)
     }
 
     pub fn is_empty(&self) -> Result<bool> {

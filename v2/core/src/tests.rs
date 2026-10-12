@@ -491,7 +491,9 @@ fn imports_v1_by_local_day_and_ignores_end_time() {
     v1_fixture(&v1);
 
     let mut s = Store::open_in_memory().unwrap();
-    let r = s.import_v1(&v1, pacific_day).unwrap();
+    let r = s
+        .import_v1(V1Data::read(&v1).unwrap(), pacific_day)
+        .unwrap();
     assert_eq!(r.projects, 2);
     assert_eq!(r.entries, 4);
     assert_eq!(r.seconds, 7524 + 2 + 5400);
@@ -529,9 +531,11 @@ fn imports_v1_by_local_day_and_ignores_end_time() {
         .all(|p| PALETTE.contains(&p.color.as_deref().unwrap())));
 
     // Running it again changes nothing.
-    let again = s.import_v1(&v1, pacific_day).unwrap();
+    let again = s
+        .import_v1(V1Data::read(&v1).unwrap(), pacific_day)
+        .unwrap();
     assert_eq!(again.entries, 0);
-    assert_eq!(again.already_imported, 6);
+    assert_eq!(again.already_imported, 4, "sessions only");
     std::fs::remove_dir_all(dir).ok();
 }
 
@@ -553,10 +557,150 @@ fn import_skips_and_counts_orphaned_and_unparseable_sessions() {
         .unwrap();
 
     let mut s = Store::open_in_memory().unwrap();
-    let r = s.import_v1(&v1, pacific_day).unwrap();
+    let r = s
+        .import_v1(V1Data::read(&v1).unwrap(), pacific_day)
+        .unwrap();
     assert_eq!(r.entries, 4, "the good sessions still import");
     assert_eq!(r.orphaned_sessions, 1);
     assert_eq!(r.unparseable_sessions, 1);
+    std::fs::remove_dir_all(dir).ok();
+}
+
+#[test]
+fn import_again_brings_in_only_sessions_recorded_since() {
+    let dir = std::env::temp_dir().join(format!("tk-imp-again-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let v1 = dir.join("v1.db");
+    v1_fixture(&v1);
+    let mut s = Store::open_in_memory().unwrap();
+    s.import_v1(V1Data::read(&v1).unwrap(), pacific_day)
+        .unwrap();
+
+    Connection::open(&v1)
+        .unwrap()
+        .execute(
+            "INSERT INTO sessions VALUES
+                 (14, 3, '2026-10-05T15:00:00.000Z', '2026-10-06T14:00:00.000Z', 1800, 'LABS-800')",
+            [],
+        )
+        .unwrap();
+    let v1_bytes = std::fs::read(&v1).unwrap();
+
+    let r = s
+        .import_v1_again(V1Data::read(&v1).unwrap(), pacific_day)
+        .unwrap();
+    assert_eq!((r.entries, r.seconds, r.projects), (1, 1800, 0));
+    assert_eq!(
+        r.still_open, 0,
+        "never-ended sessions the first import took aren't reported as open"
+    );
+    assert_eq!(
+        std::fs::read(&v1).unwrap(),
+        v1_bytes,
+        "v1's file is untouched"
+    );
+    let now = Utc.with_ymd_and_hms(2026, 10, 10, 0, 0, 0).unwrap();
+    let added = s
+        .entries(day("2026-10-05"), day("2026-10-05"), None, now)
+        .unwrap();
+    assert_eq!(added.len(), 1);
+    assert_eq!(
+        (added[0].notes.as_str(), added[0].seconds),
+        ("LABS-800", 1800)
+    );
+
+    let again = s
+        .import_v1_again(V1Data::read(&v1).unwrap(), pacific_day)
+        .unwrap();
+    assert_eq!(again.entries, 0, "a second run adds nothing");
+    std::fs::remove_dir_all(dir).ok();
+}
+
+#[test]
+fn import_again_leaves_open_v1_sessions_until_they_end() {
+    let dir = std::env::temp_dir().join(format!("tk-imp-open-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let v1 = dir.join("v1.db");
+    v1_fixture(&v1);
+    let mut s = Store::open_in_memory().unwrap();
+    s.import_v1(V1Data::read(&v1).unwrap(), pacific_day)
+        .unwrap();
+
+    let v1_writer = Connection::open(&v1).unwrap();
+    v1_writer
+        .execute(
+            "INSERT INTO sessions VALUES (15, 3, '2026-10-06T15:00:00.000Z', NULL, 600, 'LABS-801')",
+            [],
+        )
+        .unwrap();
+    let r = s
+        .import_v1_again(V1Data::read(&v1).unwrap(), pacific_day)
+        .unwrap();
+    assert_eq!((r.entries, r.still_open), (0, 1));
+
+    v1_writer
+        .execute(
+            "UPDATE sessions SET endTime = '2026-10-07T14:00:00.000Z', duration = 5400
+             WHERE sessionId = 15",
+            [],
+        )
+        .unwrap();
+    let r = s
+        .import_v1_again(V1Data::read(&v1).unwrap(), pacific_day)
+        .unwrap();
+    assert_eq!((r.entries, r.seconds, r.still_open), (1, 5400, 0));
+    drop(v1_writer);
+    std::fs::remove_dir_all(dir).ok();
+}
+
+#[test]
+fn import_reports_a_missing_v1_database() {
+    let missing = std::env::temp_dir()
+        .join("tk-no-such-dir")
+        .join("timekeeper.db");
+    let e = V1Data::read(&missing).err().unwrap();
+    assert!(matches!(e, Error::NoV1Database(_)), "{e}");
+    assert!(
+        e.to_string().contains(&missing.display().to_string()),
+        "names the path it looked at: {e}"
+    );
+}
+
+#[test]
+fn import_again_adopts_a_same_named_v2_project() {
+    let dir = std::env::temp_dir().join(format!("tk-imp-adopt-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let v1 = dir.join("v1.db");
+    v1_fixture(&v1);
+    let mut s = Store::open_in_memory().unwrap();
+    s.import_v1(V1Data::read(&v1).unwrap(), pacific_day)
+        .unwrap();
+    let now = Utc.with_ymd_and_hms(2026, 10, 10, 0, 0, 0).unwrap();
+    let labs = s.create_project("LABS", now).unwrap();
+
+    Connection::open(&v1)
+        .unwrap()
+        .execute_batch(
+            "INSERT INTO projects (projectId, name) VALUES (4, 'LABS ');
+             INSERT INTO sessions VALUES
+                 (16, 4, '2026-10-05T15:00:00.000Z', '2026-10-06T14:00:00.000Z', 900, 'x')",
+        )
+        .unwrap();
+    let r = s
+        .import_v1_again(V1Data::read(&v1).unwrap(), pacific_day)
+        .unwrap();
+    assert_eq!((r.projects, r.entries, r.already_imported), (0, 1, 4));
+    let named: Vec<_> = s
+        .projects()
+        .unwrap()
+        .into_iter()
+        .filter(|p| p.name == "LABS")
+        .collect();
+    assert_eq!(named.len(), 1, "no twin project");
+    let added = s
+        .entries(day("2026-10-05"), day("2026-10-05"), None, now)
+        .unwrap();
+    assert_eq!(added[0].project_id, labs.id);
     std::fs::remove_dir_all(dir).ok();
 }
 
@@ -568,7 +712,9 @@ fn imports_real_v1_database_when_provided() {
         return;
     };
     let mut s = Store::open_in_memory().unwrap();
-    let r = s.import_v1(&path, pacific_day).unwrap();
+    let r = s
+        .import_v1(V1Data::read(&path).unwrap(), pacific_day)
+        .unwrap();
     eprintln!("{r:#?}");
     let v1 =
         Connection::open_with_flags(&path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
