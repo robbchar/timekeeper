@@ -48,10 +48,11 @@ From `v2/`:
 
 ```bash
 cargo test -p timekeeper-core   # core: schema, timer, totals, import
+cargo test -p timekeeper        # shell: debug overrides (needs dist/)
 npm test                        # UI: Vitest + jsdom, api.ts mocked; runs once
 npm run lint                    # ESLint, type-checked rules
 npm run format:check            # Prettier; `npm run format` fixes
-npm run typecheck               # `npm run build` also typechecks
+npm run typecheck               # src/ and scripts/; `npm run build` checks src/ only
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 ```

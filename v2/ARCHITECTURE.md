@@ -137,5 +137,6 @@ them. An invalid value fails startup instead of being ignored.
 | `TK_HEARTBEAT_SECS`   | the 30-second heartbeat interval                 |
 | `TK_STALE_AFTER_SECS` | the two-minute stale window `recover_stale` uses |
 
-They exist for `scripts/smoke-windows.ts`. Single instance is keyed by the app identifier, not the
+They exist for `scripts/smoke-windows.ts`. `TK_DATA_DIR` doesn't move WebView2's profile; the
+script sets `WEBVIEW2_USER_DATA_FOLDER` for that. Single instance is keyed by the app identifier, not the
 data dir, so an overridden run still hands off to any other running v2.

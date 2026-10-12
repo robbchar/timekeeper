@@ -6,7 +6,7 @@ import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { setTimeout as sleep } from "node:timers/promises";
 
@@ -17,7 +17,8 @@ type Row = Record<string, unknown>;
 
 interface App {
   child: ChildProcess;
-  exited: Promise<void>;
+  /** Resolves with the exit code. */
+  exited: Promise<number | null>;
   alive: () => boolean;
 }
 
@@ -31,14 +32,16 @@ function launch(dataDir: string, extraEnv: Record<string, string> = {}): App {
       TK_DATA_DIR: dataDir,
       // Never fall back to the real v1 database.
       TK_V1_IMPORT_DB: join(dataDir, "no-v1.db"),
+      // Keep WebView2's profile out of the real app's local data dir.
+      WEBVIEW2_USER_DATA_FOLDER: join(dataDir, "webview"),
       ...extraEnv,
     },
   });
   let running = true;
-  const exited = new Promise<void>((done) =>
-    child.once("exit", () => {
+  const exited = new Promise<number | null>((done) =>
+    child.once("exit", (code) => {
       running = false;
-      done();
+      done(code);
     }),
   );
   const app = { child, exited, alive: () => running };
@@ -49,7 +52,11 @@ function launch(dataDir: string, extraEnv: Record<string, string> = {}): App {
 /** Hard kill, like a crash: no window close, no clean shutdown. */
 async function kill(app: App): Promise<void> {
   if (!app.alive()) return;
-  execFileSync("taskkill", ["/F", "/T", "/PID", String(app.child.pid)], { stdio: "ignore" });
+  try {
+    execFileSync("taskkill", ["/F", "/T", "/PID", String(app.child.pid)], { stdio: "ignore" });
+  } catch {
+    // Exited between the check and taskkill.
+  }
   await app.exited;
 }
 
@@ -58,8 +65,9 @@ function query(dbPath: string, sql: string): Row | undefined {
   const db = new DatabaseSync(dbPath, { readOnly: true });
   try {
     return db.prepare(sql).get();
-  } catch {
-    return undefined; // schema not there yet
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("no such table")) return undefined;
+    throw e;
   } finally {
     db.close();
   }
@@ -76,7 +84,13 @@ async function waitFor<T>(
     if (!app.alive()) {
       throw new Error(`app exited while waiting for ${what} (is another v2 instance running?)`);
     }
-    const value = probe();
+    let value: T | undefined;
+    try {
+      value = probe();
+    } catch (e) {
+      // The app holds a write lock while it starts; retry.
+      if (!(e instanceof Error && /database is locked|busy/i.test(e.message))) throw e;
+    }
     if (value !== undefined) return value;
     await sleep(250);
   }
@@ -90,6 +104,36 @@ function assertEqual(actual: unknown, expected: unknown, what: string): void {
 }
 
 const schemaReady = (dbPath: string) => query(dbPath, "SELECT COUNT(*) AS n FROM settings");
+
+const heartbeat = (dbPath: string) =>
+  query(dbPath, "SELECT value FROM settings WHERE key = 'heartbeat_at'")?.value as
+    string | undefined;
+
+/** Seeds a running timer with a fresh heartbeat; returns the interval id and the heartbeat. */
+function seedRunningTimer(dbPath: string): { intervalId: number; heartbeatAt: string } {
+  const heartbeatAt = new Date().toISOString();
+  const db = new DatabaseSync(dbPath);
+  // Each insert reads the previous one's rowid, so the interval goes last.
+  db.exec(`
+    INSERT INTO settings (key, value) VALUES ('heartbeat_at', '${heartbeatAt}')
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value;
+    INSERT INTO projects (name, created_at) VALUES ('Smoke', '${heartbeatAt}');
+    INSERT INTO entries (project_id, day, created_at, updated_at)
+      VALUES (last_insert_rowid(), '${new Date().toLocaleDateString("en-CA")}', '${heartbeatAt}', '${heartbeatAt}');
+    INSERT INTO intervals (entry_id, start_at, source)
+      VALUES (last_insert_rowid(), '${new Date(Date.now() - 60_000).toISOString()}', 'timer');
+  `);
+  const { id } = db.prepare("SELECT last_insert_rowid() AS id").get() as { id: number };
+  db.close();
+  return { intervalId: id, heartbeatAt };
+}
+
+/** A heartbeat newer than `after` means startup finished and the ticker is running. */
+const waitForHeartbeat = (app: App, dbPath: string, after: string) =>
+  waitFor("a new heartbeat", app, () => {
+    const at = heartbeat(dbPath);
+    return at && at > after ? at : undefined;
+  });
 
 const sha256 = (path: string) => createHash("sha256").update(readFileSync(path)).digest("hex");
 
@@ -126,15 +170,16 @@ async function firstRunImport(dir: string): Promise<void> {
     const row = query(db, "SELECT value FROM settings WHERE key = 'v1_imported_at'");
     return row ? String(row.value) : undefined;
   });
-  const counts =
-    "SELECT (SELECT COUNT(*) FROM projects) AS p, (SELECT COUNT(*) FROM intervals) AS i";
+  const counts = `SELECT (SELECT COUNT(*) FROM projects WHERE legacy_project_id IS NOT NULL) AS p,
+    (SELECT COUNT(*) FROM intervals WHERE source = 'import') AS i`;
   assertEqual(query(db, counts)?.p, 2, "imported projects");
   assertEqual(query(db, counts)?.i, 3, "imported sessions");
   await kill(first);
 
-  const second = launch(dir, env);
-  await sleep(4_000);
-  assertEqual(second.alive(), true, "relaunch running");
+  // A running timer's heartbeat shows the relaunch got past the import step.
+  const { heartbeatAt } = seedRunningTimer(db);
+  const second = launch(dir, { ...env, TK_HEARTBEAT_SECS: "1" });
+  await waitForHeartbeat(second, db, heartbeatAt);
   assertEqual(
     query(db, "SELECT value FROM settings WHERE key = 'v1_imported_at'")?.value,
     importedAt,
@@ -152,61 +197,38 @@ async function singleInstance(dir: string): Promise<void> {
   await waitFor("the database", first, () => schemaReady(db));
 
   const second = launch(dir);
-  const exitedInTime = await Promise.race([
-    second.exited.then(() => true),
-    sleep(15_000).then(() => false),
-  ]);
-  assertEqual(exitedInTime, true, "second launch exited");
+  const exitCode = await Promise.race([second.exited, sleep(15_000).then(() => "timeout")]);
+  assertEqual(exitCode, 0, "second launch exit code");
   assertEqual(first.alive(), true, "first instance still running");
   await kill(first);
 }
 
 async function crashRecovery(dir: string): Promise<void> {
   const db = join(dir, "timekeeper.db");
-  const timings = { TK_HEARTBEAT_SECS: "1", TK_STALE_AFTER_SECS: String(STALE_AFTER_SECS) };
 
   // Let the app create its schema, then seed a running timer with a fresh heartbeat.
   const init = launch(dir);
   await waitFor("the database", init, () => schemaReady(db));
   await kill(init);
-  const seededHeartbeat = new Date().toISOString();
-  const seed = new DatabaseSync(db);
-  seed.exec(`
-    INSERT INTO projects (id, name, created_at) VALUES (1, 'Smoke', '${seededHeartbeat}');
-    INSERT INTO entries (id, project_id, day, created_at, updated_at)
-      VALUES (1, 1, '${new Date().toLocaleDateString("en-CA")}', '${seededHeartbeat}', '${seededHeartbeat}');
-    INSERT INTO intervals (id, entry_id, start_at, source)
-      VALUES (1, 1, '${new Date(Date.now() - 60_000).toISOString()}', 'timer');
-    INSERT INTO settings (key, value) VALUES ('heartbeat_at', '${seededHeartbeat}')
-      ON CONFLICT(key) DO UPDATE SET value = excluded.value;
-  `);
-  seed.close();
-
-  const heartbeat = () =>
-    query(db, "SELECT value FROM settings WHERE key = 'heartbeat_at'")?.value as string | undefined;
+  const { intervalId, heartbeatAt } = seedRunningTimer(db);
+  const endAt = `SELECT end_at FROM intervals WHERE id = ${intervalId}`;
 
   // The timer keeps running and its heartbeat advances; then the app is killed mid-timer.
-  const timing = launch(dir, timings);
-  await waitFor("a new heartbeat", timing, () => {
-    const at = heartbeat();
-    return at && at > seededHeartbeat ? at : undefined;
-  });
+  // The default stale window applies here, so a slow start can't close the seeded timer.
+  const timing = launch(dir, { TK_HEARTBEAT_SECS: "1" });
+  await waitForHeartbeat(timing, db, heartbeatAt);
   await kill(timing);
-  const lastHeartbeat = heartbeat();
-  assertEqual(
-    query(db, "SELECT end_at FROM intervals WHERE id = 1")?.end_at,
-    null,
-    "timer open after kill",
-  );
+  const lastHeartbeat = heartbeat(db);
+  assertEqual(query(db, endAt)?.end_at, null, "timer open after kill");
 
   // Relaunch once the heartbeat is stale: the timer must close at the last heartbeat.
   await sleep((STALE_AFTER_SECS + 1) * 1_000);
-  const relaunched = launch(dir, timings);
-  const endAt = await waitFor("the timer to be closed", relaunched, () => {
-    const row = query(db, "SELECT end_at FROM intervals WHERE id = 1");
+  const relaunched = launch(dir, { TK_STALE_AFTER_SECS: String(STALE_AFTER_SECS) });
+  const closedAt = await waitFor("the timer to be closed", relaunched, () => {
+    const row = query(db, endAt);
     return row?.end_at ?? undefined;
   });
-  assertEqual(endAt, lastHeartbeat, "timer closed at the last heartbeat");
+  assertEqual(closedAt, lastHeartbeat, "timer closed at the last heartbeat");
   await kill(relaunched);
 }
 
@@ -223,9 +245,13 @@ async function main(): Promise<number> {
     console.error("smoke-windows only runs on Windows.");
     return 1;
   }
-  // Release builds ignore TK_* and would use the real data dir.
-  if (!existsSync(EXE) || basename(dirname(EXE)) !== "debug") {
+  if (!existsSync(EXE)) {
     console.error(`No debug build at ${EXE}. Run: npm run tauri build -- --debug --no-bundle`);
+    return 1;
+  }
+  // A build without the TK_* overrides would run against the real data dir.
+  if (!readFileSync(EXE).includes("TK_DATA_DIR")) {
+    console.error(`${EXE} predates the TK_* overrides. Rebuild: npm run smoke:windows`);
     return 1;
   }
 

@@ -3,6 +3,9 @@
 
 use std::path::PathBuf;
 
+/// The most seconds `chrono::Duration::seconds` accepts.
+const MAX_SECS: u64 = i64::MAX as u64 / 1_000;
+
 #[derive(Debug, Default, PartialEq)]
 pub struct Overrides {
     /// `TK_DATA_DIR`: replaces the per-user app data dir.
@@ -29,7 +32,7 @@ impl Overrides {
         let secs = |key: &str| {
             set(key)
                 .map(|v| match v.parse::<u64>() {
-                    Ok(n) if n > 0 => Ok(n),
+                    Ok(n) if n > 0 && n <= MAX_SECS => Ok(n),
                     _ => Err(format!(
                         "{key} must be a positive whole number of seconds, got {v:?}"
                     )),
@@ -93,7 +96,7 @@ mod tests {
 
     #[test]
     fn rejects_seconds_that_are_not_a_positive_whole_number() {
-        for bad in ["0", "-1", "1.5", "soon"] {
+        for bad in ["0", "-1", "1.5", "soon", "99999999999999999"] {
             let err = parse(&[("TK_HEARTBEAT_SECS", bad)]).unwrap_err();
             assert!(err.contains("TK_HEARTBEAT_SECS"), "{err}");
         }
