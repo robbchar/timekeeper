@@ -1,13 +1,16 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, Entry } from "../api";
 import {
   dayHeading,
   DateFormat,
   DurationFormat,
+  formatClock,
   formatDate,
   formatDuration,
   formatShort,
+  parseDuration,
 } from "../format";
+import { useInlineEdit } from "./useInlineEdit";
 
 interface Props {
   entries: Entry[];
@@ -69,33 +72,42 @@ function EntryRow({
   onChanged: () => void;
   onError: (err: unknown) => void;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(entry.notes);
-  // Escape leaves through blur too; this tells save() to discard.
-  const cancelled = useRef(false);
-  // The saved notes a failed draft was based on; the draft is dropped once they change elsewhere.
-  const [failedBase, setFailedBase] = useState<string | null>(null);
-  const unsaved = failedBase === entry.notes;
+  const notes = useInlineEdit(
+    entry.notes,
+    (n) => n,
+    async (draft) => {
+      if (draft.trim() === entry.notes) return;
+      await api.setNotes(entry.id, draft);
+      onChanged();
+    },
+    onError,
+  );
+  // A duration being saved, keyed to the seconds it was edited from; dropped once they change.
+  const [pending, setPending] = useState<Pending | null>(null);
+  if (pending && pending.base !== entry.seconds) setPending(null);
+  const seconds = pending?.seconds ?? entry.seconds;
+  const [confirming, setConfirming] = useState(false);
+  const deleteButton = useRef<HTMLButtonElement>(null);
+  // Set when the confirm closes, so focus goes back to the Delete button instead of the body.
+  const restoreFocus = useRef(false);
 
-  const save = async () => {
-    setEditing(false);
-    if (cancelled.current) {
-      cancelled.current = false;
-      setFailedBase(null);
-      setDraft(entry.notes);
+  useEffect(() => {
+    if (!confirming && restoreFocus.current) {
+      restoreFocus.current = false;
+      deleteButton.current?.focus();
+    }
+  }, [confirming]);
+
+  const remove = async () => {
+    try {
+      await api.deleteEntry(entry.id);
+    } catch (err) {
+      setConfirming(false);
+      restoreFocus.current = true;
+      onError(err);
       return;
     }
-    if (draft.trim() !== entry.notes) {
-      try {
-        await api.setNotes(entry.id, draft);
-      } catch (err) {
-        setFailedBase(entry.notes);
-        onError(err);
-        return;
-      }
-      onChanged();
-    }
-    setFailedBase(null);
+    onChanged();
   };
 
   return (
@@ -103,45 +115,183 @@ function EntryRow({
       <span className="entry__dot" style={{ background: entry.projectColor ?? "var(--muted)" }} />
       <div className="entry__body">
         <div className="entry__project">{entry.projectName}</div>
-        {editing ? (
+        {notes.editing ? (
           <textarea
             className="entry__edit"
             autoFocus
             rows={2}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={() => void save()}
+            value={notes.draft}
+            onChange={(e) => notes.setDraft(e.target.value)}
+            onBlur={() => void notes.finish()}
             onKeyDown={(e) => {
-              // Both keys exit through blur, so save() runs exactly once.
+              // Both keys exit through blur, so finish() runs exactly once.
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 e.currentTarget.blur();
               }
-              if (e.key === "Escape") {
-                cancelled.current = true;
-                e.currentTarget.blur();
-              }
+              if (e.key === "Escape") notes.cancel(e);
             }}
           />
         ) : (
           <button
-            className={`entry__notes ${unsaved ? "entry__notes--unsaved" : entry.notes ? "" : "entry__notes--empty"}`}
+            className={`entry__notes ${notes.unsaved ? "entry__notes--unsaved" : entry.notes ? "" : "entry__notes--empty"}`}
             title="Edit notes"
-            onClick={() => {
-              if (!unsaved) setDraft(entry.notes);
-              setEditing(true);
-            }}
+            onClick={notes.open}
           >
-            {unsaved ? draft : entry.notes || "Add notes"}
+            {notes.unsaved ? notes.draft : entry.notes || "Add notes"}
           </button>
         )}
       </div>
-      <div className="entry__duration">{formatDuration(entry.seconds, durationFormat)}</div>
+      <DurationCell
+        entry={entry}
+        shown={seconds}
+        setPending={setPending}
+        durationFormat={durationFormat}
+        onChanged={onChanged}
+        onError={onError}
+      />
       <div className="entry__copy">
-        <CopyButton label="Time" text={formatDuration(entry.seconds, durationFormat)} />
-        <CopyButton label="Notes" text={entry.notes} />
-        <CopyButton label="Date" text={formatDate(entry.day, dateFormat)} />
+        {confirming ? (
+          <DeleteConfirm
+            onConfirm={() => void remove()}
+            onCancel={() => {
+              setConfirming(false);
+              restoreFocus.current = true;
+            }}
+          />
+        ) : (
+          <>
+            <CopyButton label="Time" text={formatDuration(seconds, durationFormat)} />
+            <CopyButton label="Notes" text={entry.notes} />
+            <CopyButton label="Date" text={formatDate(entry.day, dateFormat)} />
+            <button
+              ref={deleteButton}
+              className="copy copy--delete"
+              title="Delete entry"
+              onClick={() => setConfirming(true)}
+            >
+              Delete
+            </button>
+          </>
+        )}
       </div>
+    </div>
+  );
+}
+
+interface Pending {
+  seconds: number;
+  base: number;
+}
+
+function DurationCell({
+  entry,
+  shown,
+  setPending,
+  durationFormat,
+  onChanged,
+  onError,
+}: {
+  entry: Entry;
+  shown: number;
+  setPending: (pending: Pending | null) => void;
+  durationFormat: DurationFormat;
+  onChanged: () => void;
+  onError: (err: unknown) => void;
+}) {
+  const [invalid, setInvalid] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const edit = useInlineEdit(
+    shown,
+    formatClock,
+    async (draft) => {
+      const seconds = parseDuration(draft);
+      if (seconds === null) {
+        throw new Error(`"${draft}" isn't a duration: use h:mm or h:mm:ss, up to 24:00:00`);
+      }
+      if (seconds === shown) return;
+      const before = shown === entry.seconds ? null : { seconds: shown, base: entry.seconds };
+      setPending({ seconds, base: entry.seconds });
+      setSaving(true);
+      try {
+        await api.setEntrySeconds(entry.id, seconds);
+      } catch (err) {
+        setPending(before);
+        throw err;
+      } finally {
+        setSaving(false);
+      }
+      onChanged();
+    },
+    onError,
+  );
+
+  if (entry.running) {
+    return <div className="entry__duration">{formatDuration(entry.seconds, durationFormat)}</div>;
+  }
+
+  return edit.editing ? (
+    <input
+      className={`entry__duration entry__duration-edit ${invalid ? "entry__duration-edit--invalid" : ""}`}
+      aria-label="Duration"
+      aria-invalid={invalid}
+      autoFocus
+      value={edit.draft}
+      onChange={(e) => {
+        edit.setDraft(e.target.value);
+        setInvalid(false);
+      }}
+      onBlur={() => {
+        setInvalid(false);
+        void edit.finish();
+      }}
+      onKeyDown={(e) => {
+        // Both keys exit through blur, so finish() runs exactly once.
+        if (e.key === "Enter") {
+          e.preventDefault();
+          if (parseDuration(edit.draft) === null) setInvalid(true);
+          else e.currentTarget.blur();
+        }
+        if (e.key === "Escape") edit.cancel(e);
+      }}
+    />
+  ) : (
+    <button
+      className="entry__duration entry__duration-button"
+      title="Edit duration (h:mm or h:mm:ss)"
+      disabled={saving}
+      onClick={edit.open}
+    >
+      {formatDuration(shown, durationFormat)}
+    </button>
+  );
+}
+
+function DeleteConfirm({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <div
+      className="entry__confirm"
+      role="group"
+      aria-label="Confirm delete"
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && !busy) onCancel();
+      }}
+    >
+      <span>Delete entry?</span>
+      <button
+        className="copy copy--delete"
+        disabled={busy}
+        onClick={() => {
+          setBusy(true);
+          onConfirm();
+        }}
+      >
+        Delete
+      </button>
+      <button className="copy" autoFocus disabled={busy} onClick={onCancel}>
+        Cancel
+      </button>
     </div>
   );
 }

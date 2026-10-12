@@ -2,9 +2,6 @@ import { useState } from "react";
 import { api, Project } from "../api";
 import { parseDuration } from "../format";
 
-// Matches core's MAX_MANUAL_SECONDS.
-const MAX_SECONDS = 24 * 3600;
-
 interface Props {
   projects: Project[];
   lastProjectId: number | null;
@@ -37,12 +34,9 @@ export function AddTimeForm({ projects, lastProjectId, today, onChanged, onError
 
   const submit = async () => {
     const seconds = parseDuration(duration);
-    if (seconds == null || projectId == null) {
-      setInvalid("Enter a duration as h:mm, like 1:30.");
-      return;
-    }
-    if (seconds <= 0 || seconds > MAX_SECONDS) {
-      setInvalid("Enter a duration between 0:00:01 and 24:00.");
+    // parseDuration already refuses anything over 24 hours.
+    if (!seconds || projectId == null) {
+      setInvalid("Enter a duration between 0:00:01 and 24:00 as h:mm, like 1:30.");
       return;
     }
     setBusy(true);

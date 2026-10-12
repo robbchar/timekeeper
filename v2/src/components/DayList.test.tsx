@@ -4,7 +4,12 @@ import { api, Entry } from "../api";
 import { DayList } from "./DayList";
 
 vi.mock("../api", () => ({
-  api: { setNotes: vi.fn(() => Promise.resolve()), copy: vi.fn() },
+  api: {
+    setNotes: vi.fn(() => Promise.resolve()),
+    setEntrySeconds: vi.fn(() => Promise.resolve()),
+    deleteEntry: vi.fn(() => Promise.resolve()),
+    copy: vi.fn(),
+  },
 }));
 
 const entry: Entry = {
@@ -18,13 +23,13 @@ const entry: Entry = {
   running: false,
 };
 
-const list = (e: Entry, onError: (err: unknown) => void) => (
+const list = (e: Entry, onError: (err: unknown) => void, onChanged = () => {}) => (
   <DayList
     entries={[e]}
     today="2026-10-10"
     durationFormat="hms"
     dateFormat="iso"
-    onChanged={() => {}}
+    onChanged={onChanged}
     onError={onError}
   />
 );
@@ -78,5 +83,158 @@ describe("DayList notes editing", () => {
     expect(screen.getByTitle("Edit notes")).toHaveTextContent("newer");
     fireEvent.click(screen.getByTitle("Edit notes"));
     expect(screen.getByRole("textbox")).toHaveValue("newer");
+  });
+});
+
+describe("DayList duration editing", () => {
+  beforeEach(() => vi.mocked(api.setEntrySeconds).mockClear());
+
+  function editDuration(value: string, { onError = vi.fn(), onChanged = vi.fn() } = {}) {
+    const view = render(list(entry, onError, onChanged));
+    fireEvent.click(screen.getByTitle(/Edit duration/));
+    const box = screen.getByLabelText("Duration");
+    fireEvent.change(box, { target: { value } });
+    return { ...view, box, onError, onChanged };
+  }
+
+  it("opens prefilled as h:mm:ss", () => {
+    render(list(entry, vi.fn()));
+    fireEvent.click(screen.getByTitle(/Edit duration/));
+    expect(screen.getByLabelText("Duration")).toHaveValue("0:10:00");
+  });
+
+  it("Enter saves h:mm, shows the new value at once and refreshes", async () => {
+    const { box, onChanged } = editDuration("1:30");
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(api.setEntrySeconds).toHaveBeenCalledTimes(1);
+    expect(api.setEntrySeconds).toHaveBeenCalledWith(3, 5400);
+    expect(screen.getByTitle(/Edit duration/)).toHaveTextContent("01:30:00");
+    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
+  });
+
+  it("accepts h:mm:ss", () => {
+    const { box } = editDuration("0:05:30");
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(api.setEntrySeconds).toHaveBeenCalledWith(3, 330);
+  });
+
+  it("Escape discards the edit even though it leaves through blur", () => {
+    const { box } = editDuration("1:30");
+    fireEvent.keyDown(box, { key: "Escape" });
+    expect(api.setEntrySeconds).not.toHaveBeenCalled();
+    expect(screen.getByTitle(/Edit duration/)).toHaveTextContent("00:10:00");
+  });
+
+  it("Enter on an invalid value keeps editing and marks it invalid", () => {
+    const { box } = editDuration("1.5");
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(api.setEntrySeconds).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Duration")).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("does not save an unchanged value", () => {
+    const { box } = editDuration("0:10:00");
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(api.setEntrySeconds).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed save, reverts the display and keeps the draft", async () => {
+    vi.mocked(api.setEntrySeconds).mockRejectedValueOnce("database is locked");
+    const { box, onError, onChanged } = editDuration("1:30");
+    fireEvent.keyDown(box, { key: "Enter" });
+    await waitFor(() => expect(onError).toHaveBeenCalledWith("database is locked"));
+    expect(onChanged).not.toHaveBeenCalled();
+    expect(screen.getByTitle(/Edit duration/)).toHaveTextContent("00:10:00");
+    fireEvent.click(screen.getByTitle(/Edit duration/));
+    expect(screen.getByLabelText("Duration")).toHaveValue("1:30");
+  });
+
+  it("click-away on an invalid value reports it and keeps the draft", async () => {
+    const { box, onError } = editDuration("1.5");
+    fireEvent.blur(box);
+    await waitFor(() => expect(onError).toHaveBeenCalledTimes(1));
+    expect(api.setEntrySeconds).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTitle(/Edit duration/));
+    expect(screen.getByLabelText("Duration")).toHaveValue("1.5");
+  });
+
+  it("can't be reopened while saving, and Copy Time follows the shown value", async () => {
+    let resolve = () => {};
+    vi.mocked(api.setEntrySeconds).mockReturnValueOnce(new Promise<void>((r) => (resolve = r)));
+    const { box, onChanged } = editDuration("1:30");
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(screen.getByTitle(/Edit duration/)).toBeDisabled();
+    expect(screen.getByTitle("Copy: 01:30:00")).toBeInTheDocument();
+    resolve();
+    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
+    expect(screen.getByTitle(/Edit duration/)).toBeEnabled();
+    fireEvent.click(screen.getByTitle(/Edit duration/));
+    expect(screen.getByLabelText("Duration")).toHaveValue("1:30:00");
+  });
+
+  it("drops the saved value once the entry's seconds change", async () => {
+    const onChanged = vi.fn();
+    const { box, rerender } = editDuration("1:30", { onChanged });
+    fireEvent.keyDown(box, { key: "Enter" });
+    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
+    rerender(list({ ...entry, seconds: 5400 }, vi.fn()));
+    rerender(list(entry, vi.fn()));
+    expect(screen.getByTitle(/Edit duration/)).toHaveTextContent("00:10:00");
+  });
+
+  it("is not editable while the entry is running", () => {
+    render(list({ ...entry, running: true }, vi.fn()));
+    expect(screen.queryByTitle(/Edit duration/)).toBeNull();
+    expect(screen.getByText("00:10:00")).toBeInTheDocument();
+  });
+});
+
+describe("DayList deleting", () => {
+  beforeEach(() => vi.mocked(api.deleteEntry).mockClear());
+
+  function openConfirm(e = entry) {
+    const onError = vi.fn();
+    const onChanged = vi.fn();
+    render(list(e, onError, onChanged));
+    fireEvent.click(screen.getByTitle("Delete entry"));
+    return { onError, onChanged, group: screen.getByRole("group", { name: "Confirm delete" }) };
+  }
+
+  it("asks before deleting and focuses Cancel", () => {
+    openConfirm();
+    expect(api.deleteEntry).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
+  });
+
+  it("deletes on confirm and refreshes", async () => {
+    const { onChanged } = openConfirm();
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(api.deleteEntry).toHaveBeenCalledWith(3);
+    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
+  });
+
+  it("Cancel keeps the entry and returns focus to Delete", () => {
+    openConfirm();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(api.deleteEntry).not.toHaveBeenCalled();
+    expect(screen.getByTitle("Delete entry")).toHaveFocus();
+  });
+
+  it("Escape cancels", () => {
+    const { group } = openConfirm();
+    fireEvent.keyDown(group, { key: "Escape" });
+    expect(screen.queryByRole("group", { name: "Confirm delete" })).toBeNull();
+    expect(api.deleteEntry).not.toHaveBeenCalled();
+  });
+
+  it("reports a refused delete of the running entry", async () => {
+    vi.mocked(api.deleteEntry).mockRejectedValueOnce("stop the timer before deleting entry 3");
+    const { onError, onChanged } = openConfirm({ ...entry, running: true });
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() =>
+      expect(onError).toHaveBeenCalledWith("stop the timer before deleting entry 3"),
+    );
+    expect(onChanged).not.toHaveBeenCalled();
+    expect(screen.getByTitle("Delete entry")).toHaveFocus();
   });
 });

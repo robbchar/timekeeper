@@ -277,6 +277,51 @@ fn totals_include_the_running_interval() {
 }
 
 #[test]
+fn deleting_an_entry_removes_its_intervals_and_time() {
+    let (mut s, p) = store_with_project();
+    log(&mut s, p, "2026-10-05", 2);
+    let now = at("2026-10-05T23:00:00Z");
+    let entry = s
+        .entries(day("2026-10-05"), day("2026-10-05"), None, now)
+        .unwrap()[0]
+        .id;
+
+    s.delete_entry(entry).unwrap();
+
+    assert!(s
+        .entries(day("2026-10-05"), day("2026-10-05"), None, now)
+        .unwrap()
+        .is_empty());
+    let intervals: i64 = s
+        .conn
+        .query_row("SELECT COUNT(*) FROM intervals", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(intervals, 0);
+    let t = s
+        .totals(day("2026-10-05"), WeekStart::Monday, None, now)
+        .unwrap();
+    assert_eq!(t.today, 0);
+}
+
+#[test]
+fn deleting_the_running_entry_is_refused() {
+    let (mut s, p) = store_with_project();
+    s.start(p, None, at("2026-10-05T15:00:00Z"), day("2026-10-05"))
+        .unwrap();
+    let now = at("2026-10-05T15:30:00Z");
+    let entry = s.status(now).unwrap().running.unwrap().entry_id;
+
+    assert!(matches!(s.delete_entry(entry), Err(Error::EntryRunning(id)) if id == entry));
+    assert_eq!(s.status(now).unwrap().elapsed_seconds, 1800);
+}
+
+#[test]
+fn deleting_an_unknown_entry_is_not_found() {
+    let (s, _) = store_with_project();
+    assert!(matches!(s.delete_entry(99), Err(Error::EntryNotFound(99))));
+}
+
+#[test]
 fn migrations_are_idempotent() {
     let dir = std::env::temp_dir().join(format!("tk-mig-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
@@ -431,6 +476,225 @@ fn imports_real_v1_database_when_provided() {
     assert!(s.status(now).unwrap().running.is_none());
 }
 
+// ------------------------------------------------------- set_entry_seconds
+
+fn pacific_noon(d: NaiveDate) -> DateTime<Utc> {
+    Utc.from_utc_datetime(&d.and_hms_opt(19, 0, 0).unwrap())
+}
+
+fn only_entry(s: &Store, d: &str) -> Entry {
+    let mut e = s
+        .entries(day(d), day(d), None, at(&format!("{d}T23:00:00Z")))
+        .unwrap();
+    assert_eq!(e.len(), 1);
+    e.remove(0)
+}
+
+fn intervals_of(s: &Store, entry_id: i64) -> Vec<(String, Option<String>, String)> {
+    let mut stmt = s
+        .conn
+        .prepare("SELECT start_at, end_at, source FROM intervals WHERE entry_id = ?1 ORDER BY start_at, id")
+        .unwrap();
+    stmt.query_map([entry_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+        .unwrap()
+        .collect::<rusqlite::Result<_>>()
+        .unwrap()
+}
+
+/// Two timer intervals on 2026-10-05: 15:00–16:00 and 17:00–18:00 UTC.
+fn two_intervals(s: &mut Store, p: i64) -> i64 {
+    log(s, p, "2026-10-05", 1);
+    s.start(p, None, at("2026-10-05T17:00:00Z"), day("2026-10-05"))
+        .unwrap();
+    s.stop(at("2026-10-05T18:00:00Z")).unwrap();
+    only_entry(s, "2026-10-05").id
+}
+
+const EDIT_AT: &str = "2026-10-06T12:00:00Z";
+
+#[test]
+fn raising_adds_a_manual_interval_ending_at_the_last_interval_end() {
+    let (mut s, p) = store_with_project();
+    let id = two_intervals(&mut s, p);
+    s.set_entry_seconds(id, 3 * 3600, at(EDIT_AT), pacific_noon)
+        .unwrap();
+
+    assert_eq!(only_entry(&s, "2026-10-05").seconds, 3 * 3600);
+    let manual: Vec<_> = intervals_of(&s, id)
+        .into_iter()
+        .filter(|i| i.2 == "manual")
+        .collect();
+    assert_eq!(
+        manual,
+        [(
+            "2026-10-05T17:00:00.000Z".to_string(),
+            Some("2026-10-05T18:00:00.000Z".to_string()),
+            "manual".to_string()
+        )]
+    );
+}
+
+#[test]
+fn raising_an_entry_with_no_intervals_ends_at_local_noon() {
+    let (mut s, p) = store_with_project();
+    log(&mut s, p, "2026-10-05", 1);
+    let id = only_entry(&s, "2026-10-05").id;
+    s.set_entry_seconds(id, 0, at(EDIT_AT), pacific_noon)
+        .unwrap();
+    s.set_entry_seconds(id, 1800, at(EDIT_AT), pacific_noon)
+        .unwrap();
+
+    assert_eq!(only_entry(&s, "2026-10-05").seconds, 1800);
+    assert_eq!(
+        intervals_of(&s, id),
+        [(
+            "2026-10-05T18:30:00.000Z".to_string(),
+            Some("2026-10-05T19:00:00.000Z".to_string()),
+            "manual".to_string()
+        )]
+    );
+}
+
+#[test]
+fn lowering_shortens_the_latest_interval() {
+    let (mut s, p) = store_with_project();
+    let id = two_intervals(&mut s, p);
+    s.set_entry_seconds(id, 5400, at(EDIT_AT), pacific_noon)
+        .unwrap();
+
+    assert_eq!(only_entry(&s, "2026-10-05").seconds, 5400);
+    let ends: Vec<_> = intervals_of(&s, id)
+        .into_iter()
+        .filter_map(|i| i.1)
+        .collect();
+    assert_eq!(
+        ends,
+        ["2026-10-05T16:00:00.000Z", "2026-10-05T17:30:00.000Z"]
+    );
+}
+
+#[test]
+fn lowering_removes_later_intervals_before_trimming_earlier_ones() {
+    let (mut s, p) = store_with_project();
+    let id = two_intervals(&mut s, p);
+    s.set_entry_seconds(id, 1800, at(EDIT_AT), pacific_noon)
+        .unwrap();
+
+    assert_eq!(only_entry(&s, "2026-10-05").seconds, 1800);
+    assert_eq!(
+        intervals_of(&s, id),
+        [(
+            "2026-10-05T15:00:00.000Z".to_string(),
+            Some("2026-10-05T15:30:00.000Z".to_string()),
+            "timer".to_string()
+        )]
+    );
+}
+
+#[test]
+fn lowering_to_zero_keeps_the_entry_with_no_intervals() {
+    let (mut s, p) = store_with_project();
+    let id = two_intervals(&mut s, p);
+    s.set_entry_seconds(id, 0, at(EDIT_AT), pacific_noon)
+        .unwrap();
+
+    let e = only_entry(&s, "2026-10-05");
+    assert_eq!((e.id, e.seconds), (id, 0));
+    assert!(intervals_of(&s, id).is_empty());
+}
+
+#[test]
+fn setting_seconds_refuses_a_running_entry() {
+    let (mut s, p) = store_with_project();
+    s.start(p, None, at("2026-10-05T15:00:00Z"), day("2026-10-05"))
+        .unwrap();
+    let id = only_entry(&s, "2026-10-05").id;
+
+    let r = s.set_entry_seconds(id, 60, at("2026-10-05T15:30:00Z"), pacific_noon);
+    assert!(matches!(r, Err(Error::Invalid(_))), "{r:?}");
+    assert_eq!(intervals_of(&s, id).len(), 1);
+}
+
+#[test]
+fn lowering_after_a_raise_trims_the_manual_interval_first() {
+    let (mut s, p) = store_with_project();
+    let id = two_intervals(&mut s, p);
+    s.set_entry_seconds(id, 4 * 3600, at(EDIT_AT), pacific_noon)
+        .unwrap();
+    s.set_entry_seconds(id, 3 * 3600, at(EDIT_AT), pacific_noon)
+        .unwrap();
+
+    assert_eq!(
+        intervals_of(&s, id),
+        [
+            (
+                "2026-10-05T15:00:00.000Z".to_string(),
+                Some("2026-10-05T16:00:00.000Z".to_string()),
+                "timer".to_string()
+            ),
+            (
+                "2026-10-05T16:00:00.000Z".to_string(),
+                Some("2026-10-05T17:00:00.000Z".to_string()),
+                "manual".to_string()
+            ),
+            (
+                "2026-10-05T17:00:00.000Z".to_string(),
+                Some("2026-10-05T18:00:00.000Z".to_string()),
+                "timer".to_string()
+            ),
+        ]
+    );
+}
+
+#[test]
+fn setting_seconds_rejects_more_than_a_day() {
+    let (mut s, p) = store_with_project();
+    log(&mut s, p, "2026-10-05", 1);
+    let id = only_entry(&s, "2026-10-05").id;
+
+    s.set_entry_seconds(id, MAX_ENTRY_SECONDS, at(EDIT_AT), pacific_noon)
+        .unwrap();
+    for seconds in [MAX_ENTRY_SECONDS + 1, i64::MAX] {
+        let r = s.set_entry_seconds(id, seconds, at(EDIT_AT), pacific_noon);
+        assert!(matches!(r, Err(Error::Invalid(_))), "{r:?}");
+    }
+    assert_eq!(only_entry(&s, "2026-10-05").seconds, MAX_ENTRY_SECONDS);
+}
+
+#[test]
+fn setting_seconds_rejects_negative_values_and_unknown_entries() {
+    let (mut s, p) = store_with_project();
+    log(&mut s, p, "2026-10-05", 1);
+    let id = only_entry(&s, "2026-10-05").id;
+
+    let r = s.set_entry_seconds(id, -1, at(EDIT_AT), pacific_noon);
+    assert!(matches!(r, Err(Error::Invalid(_))), "{r:?}");
+    let r = s.set_entry_seconds(id + 99, 60, at(EDIT_AT), pacific_noon);
+    assert!(matches!(r, Err(Error::EntryNotFound(_))), "{r:?}");
+    assert_eq!(only_entry(&s, "2026-10-05").seconds, 3600);
+}
+
+#[test]
+fn raising_an_entry_with_no_intervals_never_ends_after_now() {
+    let (mut s, p) = store_with_project();
+    log(&mut s, p, "2026-10-05", 1);
+    let id = only_entry(&s, "2026-10-05").id;
+    let now = at("2026-10-05T18:00:00Z");
+    s.set_entry_seconds(id, 0, now, pacific_noon).unwrap();
+    s.set_entry_seconds(id, 1800, now, pacific_noon).unwrap();
+
+    assert_eq!(
+        intervals_of(&s, id),
+        [(
+            "2026-10-05T17:30:00.000Z".to_string(),
+            Some("2026-10-05T18:00:00.000Z".to_string()),
+            "manual".to_string()
+        )]
+    );
+}
+
+// ------------------------------------------------------- add_manual_time
+
 fn manual<'a>(project_id: i64, d: &str, seconds: i64, notes: Option<&'a str>) -> ManualTime<'a> {
     ManualTime {
         project_id,
@@ -438,19 +702,6 @@ fn manual<'a>(project_id: i64, d: &str, seconds: i64, notes: Option<&'a str>) ->
         seconds,
         notes,
     }
-}
-
-fn intervals_of(s: &Store, entry_id: i64) -> Vec<(String, Option<String>, String)> {
-    let mut stmt = s
-        .conn
-        .prepare(
-            "SELECT start_at, end_at, source FROM intervals WHERE entry_id = ?1 ORDER BY start_at",
-        )
-        .unwrap();
-    stmt.query_map([entry_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
-        .unwrap()
-        .collect::<rusqlite::Result<_>>()
-        .unwrap()
 }
 
 #[test]

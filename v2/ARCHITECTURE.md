@@ -61,7 +61,13 @@ Defined in `core/src/schema.rs`.
   interval starts, so it never overlaps the running one. An entry with no intervals ends it at local
   noon (which the shell supplies) or now, whichever is earlier. Manual intervals may overlap another entry's time; totals are sums,
   so that's harmless.
+- **Editing a duration edits intervals.** `set_entry_seconds` raises a total by adding a `manual`
+  interval that ends where the entry's last interval ends (or at local noon on its day, or now if
+  that's earlier, if it has none), and lowers it by trimming or deleting intervals from the latest end backwards, so a raise
+  is undone before recorded time. It refuses a running entry and anything over 24 hours. A raise can overlap the entry's own intervals; only their sum is meaningful.
 - Deleting a project cascades to its entries and their intervals.
+- Deleting an entry cascades to its intervals. `delete_entry` refuses the running entry; stop the
+  timer first.
 
 Because the running timer is a row, a crash loses nothing. While timing, the shell writes a
 heartbeat every 30 seconds (and `start` writes one at once); `heartbeat_at` is not updated while
@@ -74,7 +80,7 @@ old at the last heartbeat time, and the UI says so.
 - **Days are local `YYYY-MM-DD` strings** (`entries.day`).
 - **Only the shell decides what "now" and "local" mean.** `core` never reads the clock or the local
   time zone for its rules. `Store` methods take `now: DateTime<Utc>` and `today: NaiveDate`, and the
-  import takes a `local_day` closure. The shell supplies them from `today()` and `local_day()` in
+  import and `set_entry_seconds` take `local_day` / `local_noon` closures. The shell supplies them from `today()`, `local_day()` and `local_noon()` in
   `src-tauri/src/lib.rs`.
 - This keeps `core` deterministic in tests. The import is the one place `core` calls
   `Utc::now()`: for the `v1_imported_at` setting and as `created_at` for v1 projects whose
@@ -129,3 +135,19 @@ UI-writable.
 - **Tray changes reach the UI** through the `timer-changed` event, which `api.onTimerChanged`
   subscribes to.
 - The database lives at `<app data dir>/timekeeper.db` (identifier `dev.cathedraltree.timekeeper`).
+
+## Debug overrides
+
+Debug builds read these environment variables (`src-tauri/src/overrides.rs`); release builds ignore
+them. An invalid value fails startup instead of being ignored.
+
+| Variable              | Replaces                                         |
+| --------------------- | ------------------------------------------------ |
+| `TK_DATA_DIR`         | the app data dir                                 |
+| `TK_V1_IMPORT_DB`     | the v1 database the first-run import reads       |
+| `TK_HEARTBEAT_SECS`   | the 30-second heartbeat interval                 |
+| `TK_STALE_AFTER_SECS` | the two-minute stale window `recover_stale` uses |
+
+They exist for `scripts/smoke-windows.ts`. `TK_DATA_DIR` doesn't move WebView2's profile; the
+script sets `WEBVIEW2_USER_DATA_FOLDER` for that. Single instance is keyed by the app identifier, not the
+data dir, so an overridden run still hands off to any other running v2.

@@ -27,6 +27,8 @@ pub enum Error {
     ProjectNotFound(i64),
     #[error("entry {0} not found")]
     EntryNotFound(i64),
+    #[error("stop the timer before deleting entry {0}")]
+    EntryRunning(i64),
     #[error("{0}")]
     Invalid(String),
 }
@@ -96,9 +98,6 @@ pub struct ManualTime<'a> {
     pub notes: Option<&'a str>,
 }
 
-/// The most time a single manual addition may add.
-pub const MAX_MANUAL_SECONDS: i64 = 24 * 3600;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WeekStart {
     Monday,
@@ -154,6 +153,9 @@ const SECONDS_SQL: &str = "CAST(ROUND(COALESCE(SUM(
         (julianday(COALESCE(i.end_at, :now)) - julianday(i.start_at)) * 86400.0
     ), 0)) AS INTEGER)";
 
+/// The most an entry's duration can be set to, or one manual addition can add: one day.
+pub const MAX_ENTRY_SECONDS: i64 = 24 * 3600;
+
 /// Ends every open interval at `?1`, never before its own start.
 const CLOSE_OPEN_INTERVALS: &str =
     "UPDATE intervals SET end_at = MAX(start_at, ?1) WHERE end_at IS NULL";
@@ -190,20 +192,16 @@ fn entry_for(
     Ok((tx.last_insert_rowid(), true))
 }
 
-/// Adds a closed `manual` interval of `seconds` to `entry_id`, ending at `end_at`.
+/// Adds a closed `manual` interval of `length` to `entry_id`, ending at `end_at`.
 fn insert_manual_interval(
     tx: &rusqlite::Transaction,
     entry_id: i64,
-    seconds: i64,
+    length: Duration,
     end_at: DateTime<Utc>,
 ) -> Result<()> {
     tx.execute(
         "INSERT INTO intervals (entry_id, start_at, end_at, source) VALUES (?1, ?2, ?3, 'manual')",
-        params![
-            entry_id,
-            ts(end_at - Duration::seconds(seconds)),
-            ts(end_at)
-        ],
+        params![entry_id, ts(end_at - length), ts(end_at)],
     )?;
     Ok(())
 }
@@ -476,7 +474,7 @@ impl Store {
         today: NaiveDate,
         fallback_end: DateTime<Utc>,
     ) -> Result<Entry> {
-        if m.seconds <= 0 || m.seconds > MAX_MANUAL_SECONDS {
+        if m.seconds <= 0 || m.seconds > MAX_ENTRY_SECONDS {
             return Err(Error::Invalid(format!(
                 "manual time must be between 1 second and 24 hours, got {}s",
                 m.seconds
@@ -502,7 +500,7 @@ impl Store {
             Some(s) => parse_ts(&s)?,
             None => fallback_end.min(now),
         };
-        insert_manual_interval(&tx, entry_id, m.seconds, end_at)?;
+        insert_manual_interval(&tx, entry_id, Duration::seconds(m.seconds), end_at)?;
         if !created {
             tx.execute(
                 "UPDATE entries SET updated_at = ?1, notes = CASE
@@ -518,6 +516,114 @@ impl Store {
             .into_iter()
             .find(|e| e.id == entry_id)
             .ok_or(Error::EntryNotFound(entry_id))
+    }
+
+    /// Sets a stopped entry's duration. Raising adds a `manual` interval that
+    /// ends where the entry's last interval ends (or at `local_noon` of its day,
+    /// capped at `now`, if it has none); lowering trims intervals from the latest end backwards,
+    /// so a raise is undone before recorded time.
+    pub fn set_entry_seconds(
+        &mut self,
+        entry_id: i64,
+        seconds: i64,
+        now: DateTime<Utc>,
+        local_noon: impl Fn(NaiveDate) -> DateTime<Utc>,
+    ) -> Result<()> {
+        if seconds < 0 {
+            return Err(Error::Invalid("duration can't be negative".into()));
+        }
+        if seconds > MAX_ENTRY_SECONDS {
+            return Err(Error::Invalid("duration can't exceed 24 hours".into()));
+        }
+        let tx = self.conn.transaction()?;
+        let day: String = tx
+            .query_row("SELECT day FROM entries WHERE id = ?1", [entry_id], |r| {
+                r.get(0)
+            })
+            .optional()?
+            .ok_or(Error::EntryNotFound(entry_id))?;
+
+        // Latest first: (id, start, end).
+        let mut intervals = Vec::new();
+        {
+            let mut stmt = tx.prepare(
+                "SELECT id, start_at, end_at FROM intervals WHERE entry_id = ?1
+                 ORDER BY end_at DESC, id DESC",
+            )?;
+            let mut rows = stmt.query([entry_id])?;
+            while let Some(r) = rows.next()? {
+                let Some(end) = r.get::<_, Option<String>>(2)? else {
+                    return Err(Error::Invalid(
+                        "stop the timer before editing its duration".into(),
+                    ));
+                };
+                intervals.push((
+                    r.get::<_, i64>(0)?,
+                    parse_ts(&r.get::<_, String>(1)?)?,
+                    parse_ts(&end)?,
+                ));
+            }
+        }
+
+        let total: Duration = intervals.iter().map(|(_, start, end)| *end - *start).sum();
+        let target = Duration::seconds(seconds);
+        if target > total {
+            let end = match intervals.iter().map(|(_, _, end)| *end).max() {
+                Some(end) => end,
+                None => {
+                    let d = NaiveDate::parse_from_str(&day, "%Y-%m-%d")
+                        .map_err(|e| Error::Invalid(format!("bad day {day:?}: {e}")))?;
+                    local_noon(d).min(now)
+                }
+            };
+            insert_manual_interval(&tx, entry_id, target - total, end)?;
+        } else {
+            let mut excess = total - target;
+            for (id, start, end) in intervals {
+                if excess <= Duration::zero() {
+                    break;
+                }
+                let length = end - start;
+                if length <= excess {
+                    tx.execute("DELETE FROM intervals WHERE id = ?1", [id])?;
+                    excess -= length;
+                } else {
+                    tx.execute(
+                        "UPDATE intervals SET end_at = ?1 WHERE id = ?2",
+                        params![ts(end - excess), id],
+                    )?;
+                    excess = Duration::zero();
+                }
+            }
+        }
+        tx.execute(
+            "UPDATE entries SET updated_at = ?1 WHERE id = ?2",
+            params![ts(now), entry_id],
+        )?;
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Deletes an entry and, by cascade, its intervals. Refused while it is running.
+    pub fn delete_entry(&self, entry_id: i64) -> Result<()> {
+        let deleted = self.conn.execute(
+            "DELETE FROM entries WHERE id = ?1 AND NOT EXISTS
+               (SELECT 1 FROM intervals WHERE entry_id = ?1 AND end_at IS NULL)",
+            [entry_id],
+        )?;
+        if deleted > 0 {
+            return Ok(());
+        }
+        let exists: bool = self.conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM entries WHERE id = ?1)",
+            [entry_id],
+            |r| r.get(0),
+        )?;
+        Err(if exists {
+            Error::EntryRunning(entry_id)
+        } else {
+            Error::EntryNotFound(entry_id)
+        })
     }
 
     fn seconds_between(
