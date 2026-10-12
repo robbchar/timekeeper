@@ -49,16 +49,21 @@ Defined in `core/src/schema.rs`.
 | `settings`  | key/value strings                                               |
 
 - **An entry is a project + a local day + notes.** It has no duration column. `(project_id, day)`
-  is not unique: the v1 import makes one entry per session, and `start` reuses the newest one.
+  is not unique: the v1 import makes one entry per session, and `start` and `add_manual_time` reuse
+  the newest one.
 - **An entry's duration is the sum of its intervals.** Nothing stores a total, so nothing can
   drift out of sync with the intervals.
 - **An open interval is the running timer.** There is no separate "timer" state. The partial unique
   index `one_running_interval` (`ON intervals((1)) WHERE end_at IS NULL`) lets at most one interval
   in the whole database be open, so two timers cannot run even if the code has a bug.
 - `source` is `timer`, `manual` or `import`, enforced by a `CHECK`.
+- **Manual time is a closed `manual` interval.** `add_manual_time` ends it where the entry's first
+  interval starts, so it never overlaps the running one. An entry with no intervals ends it at local
+  noon (which the shell supplies) or now, whichever is earlier. Manual intervals may overlap another entry's time; totals are sums,
+  so that's harmless.
 - **Editing a duration edits intervals.** `set_entry_seconds` raises a total by adding a `manual`
-  interval that ends where the entry's last interval ends (or at local noon on its day if it has
-  none), and lowers it by trimming or deleting intervals from the latest end backwards, so a raise
+  interval that ends where the entry's last interval ends (or at local noon on its day, or now if
+  that's earlier, if it has none), and lowers it by trimming or deleting intervals from the latest end backwards, so a raise
   is undone before recorded time. It refuses a running entry and anything over 24 hours. A raise can overlap the entry's own intervals; only their sum is meaningful.
 - **A project's color is a palette key** (`teal`, `coral`, …) from `PALETTE` in `core/src/lib.rs`,
   not a CSS color. The UI maps each key to a `--project-<key>` token in `src/styles.css`, with a
