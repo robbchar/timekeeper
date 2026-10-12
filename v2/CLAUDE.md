@@ -68,6 +68,12 @@ CI (`.github/workflows/v2.yml`) runs all of the above on PRs touching `v2/`, plu
 core tests on Windows. Clippy warnings fail the build. Clippy needs `dist/` to exist, so run
 `npm run build` first. The Rust version is pinned in `rust-toolchain.toml`; bump it deliberately.
 
+On Windows, `npm run smoke:windows` builds a debug exe and runs it against temp data dirs: first-run
+import (once, v1 untouched), single instance, and crash recovery with a hard kill. It takes about
+30 seconds after the build. Quit any running v2 first, or single instance hands every launch to it.
+It isn't in CI. The tray, badge, window and copy buttons still need a manual look. The
+[debug overrides](ARCHITECTURE.md#debug-overrides) it relies on are debug-only.
+
 To check the import against real data, point `TK_V1_DB` at a **copy** of a v1 database. The test
 `imports_real_v1_database_when_provided` is skipped without it:
 

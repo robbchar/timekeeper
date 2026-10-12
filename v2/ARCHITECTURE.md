@@ -124,3 +124,18 @@ UI-writable.
 - **Tray changes reach the UI** through the `timer-changed` event, which `api.onTimerChanged`
   subscribes to.
 - The database lives at `<app data dir>/timekeeper.db` (identifier `dev.cathedraltree.timekeeper`).
+
+## Debug overrides
+
+Debug builds read these environment variables (`src-tauri/src/overrides.rs`); release builds ignore
+them. An invalid value fails startup instead of being ignored.
+
+| Variable              | Replaces                                         |
+| --------------------- | ------------------------------------------------ |
+| `TK_DATA_DIR`         | the app data dir                                 |
+| `TK_V1_IMPORT_DB`     | the v1 database the first-run import reads       |
+| `TK_HEARTBEAT_SECS`   | the 30-second heartbeat interval                 |
+| `TK_STALE_AFTER_SECS` | the two-minute stale window `recover_stale` uses |
+
+They exist for `scripts/smoke-windows.ts`. Single instance is keyed by the app identifier, not the
+data dir, so an overridden run still hands off to any other running v2.
