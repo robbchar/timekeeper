@@ -67,6 +67,14 @@ describe("SettingsPage: import new sessions from v1", () => {
     );
   });
 
+  it("reports new projects even without new sessions", async () => {
+    vi.mocked(api.importV1Again).mockResolvedValueOnce(report({ projects: 2 }));
+    renderPage();
+    fireEvent.click(importButton());
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Imported 2 new projects.");
+  });
+
   it("says when v1 has nothing new", async () => {
     vi.mocked(api.importV1Again).mockResolvedValueOnce(report({ alreadyImported: 12 }));
     renderPage();

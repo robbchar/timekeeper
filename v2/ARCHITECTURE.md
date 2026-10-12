@@ -105,13 +105,17 @@ the `import_v1_again` command from Settings (`Store::import_v1_again`).
   unset, and only if v1's database exists at `<config dir>/timekeeper/timekeeper.db`. After that,
   only when the user clicks "Import new sessions from v1" in Settings, which errors if the file is
   missing.
-- **Read-only:** the v1 file is opened with `SQLITE_OPEN_READ_ONLY`. v2 never writes to it.
+- **Read-only:** the v1 file is opened with `SQLITE_OPEN_READ_ONLY`, with a busy timeout because v1
+  may be running. v2 never writes to it.
+- **Read, then write:** `V1Data::read` loads v1's rows before the store is locked; a missing file is
+  `Error::NoV1Database`, which the first-run import treats as "nothing to import".
 - **One transaction:** the whole import commits or none of it does, and it sets `v1_imported_at`, so
   Settings shows the latest import.
 - **Mapping rules:** see the module doc in `import.rs`, the source of truth. In short, each v1
   session becomes one entry with one `import` interval of `startTime` + `duration`.
-- **Safe to re-run:** rows are inserted with `INSERT OR IGNORE` keyed on the legacy ids, and
-  duplicates are counted as `already_imported`.
+- **Safe to re-run:** rows are keyed on the legacy ids; sessions already imported are counted as
+  `already_imported`. A v1 project with the same name as one made by hand in v2 takes over that
+  project instead of creating a twin.
 - **Open sessions wait:** the first import takes sessions v1 hasn't ended (`endTime` NULL) as they
   stand. `import_v1_again` skips them and counts them as `still_open`, so a later run brings them in
   with their full duration.

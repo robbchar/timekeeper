@@ -58,6 +58,7 @@ for (let i = 1; i <= 40; i++) {
 let running: { entryId: number; startedAt: number } | null = null;
 let lastProjectId: number | null = 1;
 const settings: Record<string, string> = {};
+let v1ImportedAt: string | null = null;
 
 function secondsOf(e: MockEntry): number {
   const live = running?.entryId === e.id ? (Date.now() - running.startedAt) / 1000 : 0;
@@ -115,7 +116,7 @@ function handle<T>(cmd: string, a: Record<string, unknown>): T {
         settings,
         startup: { recovered: null, imported: null, importError: null },
         dataDir: "(browser preview: in-memory sample data)",
-        v1ImportedAt: null,
+        v1ImportedAt,
       } satisfies Snapshot as T;
     case "start": {
       const projectId = a.projectId as number;
@@ -238,6 +239,7 @@ function handle<T>(cmd: string, a: Record<string, unknown>): T {
       return undefined as T;
     case "import_v1_again":
       // No v1 database in the browser preview, so there's never anything new.
+      v1ImportedAt = new Date().toISOString();
       return {
         projects: 0,
         entries: 0,

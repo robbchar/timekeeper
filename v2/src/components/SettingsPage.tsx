@@ -12,11 +12,11 @@ interface Props {
 const count = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
 
 function describeImport(r: ImportReport): string {
-  let text =
-    r.entries > 0
-      ? `Imported ${count(r.entries, "new session")} (${formatShort(r.seconds)})` +
-        (r.projects > 0 ? ` and ${count(r.projects, "new project")}.` : ".")
-      : "No new sessions in v1.";
+  const added = [
+    r.entries > 0 && `${count(r.entries, "new session")} (${formatShort(r.seconds)})`,
+    r.projects > 0 && count(r.projects, "new project"),
+  ].filter(Boolean);
+  let text = added.length > 0 ? `Imported ${added.join(" and ")}.` : "No new sessions in v1.";
   if (r.stillOpen > 0) {
     const [verb, them] = r.stillOpen === 1 ? ["is", "it"] : ["are", "them"];
     text += ` ${count(r.stillOpen, "session")} ${verb} still open in v1. End ${them} there, then import again.`;

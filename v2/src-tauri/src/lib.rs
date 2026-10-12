@@ -16,7 +16,7 @@ use tauri::{
     AppHandle, Emitter, Manager, State, WindowEvent, Wry,
 };
 use timekeeper_core::{
-    Entry, ImportReport, ManualTime, Project, Recovered, Status, Store, Totals, WeekStart,
+    Entry, ImportReport, ManualTime, Project, Recovered, Status, Store, Totals, V1Data, WeekStart,
 };
 
 /// Settings the UI is allowed to write.
@@ -229,12 +229,14 @@ fn set_setting(state: State<AppState>, key: String, value: String) -> Result<(),
     state.lock_store().set_setting(&key, &value).map_err(err)
 }
 
-// Runs off the main thread so the window stays responsive while it reads v1.
+// Runs off the main thread, and reads v1 before locking the store, so neither
+// the window nor other commands wait on the v1 read.
 #[tauri::command(async)]
 fn import_v1_again(state: State<AppState>) -> Result<ImportReport, String> {
+    let v1 = V1Data::read(&state.v1_db).map_err(err)?;
     state
         .lock_store()
-        .import_v1_again(&state.v1_db, local_day)
+        .import_v1_again(v1, local_day)
         .map_err(err)
 }
 
@@ -503,9 +505,10 @@ fn open_store(
     let mut startup = Startup::default();
 
     // First run: bring in v1's data, opened read-only. No v1 database is fine.
-    if store.is_empty()? && store.setting("v1_imported_at")?.is_none() && v1_db.exists() {
-        match store.import_v1(v1_db, local_day) {
+    if store.is_empty()? && store.setting("v1_imported_at")?.is_none() {
+        match V1Data::read(v1_db).and_then(|v1| store.import_v1(v1, local_day)) {
             Ok(report) => startup.imported = Some(report),
+            Err(timekeeper_core::Error::NoV1Database(_)) => {}
             Err(e) => startup.import_error = Some(e.to_string()),
         }
     }
