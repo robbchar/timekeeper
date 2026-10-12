@@ -57,6 +57,8 @@ Defined in `core/src/schema.rs`.
   in the whole database be open, so two timers cannot run even if the code has a bug.
 - `source` is `timer`, `manual` or `import`, enforced by a `CHECK`.
 - Deleting a project cascades to its entries and their intervals.
+- Deleting an entry cascades to its intervals. `delete_entry` refuses the running entry; stop the
+  timer first.
 
 Because the running timer is a row, a crash loses nothing. While timing, the shell writes a
 heartbeat every 30 seconds (and `start` writes one at once); `heartbeat_at` is not updated while

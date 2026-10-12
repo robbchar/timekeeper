@@ -361,6 +361,20 @@ button:focus-visible {
   color: var(--accent);
   border-color: var(--accent);
 }
+.copy--delete:hover:not(:disabled) {
+  color: var(--stop);
+  border-color: var(--stop);
+}
+.entry__confirm {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+.entry__confirm .copy--delete {
+  color: var(--stop);
+  border-color: var(--stop);
+}
 .copy:disabled {
   opacity: 0.4;
   cursor: default;
