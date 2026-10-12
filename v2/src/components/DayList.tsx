@@ -10,6 +10,7 @@ import {
   formatShort,
   parseDuration,
 } from "../format";
+import { projectColor } from "../palette";
 import { useInlineEdit } from "./useInlineEdit";
 
 interface Props {
@@ -112,7 +113,7 @@ function EntryRow({
 
   return (
     <div className={`entry ${entry.running ? "entry--running" : ""}`}>
-      <span className="entry__dot" style={{ background: entry.projectColor ?? "var(--muted)" }} />
+      <span className="entry__dot" style={{ background: projectColor(entry.projectColor) }} />
       <div className="entry__body">
         <div className="entry__project">{entry.projectName}</div>
         {notes.editing ? (

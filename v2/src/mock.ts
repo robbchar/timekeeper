@@ -5,9 +5,17 @@ import type { Entry, Project, Snapshot, Status, Totals } from "./api";
 import { addDays, localDay } from "./format";
 
 const projects: Project[] = [
-  { id: 1, name: "Acme Portal", color: "#2a9d8f", archived: false },
-  { id: 2, name: "Side project", color: "#e9c46a", archived: false },
+  { id: 1, name: "Acme Portal", color: "teal", archived: false },
+  { id: 2, name: "Side project", color: "gold", archived: false },
 ];
+
+const palette = ["teal", "coral", "blue", "gold", "purple", "green"];
+
+function project(id: unknown): Project {
+  const p = projects.find((x) => x.id === id);
+  if (!p) throw new Error(`project ${String(id)} not found`);
+  return p;
+}
 
 const notes = [
   "ACME-112 auth callback; review PR feedback",
@@ -102,7 +110,11 @@ function handle<T>(cmd: string, a: Record<string, unknown>): T {
     case "snapshot":
       return {
         status: status(),
-        projects,
+        // Copies, ordered like the backend: active first, then by name.
+        projects: projects
+          .map((p) => ({ ...p }))
+          .sort((x, y) => Number(x.archived) - Number(y.archived) || x.name.localeCompare(y.name)),
+        palette,
         lastProjectId,
         settings,
         startup: { recovered: null, imported: null, importError: null },
@@ -189,12 +201,29 @@ function handle<T>(cmd: string, a: Record<string, unknown>): T {
       const p: Project = {
         id: projects.length + 1,
         name: (a.name as string).trim(),
-        color: null,
+        color: palette[projects.length % palette.length],
         archived: false,
       };
       projects.push(p);
       return p as T;
     }
+    case "rename_project": {
+      const name = (a.name as string).trim();
+      if (!name) throw new Error("project name is empty");
+      project(a.projectId).name = name;
+      for (const e of entries) if (e.projectId === a.projectId) e.projectName = name;
+      return undefined as T;
+    }
+    case "set_project_color": {
+      const color = a.color as string;
+      if (!palette.includes(color)) throw new Error(`unknown project color "${color}"`);
+      project(a.projectId).color = color;
+      for (const e of entries) if (e.projectId === a.projectId) e.projectColor = color;
+      return undefined as T;
+    }
+    case "set_project_archived":
+      project(a.projectId).archived = a.archived as boolean;
+      return undefined as T;
     case "set_setting":
       settings[a.key as string] = a.value as string;
       return undefined as T;

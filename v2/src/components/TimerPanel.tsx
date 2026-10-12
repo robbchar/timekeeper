@@ -27,10 +27,14 @@ export function TimerPanel({
 }: Props) {
   const running = status.running;
   const active = projects.filter((p) => !p.archived);
-  const [selected, setSelected] = useState<number | null>(
+  // Archived projects are hidden, except a running one so the picker still shows it.
+  const choices = projects.filter((p) => !p.archived || p.id === running?.projectId);
+  const [chosen, setSelected] = useState<number | null>(
     running?.projectId ?? lastProjectId ?? active[0]?.id ?? null,
   );
-  const [adding, setAdding] = useState(active.length === 0);
+  // A choice that has since been archived falls back to the first active project.
+  const selected = choices.some((p) => p.id === chosen) ? chosen : (active[0]?.id ?? null);
+  const [adding, setAdding] = useState(choices.length === 0);
   const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -130,7 +134,7 @@ export function TimerPanel({
             <button type="submit" className="btn">
               Add
             </button>
-            {active.length > 0 && (
+            {choices.length > 0 && (
               <button type="button" className="btn btn--ghost" onClick={() => setAdding(false)}>
                 Cancel
               </button>
@@ -146,7 +150,7 @@ export function TimerPanel({
               else setSelected(v);
             }}
           >
-            {active.map((p) => (
+            {choices.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
               </option>

@@ -139,14 +139,10 @@ fn resume_uses_the_last_project_unless_it_is_archived() {
     s.stop(at("2026-10-05T16:00:00Z")).unwrap();
     assert_eq!(s.resume_project_id().unwrap(), Some(b));
 
-    s.conn
-        .execute("UPDATE projects SET archived = 1 WHERE id = ?1", [b])
-        .unwrap();
+    s.set_project_archived(b, true).unwrap();
     assert_eq!(s.resume_project_id().unwrap(), Some(a));
 
-    s.conn
-        .execute("UPDATE projects SET archived = 1 WHERE id = ?1", [a])
-        .unwrap();
+    s.set_project_archived(a, true).unwrap();
     assert_eq!(s.resume_project_id().unwrap(), None);
 }
 
@@ -321,6 +317,124 @@ fn deleting_an_unknown_entry_is_not_found() {
     assert!(matches!(s.delete_entry(99), Err(Error::EntryNotFound(99))));
 }
 
+// ---------------------------------------------------------------- projects
+
+fn project(s: &Store, id: i64) -> Project {
+    s.projects()
+        .unwrap()
+        .into_iter()
+        .find(|p| p.id == id)
+        .unwrap()
+}
+
+#[test]
+fn new_projects_take_palette_keys_in_order() {
+    let (s, a) = store_with_project();
+    let b = s
+        .create_project("Previvor", at("2026-10-01T00:00:00Z"))
+        .unwrap();
+    assert_eq!(project(&s, a).color.as_deref(), Some("teal"));
+    assert_eq!(b.color.as_deref(), Some("coral"));
+}
+
+#[test]
+fn renaming_trims_and_rejects_an_empty_name() {
+    let (s, p) = store_with_project();
+    s.rename_project(p, "  Elevate Labs ").unwrap();
+    assert_eq!(project(&s, p).name, "Elevate Labs");
+
+    assert!(matches!(s.rename_project(p, "   "), Err(Error::Invalid(_))));
+    assert_eq!(project(&s, p).name, "Elevate Labs");
+}
+
+#[test]
+fn project_color_must_be_a_palette_key() {
+    let (s, p) = store_with_project();
+    s.set_project_color(p, "purple").unwrap();
+    assert_eq!(project(&s, p).color.as_deref(), Some("purple"));
+
+    assert!(matches!(
+        s.set_project_color(p, "#ff0000"),
+        Err(Error::Invalid(_))
+    ));
+    assert_eq!(project(&s, p).color.as_deref(), Some("purple"));
+}
+
+#[test]
+fn archiving_leaves_history_unchanged() {
+    let (mut s, p) = store_with_project();
+    s.start(
+        p,
+        Some("LABS-1"),
+        at("2026-10-05T15:00:00Z"),
+        day("2026-10-05"),
+    )
+    .unwrap();
+    let now = at("2026-10-05T16:00:00Z");
+    s.stop(now).unwrap();
+    let list = |s: &Store| {
+        s.entries(day("2026-10-05"), day("2026-10-05"), None, now)
+            .unwrap()
+    };
+    let before = list(&s);
+
+    s.set_project_archived(p, true).unwrap();
+    assert!(project(&s, p).archived);
+    assert_eq!(list(&s), before);
+    assert_eq!(
+        s.totals(day("2026-10-05"), WeekStart::Monday, Some(p), now)
+            .unwrap()
+            .today,
+        3600
+    );
+
+    s.set_project_archived(p, false).unwrap();
+    assert!(!project(&s, p).archived);
+}
+
+#[test]
+fn updating_an_unknown_project_is_not_found() {
+    let (s, _) = store_with_project();
+    assert!(matches!(
+        s.rename_project(99, "x"),
+        Err(Error::ProjectNotFound(99))
+    ));
+    assert!(matches!(
+        s.set_project_color(99, "teal"),
+        Err(Error::ProjectNotFound(99))
+    ));
+    assert!(matches!(
+        s.set_project_archived(99, true),
+        Err(Error::ProjectNotFound(99))
+    ));
+}
+
+#[test]
+fn migration_2_turns_hex_colors_into_palette_keys() {
+    let conn = Connection::open_in_memory().unwrap();
+    conn.execute_batch(&format!(
+        "{} PRAGMA user_version = 1;",
+        schema::MIGRATIONS[0]
+    ))
+    .unwrap();
+    conn.execute_batch(
+        "INSERT INTO projects (id, name, color, created_at) VALUES
+            (1, 'a', '#e9c46a', 'x'),
+            (2, 'b', '#123456', 'x'),
+            (3, 'c', NULL, 'x');",
+    )
+    .unwrap();
+
+    let s = Store::init(conn).unwrap();
+    let colors: Vec<_> = s.projects().unwrap().into_iter().map(|p| p.color).collect();
+    let keys = |k: [&str; 3]| k.map(|c| Some(c.to_string())).to_vec();
+    assert_eq!(
+        colors,
+        keys(["gold", "coral", "blue"]),
+        "unknown or missing: cycle by id"
+    );
+}
+
 #[test]
 fn migrations_are_idempotent() {
     let dir = std::env::temp_dir().join(format!("tk-mig-{}", std::process::id()));
@@ -407,6 +521,12 @@ fn imports_v1_by_local_day_and_ignores_end_time() {
             .count(),
         1
     );
+
+    assert!(s
+        .projects()
+        .unwrap()
+        .iter()
+        .all(|p| PALETTE.contains(&p.color.as_deref().unwrap())));
 
     // Running it again changes nothing.
     let again = s.import_v1(&v1, pacific_day).unwrap();

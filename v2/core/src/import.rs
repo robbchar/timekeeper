@@ -71,21 +71,19 @@ pub fn import_v1(
     let mut report = ImportReport::default();
     let tx = conn.transaction()?;
 
-    let mut stmt = v1.prepare("SELECT projectId, name, color, createdAt FROM projects")?;
+    let mut stmt = v1.prepare("SELECT projectId, name, createdAt FROM projects")?;
     let projects = stmt
         .query_map([], |r| {
             Ok((
                 r.get::<_, i64>(0)?,
                 r.get::<_, String>(1)?,
                 r.get::<_, Option<String>>(2)?,
-                r.get::<_, Option<String>>(3)?,
             ))
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
-    for (i, (legacy_id, name, color, created)) in projects.into_iter().enumerate() {
-        let color = color
-            .filter(|c| !c.trim().is_empty())
-            .unwrap_or_else(|| crate::palette_color(i as i64).to_string());
+    // v1 colors are free-form, so imports take palette keys instead.
+    for (i, (legacy_id, name, created)) in projects.into_iter().enumerate() {
+        let color = crate::palette_color(i as i64);
         let created = created.as_deref().and_then(parse_v1_time).unwrap_or(now);
         let inserted = tx.execute(
             "INSERT OR IGNORE INTO projects (name, color, created_at, legacy_project_id)

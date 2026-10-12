@@ -60,6 +60,14 @@ Defined in `core/src/schema.rs`.
   interval that ends where the entry's last interval ends (or at local noon on its day if it has
   none), and lowers it by trimming or deleting intervals from the latest end backwards, so a raise
   is undone before recorded time. It refuses a running entry and anything over 24 hours. A raise can overlap the entry's own intervals; only their sum is meaningful.
+- **A project's color is a palette key** (`teal`, `coral`, …) from `PALETTE` in `core/src/lib.rs`,
+  not a CSS color. The UI maps each key to a `--project-<key>` token in `src/styles.css`, with a
+  light and a dark value. A new key needs a token too. `snapshot` sends `PALETTE` so the Settings
+  picker lists the same keys `set_project_color` accepts. v1 colors aren't imported; imported
+  projects get palette keys in order.
+- **Archiving hides a project from the timer's picker, nothing else.** Its entries, history and
+  totals filter are unchanged, and a running timer keeps running. The tray's Start skips archived
+  projects (`resume_project_id`).
 - Deleting a project cascades to its entries and their intervals.
 - Deleting an entry cascades to its intervals. `delete_entry` refuses the running entry; stop the
   timer first.

@@ -84,6 +84,25 @@ describe("TimerPanel", () => {
     expect(screen.getByRole("combobox")).toHaveValue("1");
   });
 
+  it("hides archived projects and falls back from an archived last project", () => {
+    render(<TimerPanel {...defaults} projects={[{ ...acme, archived: true }, beta]} />);
+    expect(screen.getByRole("combobox")).toHaveValue("2");
+    expect(screen.queryByRole("option", { name: "Acme" })).toBeNull();
+  });
+
+  it("keeps the running project listed after it is archived", () => {
+    render(
+      <TimerPanel
+        {...defaults}
+        projects={[{ ...acme, archived: true }, beta]}
+        status={runningAcme}
+        entries={[lateEntry]}
+      />,
+    );
+    expect(screen.getByRole("combobox")).toHaveValue("1");
+    expect(screen.getByRole("option", { name: "Acme" })).toBeInTheDocument();
+  });
+
   it("loads the notes of the entry for the newly selected project", () => {
     render(<TimerPanel {...defaults} entries={[betaToday]} />);
     expect(screen.getByRole("textbox")).toHaveValue("");

@@ -32,6 +32,7 @@ const snapshot: Snapshot = {
     { id: 1, name: "Acme", color: null, archived: false },
     { id: 2, name: "Beta", color: null, archived: false },
   ],
+  palette: [],
   lastProjectId: 1,
   settings: {},
   startup: { recovered: null, imported, importError: null },

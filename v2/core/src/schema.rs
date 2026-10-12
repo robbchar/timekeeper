@@ -3,7 +3,7 @@
 
 use rusqlite::Connection;
 
-const MIGRATIONS: &[&str] = &[
+pub(crate) const MIGRATIONS: &[&str] = &[
     // 1: initial schema
     r#"
     CREATE TABLE projects (
@@ -41,6 +41,25 @@ const MIGRATIONS: &[&str] = &[
         key   TEXT PRIMARY KEY,
         value TEXT NOT NULL
     );
+    "#,
+    // 2: project colors become palette keys, which the UI maps to theme tokens
+    r#"
+    UPDATE projects SET color = CASE color
+        WHEN '#2a9d8f' THEN 'teal'
+        WHEN '#e76f51' THEN 'coral'
+        WHEN '#457b9d' THEN 'blue'
+        WHEN '#e9c46a' THEN 'gold'
+        WHEN '#8d6cab' THEN 'purple'
+        WHEN '#6a994e' THEN 'green'
+        ELSE CASE (id - 1) % 6
+            WHEN 0 THEN 'teal'
+            WHEN 1 THEN 'coral'
+            WHEN 2 THEN 'blue'
+            WHEN 3 THEN 'gold'
+            WHEN 4 THEN 'purple'
+            ELSE 'green'
+        END
+    END;
     "#,
 ];
 

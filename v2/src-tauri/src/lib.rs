@@ -14,7 +14,9 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, State, WindowEvent, Wry,
 };
-use timekeeper_core::{Entry, ImportReport, Project, Recovered, Status, Store, Totals, WeekStart};
+use timekeeper_core::{
+    Entry, ImportReport, Project, Recovered, Status, Store, Totals, WeekStart, PALETTE,
+};
 
 /// Settings the UI is allowed to write.
 const UI_SETTINGS: &[&str] = &["duration_format", "date_format", "week_start"];
@@ -60,6 +62,8 @@ struct Startup {
 struct Snapshot {
     status: Status,
     projects: Vec<Project>,
+    /// Project color keys; the UI styles each with a `--project-<key>` token.
+    palette: &'static [&'static str],
     last_project_id: Option<i64>,
     settings: std::collections::HashMap<String, String>,
     startup: Startup,
@@ -99,6 +103,7 @@ fn snapshot(state: State<AppState>) -> Result<Snapshot, String> {
     Ok(Snapshot {
         status: store.status(Utc::now()).map_err(err)?,
         projects: store.projects().map_err(err)?,
+        palette: PALETTE,
         last_project_id: store.last_project_id().map_err(err)?,
         settings,
         startup: state.startup.clone(),
@@ -178,6 +183,43 @@ fn create_project(state: State<AppState>, name: String) -> Result<Project, Strin
     state
         .lock_store()
         .create_project(&name, Utc::now())
+        .map_err(err)
+}
+
+#[tauri::command]
+fn rename_project(
+    app: AppHandle,
+    state: State<AppState>,
+    project_id: i64,
+    name: String,
+) -> Result<(), String> {
+    let status = {
+        let store = state.lock_store();
+        store.rename_project(project_id, &name).map_err(err)?;
+        store.status(Utc::now()).map_err(err)?
+    };
+    // The tray shows the running project's name.
+    refresh_tray(&app, &status);
+    Ok(())
+}
+
+#[tauri::command]
+fn set_project_color(state: State<AppState>, project_id: i64, color: String) -> Result<(), String> {
+    state
+        .lock_store()
+        .set_project_color(project_id, &color)
+        .map_err(err)
+}
+
+#[tauri::command]
+fn set_project_archived(
+    state: State<AppState>,
+    project_id: i64,
+    archived: bool,
+) -> Result<(), String> {
+    state
+        .lock_store()
+        .set_project_archived(project_id, archived)
         .map_err(err)
 }
 
@@ -506,6 +548,9 @@ pub fn run() {
             set_entry_seconds,
             delete_entry,
             create_project,
+            rename_project,
+            set_project_color,
+            set_project_archived,
             set_setting
         ])
         .run(tauri::generate_context!())

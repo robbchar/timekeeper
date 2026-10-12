@@ -1,12 +1,15 @@
 import { Snapshot } from "../api";
 import { DATE_FORMATS, DateFormat, DURATION_FORMATS, DurationFormat } from "../format";
+import { ProjectSettings } from "./ProjectSettings";
 
 interface Props {
   snapshot: Snapshot;
   onChange: (key: string, value: string) => void;
+  onChanged: () => void;
+  onError: (err: unknown) => void;
 }
 
-export function SettingsPage({ snapshot, onChange }: Props) {
+export function SettingsPage({ snapshot, onChange, onChanged, onError }: Props) {
   const s = snapshot.settings;
   const durationFormat = (s.duration_format as DurationFormat) ?? "hms";
   const dateFormat = (s.date_format as DateFormat) ?? "iso";
@@ -14,6 +17,13 @@ export function SettingsPage({ snapshot, onChange }: Props) {
 
   return (
     <div className="settings-page">
+      <ProjectSettings
+        projects={snapshot.projects}
+        palette={snapshot.palette}
+        onChanged={onChanged}
+        onError={onError}
+      />
+
       <section className="panel">
         <h2>Copying</h2>
         <p className="panel__hint">

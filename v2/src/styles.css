@@ -12,6 +12,13 @@
   --shadow: 0 1px 2px rgb(0 0 0 / 0.05), 0 2px 8px rgb(0 0 0 / 0.04);
   --radius: 10px;
   --mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", "SF Mono", Menlo, monospace;
+  /* Project colors, keyed by core::PALETTE. At least 3:1 against --surface. */
+  --project-teal: #2a9d8f;
+  --project-coral: #e76f51;
+  --project-blue: #457b9d;
+  --project-gold: #b88a1e;
+  --project-purple: #8d6cab;
+  --project-green: #6a994e;
   color-scheme: light;
 }
 
@@ -28,6 +35,12 @@
     --stop: #e5484d;
     --running-bg: #1c2b28;
     --shadow: none;
+    --project-teal: #3fb3a1;
+    --project-coral: #f08a6e;
+    --project-blue: #6fa3c7;
+    --project-gold: #e9c46a;
+    --project-purple: #a98bc6;
+    --project-green: #86b86a;
     color-scheme: dark;
   }
 }
@@ -449,6 +462,64 @@ button:focus-visible {
 .field label {
   color: var(--text);
 }
+.projects {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.project {
+  display: grid;
+  grid-template-columns: minmax(0, 260px) auto auto;
+  justify-content: start;
+  align-items: center;
+  gap: 16px;
+}
+.project--archived .project__name {
+  color: var(--muted);
+}
+.project__name--unsaved {
+  border-color: var(--stop);
+}
+.swatches {
+  display: flex;
+  gap: 6px;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.swatch {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--swatch);
+  cursor: pointer;
+}
+.swatch:checked {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px var(--swatch);
+}
+.swatch:focus {
+  outline: none;
+}
+.swatch:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 4px;
+}
+.project__archive {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
 .facts code {
   font-family: var(--mono);
   font-size: 13px;
@@ -478,6 +549,12 @@ button:focus-visible {
   }
   .entry__copy {
     grid-column: 2 / -1;
+  }
+  .project {
+    grid-template-columns: 1fr auto;
+  }
+  .project__name {
+    grid-column: 1 / -1;
   }
   .field,
   .facts {
