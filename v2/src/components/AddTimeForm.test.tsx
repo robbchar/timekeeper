@@ -64,6 +64,17 @@ describe("AddTimeForm", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("h:mm");
   });
 
+  it.each(["0:00", "24:00:01"])(
+    "refuses %s as out of range without calling the backend",
+    (text) => {
+      open();
+      fireEvent.change(field("Duration"), { target: { value: text } });
+      fireEvent.click(screen.getByRole("button", { name: "Add" }));
+      expect(api.addManualTime).not.toHaveBeenCalled();
+      expect(screen.getByRole("alert")).toHaveTextContent("between");
+    },
+  );
+
   it("reports a failed add and keeps the form open", async () => {
     vi.mocked(api.addManualTime).mockRejectedValueOnce("database is locked");
     const { onChanged, onError } = open();

@@ -2,6 +2,9 @@ import { useState } from "react";
 import { api, Project } from "../api";
 import { parseDuration } from "../format";
 
+// Matches core's MAX_MANUAL_SECONDS.
+const MAX_SECONDS = 24 * 3600;
+
 interface Props {
   projects: Project[];
   lastProjectId: number | null;
@@ -20,7 +23,7 @@ export function AddTimeForm({ projects, lastProjectId, today, onChanged, onError
   const [day, setDay] = useState(today);
   const [duration, setDuration] = useState("");
   const [notes, setNotes] = useState("");
-  const [invalid, setInvalid] = useState(false);
+  const [invalid, setInvalid] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const show = () => {
@@ -28,14 +31,18 @@ export function AddTimeForm({ projects, lastProjectId, today, onChanged, onError
     setDay(today);
     setDuration("");
     setNotes("");
-    setInvalid(false);
+    setInvalid(null);
     setOpen(true);
   };
 
   const submit = async () => {
     const seconds = parseDuration(duration);
-    if (!seconds || projectId == null) {
-      setInvalid(true);
+    if (seconds == null || projectId == null) {
+      setInvalid("Enter a duration as h:mm, like 1:30.");
+      return;
+    }
+    if (seconds <= 0 || seconds > MAX_SECONDS) {
+      setInvalid("Enter a duration between 0:00:01 and 24:00.");
       return;
     }
     setBusy(true);
@@ -93,11 +100,11 @@ export function AddTimeForm({ projects, lastProjectId, today, onChanged, onError
           autoFocus
           placeholder="h:mm"
           inputMode="numeric"
-          aria-invalid={invalid}
+          aria-invalid={invalid != null}
           value={duration}
           onChange={(e) => {
             setDuration(e.target.value);
-            setInvalid(false);
+            setInvalid(null);
           }}
         />
       </label>
@@ -107,7 +114,7 @@ export function AddTimeForm({ projects, lastProjectId, today, onChanged, onError
       </label>
       {invalid && (
         <p className="add-time__error" role="alert">
-          Enter a duration as h:mm, like 1:30.
+          {invalid}
         </p>
       )}
       <div className="add-time__actions">

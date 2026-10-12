@@ -188,11 +188,12 @@ fn add_manual_time(
             local_noon(day),
         )
         .map_err(err)?;
+    // The time is saved; the tray refresh is best-effort. The UI refreshes itself.
     if entry.running {
-        let status = store.status(now).map_err(err)?;
-        drop(store);
-        refresh_tray(&app, &status);
-        let _ = app.emit("timer-changed", ());
+        if let Ok(status) = store.status(now) {
+            drop(store);
+            refresh_tray(&app, &status);
+        }
     }
     Ok(entry)
 }
@@ -539,5 +540,14 @@ mod tests {
         *lock_recovering(&m) += 1;
         assert_eq!(*lock_recovering(&m), 2);
         assert!(!m.is_poisoned());
+    }
+
+    #[test]
+    fn local_noon_is_noon_on_that_local_day() {
+        for d in ["2026-03-08", "2026-03-29", "2026-07-15", "2026-11-01"] {
+            let day = NaiveDate::parse_from_str(d, "%Y-%m-%d").unwrap();
+            let local = local_noon(day).with_timezone(&Local).naive_local();
+            assert_eq!(local, day.and_hms_opt(12, 0, 0).unwrap(), "{d}");
+        }
     }
 }

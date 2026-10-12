@@ -192,10 +192,7 @@ function handle<T>(cmd: string, a: Record<string, unknown>): T {
         };
         entries.unshift(e);
       } else if (note) {
-        e.notes = e.notes
-          ? `${e.notes}
-${note}`
-          : note;
+        e.notes = e.notes ? `${e.notes}\n${note}` : note;
       }
       e.closedSeconds += seconds;
       return { ...e, seconds: secondsOf(e), running: running?.entryId === e.id } as T;

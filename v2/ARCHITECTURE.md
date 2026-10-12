@@ -59,7 +59,7 @@ Defined in `core/src/schema.rs`.
 - `source` is `timer`, `manual` or `import`, enforced by a `CHECK`.
 - **Manual time is a closed `manual` interval.** `add_manual_time` ends it where the entry's first
   interval starts, so it never overlaps the running one. An entry with no intervals ends it at local
-  noon, which the shell supplies. Manual intervals may overlap another entry's time; totals are sums,
+  noon (which the shell supplies) or now, whichever is earlier. Manual intervals may overlap another entry's time; totals are sums,
   so that's harmless.
 - Deleting a project cascades to its entries and their intervals.
 

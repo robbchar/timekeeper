@@ -468,8 +468,7 @@ impl Store {
     }
 
     /// Adds `m.seconds` to `m.day`'s entry for the project, creating it if needed.
-    /// The interval ends where the entry's first interval starts, so it never
-    /// overlaps the running one; an entry with no intervals ends it at `fallback_end`.
+    /// Ends before the entry's first interval, else at `fallback_end` capped at `now`.
     pub fn add_manual_time(
         &mut self,
         m: ManualTime,
@@ -501,21 +500,18 @@ impl Store {
         )?;
         let end_at = match first_start {
             Some(s) => parse_ts(&s)?,
-            None => fallback_end,
+            None => fallback_end.min(now),
         };
         insert_manual_interval(&tx, entry_id, m.seconds, end_at)?;
-        if let (Some(n), false) = (notes, created) {
+        if !created {
             tx.execute(
-                "UPDATE entries SET notes = CASE
-                     WHEN notes = '' THEN ?1 ELSE notes || char(10) || ?1 END
-                 WHERE id = ?2",
-                params![n, entry_id],
+                "UPDATE entries SET updated_at = ?1, notes = CASE
+                     WHEN ?2 IS NULL THEN notes
+                     WHEN notes = '' THEN ?2 ELSE notes || char(10) || ?2 END
+                 WHERE id = ?3",
+                params![ts(now), notes, entry_id],
             )?;
         }
-        tx.execute(
-            "UPDATE entries SET updated_at = ?1 WHERE id = ?2",
-            params![ts(now), entry_id],
-        )?;
         tx.commit()?;
 
         self.entries(m.day, m.day, Some(m.project_id), now)?

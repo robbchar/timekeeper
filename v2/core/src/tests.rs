@@ -479,6 +479,27 @@ fn manual_time_on_an_empty_past_day_creates_an_entry_ending_at_the_fallback() {
 }
 
 #[test]
+fn manual_time_on_an_empty_today_never_ends_after_now() {
+    let (mut s, p) = store_with_project();
+    let e = s
+        .add_manual_time(
+            manual(p, "2026-10-05", 3600, None),
+            at("2026-10-05T13:00:00Z"),
+            day("2026-10-05"),
+            at("2026-10-05T16:00:00Z"),
+        )
+        .unwrap();
+    assert_eq!(
+        intervals_of(&s, e.id),
+        vec![(
+            "2026-10-05T12:00:00.000Z".to_string(),
+            Some("2026-10-05T13:00:00.000Z".to_string()),
+            "manual".to_string()
+        )]
+    );
+}
+
+#[test]
 fn manual_time_extends_an_existing_entry_before_its_first_interval() {
     let (mut s, p) = store_with_project();
     s.start(p, None, at("2026-10-03T15:00:00Z"), day("2026-10-03"))
