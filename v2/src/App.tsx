@@ -179,7 +179,7 @@ export default function App() {
         liveSeconds={liveSeconds}
         entries={entries}
         today={today}
-        onChanged={() => void refresh()}
+        onChanged={refresh}
         onError={reportError}
       />
 

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api, Entry } from "../api";
 import { DayList } from "./DayList";
@@ -134,13 +134,33 @@ describe("DayList deleting", () => {
     expect(screen.getByRole("group", { name: "Confirm delete" })).toBeInTheDocument();
   });
 
-  it("unlocks the row if it is still listed after the refresh", async () => {
-    // The entries prop never changes here, as when a refresh fails after a good delete.
+  it("hides a deleted row even if the refresh leaves it listed", async () => {
+    // The entries prop never changes here, as when a refresh fails or is superseded.
     const { onChanged } = openConfirm();
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
-    await waitFor(() => expect(screen.getByTitle("Delete entry")).toHaveFocus());
+    await waitFor(() => expect(screen.queryByText("original")).toBeNull());
     expect(onChanged).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole("group", { name: "Confirm delete" })).toBeNull();
+    expect(screen.queryByTitle("Delete entry")).toBeNull();
+    expect(api.deleteEntry).toHaveBeenCalledTimes(1);
+  });
+
+  it("moves focus to the next row's Delete after a delete", async () => {
+    const other = { ...entry, id: 4, notes: "other" };
+    render(
+      <DayList
+        entries={[entry, other]}
+        today="2026-10-10"
+        durationFormat="hms"
+        dateFormat="iso"
+        onChanged={() => Promise.resolve()}
+        onError={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getAllByTitle("Delete entry")[0]);
+    const group = screen.getByRole("group", { name: "Confirm delete" });
+    fireEvent.click(within(group).getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(screen.queryByText("original")).toBeNull());
+    expect(screen.getByTitle("Delete entry")).toHaveFocus();
   });
 
   it("reports a refused delete of the running entry", async () => {

@@ -78,6 +78,9 @@ function EntryRow({
   const unsaved = failedBase === entry.notes;
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // Hidden once deleted, so a stale or failed refresh can't offer it again.
+  const [deleted, setDeleted] = useState(false);
+  const row = useRef<HTMLDivElement>(null);
   // Set when the confirm closes, so focus goes back to the Delete button instead of the body.
   const restoreFocus = useRef(false);
 
@@ -90,13 +93,28 @@ function EntryRow({
     setDeleting(true);
     try {
       await api.deleteEntry(entry.id);
-      // A good refresh unmounts the row; if the row is still here after it, don't leave it locked.
-      await onChanged();
     } catch (err) {
+      setDeleting(false);
+      closeConfirm();
       onError(err);
+      return;
     }
-    setDeleting(false);
-    closeConfirm();
+    focusNeighbour();
+    setDeleted(true);
+    void onChanged();
+  };
+
+  // Hands focus to the next row's Delete (or the previous one), not the body.
+  const focusNeighbour = () => {
+    const self = row.current;
+    if (!self) return;
+    const others = Array.from(
+      self.closest(".days")?.querySelectorAll<HTMLButtonElement>(".copy--delete") ?? [],
+    ).filter((b) => !self.contains(b));
+    const next =
+      others.find((b) => self.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) ??
+      others[others.length - 1];
+    next?.focus();
   };
 
   const save = async () => {
@@ -120,8 +138,10 @@ function EntryRow({
     setFailedBase(null);
   };
 
+  if (deleted) return null;
+
   return (
-    <div className={`entry ${entry.running ? "entry--running" : ""}`}>
+    <div ref={row} className={`entry ${entry.running ? "entry--running" : ""}`}>
       <span className="entry__dot" style={{ background: entry.projectColor ?? "var(--muted)" }} />
       <div className="entry__body">
         <div className="entry__project">{entry.projectName}</div>
