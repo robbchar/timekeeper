@@ -89,6 +89,15 @@ pub struct Totals {
     pub last_month: i64,
 }
 
+/// Time to add to a day's entry for a project, as a `manual` interval.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ManualTime<'a> {
+    pub project_id: i64,
+    pub day: NaiveDate,
+    pub seconds: i64,
+    pub notes: Option<&'a str>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WeekStart {
     Monday,
@@ -144,12 +153,58 @@ const SECONDS_SQL: &str = "CAST(ROUND(COALESCE(SUM(
         (julianday(COALESCE(i.end_at, :now)) - julianday(i.start_at)) * 86400.0
     ), 0)) AS INTEGER)";
 
-/// The most an entry's duration can be set to: one day.
+/// The most an entry's duration can be set to, or one manual addition can add: one day.
 pub const MAX_ENTRY_SECONDS: i64 = 24 * 3600;
 
 /// Ends every open interval at `?1`, never before its own start.
 const CLOSE_OPEN_INTERVALS: &str =
     "UPDATE intervals SET end_at = MAX(start_at, ?1) WHERE end_at IS NULL";
+
+/// The entry for `project_id` on `day`, created with `notes` if there isn't one.
+/// Returns its id and whether it was just created.
+fn entry_for(
+    tx: &rusqlite::Transaction,
+    project_id: i64,
+    day: NaiveDate,
+    notes: Option<&str>,
+    now: DateTime<Utc>,
+) -> Result<(i64, bool)> {
+    let existing: Option<i64> = tx
+        .query_row(
+            "SELECT id FROM entries WHERE project_id = ?1 AND day = ?2 ORDER BY id DESC LIMIT 1",
+            params![project_id, day_str(day)],
+            |r| r.get(0),
+        )
+        .optional()?;
+    if let Some(id) = existing {
+        return Ok((id, false));
+    }
+    tx.execute(
+        "INSERT INTO entries (project_id, day, notes, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?4)",
+        params![
+            project_id,
+            day_str(day),
+            notes.unwrap_or("").trim(),
+            ts(now)
+        ],
+    )?;
+    Ok((tx.last_insert_rowid(), true))
+}
+
+/// Adds a closed `manual` interval of `length` to `entry_id`, ending at `end_at`.
+fn insert_manual_interval(
+    tx: &rusqlite::Transaction,
+    entry_id: i64,
+    length: Duration,
+    end_at: DateTime<Utc>,
+) -> Result<()> {
+    tx.execute(
+        "INSERT INTO intervals (entry_id, start_at, end_at, source) VALUES (?1, ?2, ?3, 'manual')",
+        params![entry_id, ts(end_at - length), ts(end_at)],
+    )?;
+    Ok(())
+}
 
 pub struct Store {
     conn: Connection,
@@ -283,29 +338,7 @@ impl Store {
         // Closing the previous interval shares the transaction, so a switch is all-or-nothing.
         let tx = self.conn.transaction()?;
         tx.execute(CLOSE_OPEN_INTERVALS, [ts(now)])?;
-        let existing: Option<i64> = tx
-            .query_row(
-                "SELECT id FROM entries WHERE project_id = ?1 AND day = ?2 ORDER BY id DESC LIMIT 1",
-                params![project_id, day_str(today)],
-                |r| r.get(0),
-            )
-            .optional()?;
-        let entry_id = match existing {
-            Some(id) => id,
-            None => {
-                tx.execute(
-                    "INSERT INTO entries (project_id, day, notes, created_at, updated_at)
-                     VALUES (?1, ?2, ?3, ?4, ?4)",
-                    params![
-                        project_id,
-                        day_str(today),
-                        notes.unwrap_or("").trim(),
-                        ts(now)
-                    ],
-                )?;
-                tx.last_insert_rowid()
-            }
-        };
+        let (entry_id, _) = entry_for(&tx, project_id, today, notes, now)?;
         tx.execute(
             "INSERT INTO intervals (entry_id, start_at, source) VALUES (?1, ?2, 'timer')",
             params![entry_id, ts(now)],
@@ -432,9 +465,62 @@ impl Store {
         Ok(())
     }
 
+    /// Adds `m.seconds` to `m.day`'s entry for the project, creating it if needed.
+    /// Ends before the entry's first interval, else at `fallback_end` capped at `now`.
+    pub fn add_manual_time(
+        &mut self,
+        m: ManualTime,
+        now: DateTime<Utc>,
+        today: NaiveDate,
+        fallback_end: DateTime<Utc>,
+    ) -> Result<Entry> {
+        if m.seconds <= 0 || m.seconds > MAX_ENTRY_SECONDS {
+            return Err(Error::Invalid(format!(
+                "manual time must be between 1 second and 24 hours, got {}s",
+                m.seconds
+            )));
+        }
+        if m.day > today {
+            return Err(Error::Invalid(format!(
+                "can't add time to a future day ({})",
+                day_str(m.day)
+            )));
+        }
+        self.project_name(m.project_id)?;
+
+        let notes = m.notes.map(str::trim).filter(|n| !n.is_empty());
+        let tx = self.conn.transaction()?;
+        let (entry_id, created) = entry_for(&tx, m.project_id, m.day, notes, now)?;
+        let first_start: Option<String> = tx.query_row(
+            "SELECT MIN(start_at) FROM intervals WHERE entry_id = ?1",
+            [entry_id],
+            |r| r.get(0),
+        )?;
+        let end_at = match first_start {
+            Some(s) => parse_ts(&s)?,
+            None => fallback_end.min(now),
+        };
+        insert_manual_interval(&tx, entry_id, Duration::seconds(m.seconds), end_at)?;
+        if !created {
+            tx.execute(
+                "UPDATE entries SET updated_at = ?1, notes = CASE
+                     WHEN ?2 IS NULL THEN notes
+                     WHEN notes = '' THEN ?2 ELSE notes || char(10) || ?2 END
+                 WHERE id = ?3",
+                params![ts(now), notes, entry_id],
+            )?;
+        }
+        tx.commit()?;
+
+        self.entries(m.day, m.day, Some(m.project_id), now)?
+            .into_iter()
+            .find(|e| e.id == entry_id)
+            .ok_or(Error::EntryNotFound(entry_id))
+    }
+
     /// Sets a stopped entry's duration. Raising adds a `manual` interval that
-    /// ends where the entry's last interval ends (or at `local_noon` of its day
-    /// if it has none); lowering trims intervals from the latest end backwards,
+    /// ends where the entry's last interval ends (or at `local_noon` of its day,
+    /// capped at `now`, if it has none); lowering trims intervals from the latest end backwards,
     /// so a raise is undone before recorded time.
     pub fn set_entry_seconds(
         &mut self,
@@ -487,13 +573,10 @@ impl Store {
                 None => {
                     let d = NaiveDate::parse_from_str(&day, "%Y-%m-%d")
                         .map_err(|e| Error::Invalid(format!("bad day {day:?}: {e}")))?;
-                    local_noon(d)
+                    local_noon(d).min(now)
                 }
             };
-            tx.execute(
-                "INSERT INTO intervals (entry_id, start_at, end_at, source) VALUES (?1, ?2, ?3, 'manual')",
-                params![entry_id, ts(end - (target - total)), ts(end)],
-            )?;
+            insert_manual_interval(&tx, entry_id, target - total, end)?;
         } else {
             let mut excess = total - target;
             for (id, start, end) in intervals {
