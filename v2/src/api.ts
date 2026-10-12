@@ -54,6 +54,7 @@ export interface ImportReport {
   alreadyImported: number;
   orphanedSessions: number;
   unparseableSessions: number;
+  stillOpen: number;
 }
 
 export interface Snapshot {
@@ -92,6 +93,8 @@ export const api = {
   deleteEntry: (entryId: number) => call<void>("delete_entry", { entryId }),
   createProject: (name: string) => call<Project>("create_project", { name }),
   setSetting: (key: string, value: string) => call<void>("set_setting", { key, value }),
+  /** Brings in v1 sessions recorded since the last import; still-open ones wait. */
+  importV1Again: () => call<ImportReport>("import_v1_again"),
 
   copy: (text: string) => (inTauri ? writeText(text) : navigator.clipboard.writeText(text)),
 

@@ -1,19 +1,23 @@
-//! One-time import from the v1 Electron app's database (schema version 4).
+//! Import from the v1 Electron app's database (schema version 4): once at first
+//! launch, then on demand from Settings for sessions recorded in v1 since.
 //!
 //! Rules, from how v1 was actually used:
 //! - each v1 session becomes one entry with one interval;
 //! - the entry's day is the local date of `startTime`;
 //! - the interval runs `startTime` → `startTime + duration`. v1's `endTime` is
 //!   ignored: sessions were closed the next morning, so it measures nothing;
-//! - sessions v1 never closed are imported closed, the same way;
+//! - sessions v1 never closed are imported closed, the same way, by the first
+//!   import. Later imports leave them until v1 closes them, so they arrive whole;
 //! - a NULL duration imports as a zero-length interval so the notes survive;
 //! - sessions whose project is gone (v1 never enforced foreign keys) or whose
 //!   start can't be parsed are skipped and counted, not fatal.
 //!
 //! The v1 file is opened read-only. Re-running the import skips anything
-//! already imported (matched on the legacy ids).
+//! already imported (matched on the legacy ids), so a session edited in v1
+//! after it was imported keeps its imported values, and an imported entry
+//! deleted in v2 comes back on the next import.
 
-use crate::{ts, Result};
+use crate::{ts, Error, Result};
 use chrono::{DateTime, Duration, NaiveDate, NaiveDateTime, Utc};
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use serde::Serialize;
@@ -35,6 +39,8 @@ pub struct ImportReport {
     pub orphaned_sessions: usize,
     /// Sessions skipped because their start time couldn't be parsed.
     pub unparseable_sessions: usize,
+    /// Sessions a re-import left for later because v1 hasn't ended them yet.
+    pub still_open: usize,
 }
 
 struct V1Session {
@@ -58,11 +64,27 @@ fn parse_v1_time(s: &str) -> Option<DateTime<Utc>> {
         })
 }
 
+/// What an import does with sessions v1 hasn't ended yet.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum OpenSessions {
+    /// Import them closed, as they stand (the first-run import).
+    ImportClosed,
+    /// Leave them for a later run, once v1 has ended them.
+    Skip,
+}
+
 pub fn import_v1(
     conn: &mut Connection,
     v1_path: &Path,
+    open_sessions: OpenSessions,
     local_day: impl Fn(DateTime<Utc>) -> NaiveDate,
 ) -> Result<ImportReport> {
+    if !v1_path.exists() {
+        return Err(Error::Invalid(format!(
+            "no v1 database at {}",
+            v1_path.display()
+        )));
+    }
     let v1 = Connection::open_with_flags(
         v1_path,
         OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
@@ -132,6 +154,19 @@ pub fn import_v1(
             report.orphaned_sessions += 1;
             continue;
         };
+        if open_sessions == OpenSessions::Skip && s.end.is_none() {
+            let imported: bool = tx.query_row(
+                "SELECT EXISTS (SELECT 1 FROM entries WHERE legacy_session_id = ?1)",
+                [s.id],
+                |r| r.get(0),
+            )?;
+            if imported {
+                report.already_imported += 1;
+            } else {
+                report.still_open += 1;
+            }
+            continue;
+        }
         let seconds = s.duration.unwrap_or(0).max(0);
         let inserted = tx.execute(
             "INSERT OR IGNORE INTO entries

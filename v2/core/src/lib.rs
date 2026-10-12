@@ -702,7 +702,19 @@ impl Store {
         v1_path: impl AsRef<Path>,
         local_day: impl Fn(DateTime<Utc>) -> NaiveDate,
     ) -> Result<ImportReport> {
-        import::import_v1(&mut self.conn, v1_path.as_ref(), local_day)
+        let open = import::OpenSessions::ImportClosed;
+        import::import_v1(&mut self.conn, v1_path.as_ref(), open, local_day)
+    }
+
+    /// Brings in v1 sessions recorded since the last import. Sessions v1 hasn't
+    /// ended yet are left for a later run, so they arrive with their full time.
+    pub fn import_v1_again(
+        &mut self,
+        v1_path: impl AsRef<Path>,
+        local_day: impl Fn(DateTime<Utc>) -> NaiveDate,
+    ) -> Result<ImportReport> {
+        let open = import::OpenSessions::Skip;
+        import::import_v1(&mut self.conn, v1_path.as_ref(), open, local_day)
     }
 
     pub fn is_empty(&self) -> Result<bool> {

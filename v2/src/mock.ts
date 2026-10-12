@@ -1,7 +1,7 @@
 // In-memory stand-in for the Rust backend, used only when the UI is opened in
 // a plain browser. Synthetic data; no real records.
 
-import type { Entry, Project, Snapshot, Status, Totals } from "./api";
+import type { Entry, ImportReport, Project, Snapshot, Status, Totals } from "./api";
 import { addDays, localDay } from "./format";
 
 const projects: Project[] = [
@@ -236,6 +236,19 @@ function handle<T>(cmd: string, a: Record<string, unknown>): T {
     case "set_setting":
       settings[a.key as string] = a.value as string;
       return undefined as T;
+    case "import_v1_again":
+      // No v1 database in the browser preview, so there's never anything new.
+      return {
+        projects: 0,
+        entries: 0,
+        seconds: 0,
+        unclosedSessions: 0,
+        missingDurations: 0,
+        alreadyImported: 0,
+        orphanedSessions: 0,
+        unparseableSessions: 0,
+        stillOpen: 0,
+      } satisfies ImportReport as T;
   }
   throw new Error(`mock: unknown command ${cmd}`);
 }

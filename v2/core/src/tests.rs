@@ -440,6 +440,97 @@ fn import_skips_and_counts_orphaned_and_unparseable_sessions() {
     std::fs::remove_dir_all(dir).ok();
 }
 
+#[test]
+fn import_again_brings_in_only_sessions_recorded_since() {
+    let dir = std::env::temp_dir().join(format!("tk-imp-again-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let v1 = dir.join("v1.db");
+    v1_fixture(&v1);
+    let mut s = Store::open_in_memory().unwrap();
+    s.import_v1(&v1, pacific_day).unwrap();
+
+    Connection::open(&v1)
+        .unwrap()
+        .execute(
+            "INSERT INTO sessions VALUES
+                 (14, 3, '2026-10-05T15:00:00.000Z', '2026-10-06T14:00:00.000Z', 1800, 'LABS-800')",
+            [],
+        )
+        .unwrap();
+    let v1_bytes = std::fs::read(&v1).unwrap();
+
+    let r = s.import_v1_again(&v1, pacific_day).unwrap();
+    assert_eq!((r.entries, r.seconds, r.projects), (1, 1800, 0));
+    assert_eq!(
+        r.still_open, 0,
+        "never-ended sessions the first import took aren't reported as open"
+    );
+    assert_eq!(
+        std::fs::read(&v1).unwrap(),
+        v1_bytes,
+        "v1's file is untouched"
+    );
+    let now = Utc.with_ymd_and_hms(2026, 10, 10, 0, 0, 0).unwrap();
+    let added = s
+        .entries(day("2026-10-05"), day("2026-10-05"), None, now)
+        .unwrap();
+    assert_eq!(added.len(), 1);
+    assert_eq!(
+        (added[0].notes.as_str(), added[0].seconds),
+        ("LABS-800", 1800)
+    );
+
+    let again = s.import_v1_again(&v1, pacific_day).unwrap();
+    assert_eq!(again.entries, 0, "a second run adds nothing");
+    std::fs::remove_dir_all(dir).ok();
+}
+
+#[test]
+fn import_again_leaves_open_v1_sessions_until_they_end() {
+    let dir = std::env::temp_dir().join(format!("tk-imp-open-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let v1 = dir.join("v1.db");
+    v1_fixture(&v1);
+    let mut s = Store::open_in_memory().unwrap();
+    s.import_v1(&v1, pacific_day).unwrap();
+
+    let v1_writer = Connection::open(&v1).unwrap();
+    v1_writer
+        .execute(
+            "INSERT INTO sessions VALUES (15, 3, '2026-10-06T15:00:00.000Z', NULL, 600, 'LABS-801')",
+            [],
+        )
+        .unwrap();
+    let r = s.import_v1_again(&v1, pacific_day).unwrap();
+    assert_eq!((r.entries, r.still_open), (0, 1));
+
+    v1_writer
+        .execute(
+            "UPDATE sessions SET endTime = '2026-10-07T14:00:00.000Z', duration = 5400
+             WHERE sessionId = 15",
+            [],
+        )
+        .unwrap();
+    let r = s.import_v1_again(&v1, pacific_day).unwrap();
+    assert_eq!((r.entries, r.seconds, r.still_open), (1, 5400, 0));
+    drop(v1_writer);
+    std::fs::remove_dir_all(dir).ok();
+}
+
+#[test]
+fn import_again_reports_a_missing_v1_database() {
+    let mut s = Store::open_in_memory().unwrap();
+    let missing = std::env::temp_dir()
+        .join("tk-no-such-dir")
+        .join("timekeeper.db");
+    let e = s.import_v1_again(&missing, pacific_day).unwrap_err();
+    assert!(matches!(e, Error::Invalid(_)), "{e}");
+    assert!(
+        e.to_string().contains(&missing.display().to_string()),
+        "names the path it looked at: {e}"
+    );
+}
+
 /// Point `TK_V1_DB` at a copy of the real v1 database to check the import
 /// against it. Skipped otherwise, so no personal data lives in the repo.
 #[test]

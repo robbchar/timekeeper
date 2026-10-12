@@ -152,7 +152,12 @@ export default function App() {
           </button>
         </header>
         {errorBanner}
-        <SettingsPage snapshot={snap} onChange={(k, v) => void saveSetting(k, v)} />
+        <SettingsPage
+          snapshot={snap}
+          onChange={(k, v) => void saveSetting(k, v)}
+          onChanged={refresh}
+          onError={reportError}
+        />
       </div>
     );
   }

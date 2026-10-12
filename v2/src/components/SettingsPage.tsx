@@ -1,16 +1,51 @@
-import { Snapshot } from "../api";
-import { DATE_FORMATS, DateFormat, DURATION_FORMATS, DurationFormat } from "../format";
+import { useState } from "react";
+import { api, ImportReport, Snapshot } from "../api";
+import { DATE_FORMATS, DateFormat, DURATION_FORMATS, DurationFormat, formatShort } from "../format";
 
 interface Props {
   snapshot: Snapshot;
   onChange: (key: string, value: string) => void;
+  onChanged: () => Promise<void>;
+  onError: (err: unknown) => void;
 }
 
-export function SettingsPage({ snapshot, onChange }: Props) {
+const count = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
+
+function describeImport(r: ImportReport): string {
+  let text =
+    r.entries > 0
+      ? `Imported ${count(r.entries, "new session")} (${formatShort(r.seconds)})` +
+        (r.projects > 0 ? ` and ${count(r.projects, "new project")}.` : ".")
+      : "No new sessions in v1.";
+  if (r.stillOpen > 0) {
+    const [verb, them] = r.stillOpen === 1 ? ["is", "it"] : ["are", "them"];
+    text += ` ${count(r.stillOpen, "session")} ${verb} still open in v1. End ${them} there, then import again.`;
+  }
+  return text;
+}
+
+export function SettingsPage({ snapshot, onChange, onChanged, onError }: Props) {
   const s = snapshot.settings;
   const durationFormat = (s.duration_format as DurationFormat) ?? "hms";
   const dateFormat = (s.date_format as DateFormat) ?? "iso";
   const weekStart = s.week_start === "sunday" ? "sunday" : "monday";
+
+  const [importing, setImporting] = useState(false);
+  const [imported, setImported] = useState<string | null>(null);
+
+  const importAgain = async () => {
+    setImporting(true);
+    setImported(null);
+    try {
+      setImported(describeImport(await api.importV1Again()));
+    } catch (err) {
+      onError(err);
+      return;
+    } finally {
+      setImporting(false);
+    }
+    void onChanged();
+  };
 
   return (
     <div className="settings-page">
@@ -71,13 +106,25 @@ export function SettingsPage({ snapshot, onChange }: Props) {
           <dd>
             <code>{snapshot.dataDir}</code>
           </dd>
-          <dt>Imported from v1</dt>
+          <dt>Last imported from v1</dt>
           <dd>
             {snapshot.v1ImportedAt
               ? new Date(snapshot.v1ImportedAt).toLocaleString()
               : "Not imported"}
           </dd>
         </dl>
+        <button
+          className="btn btn--ghost panel__action"
+          disabled={importing}
+          onClick={() => void importAgain()}
+        >
+          {importing ? "Importing…" : "Import new sessions from v1"}
+        </button>
+        {imported && (
+          <p className="panel__hint" role="status">
+            {imported}
+          </p>
+        )}
       </section>
     </div>
   );

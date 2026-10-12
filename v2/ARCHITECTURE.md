@@ -98,17 +98,28 @@ bumps `user_version` in that same transaction, so a failed step leaves the datab
 
 ## v1 import
 
-`core/src/import.rs`, called by the shell from `open_store` at startup.
+`core/src/import.rs`, called by the shell from `open_store` at startup (`Store::import_v1`) and by
+the `import_v1_again` command from Settings (`Store::import_v1_again`).
 
-- **When it runs:** only when the v2 store is empty and the `v1_imported_at` setting is unset, and
-  only if v1's database exists at `<config dir>/timekeeper/timekeeper.db`. It never runs from the UI.
+- **When it runs:** at startup, only when the v2 store is empty and the `v1_imported_at` setting is
+  unset, and only if v1's database exists at `<config dir>/timekeeper/timekeeper.db`. After that,
+  only when the user clicks "Import new sessions from v1" in Settings, which errors if the file is
+  missing.
 - **Read-only:** the v1 file is opened with `SQLITE_OPEN_READ_ONLY`. v2 never writes to it.
-- **One transaction:** the whole import commits or none of it does, and it sets `v1_imported_at`.
+- **One transaction:** the whole import commits or none of it does, and it sets `v1_imported_at`, so
+  Settings shows the latest import.
 - **Mapping rules:** see the module doc in `import.rs`, the source of truth. In short, each v1
   session becomes one entry with one `import` interval of `startTime` + `duration`.
 - **Safe to re-run:** rows are inserted with `INSERT OR IGNORE` keyed on the legacy ids, and
   duplicates are counted as `already_imported`.
-- The result (or error) is passed to the UI in `Startup` and shown once.
+- **Open sessions wait:** the first import takes sessions v1 hasn't ended (`endTime` NULL) as they
+  stand. `import_v1_again` skips them and counts them as `still_open`, so a later run brings them in
+  with their full duration.
+- **Limits of re-running:** nothing already imported is updated, so a v1 edit to an imported session
+  never comes across. Deletions aren't recorded, so an imported entry deleted in v2 comes back on the
+  next import.
+- The startup result (or error) is passed to the UI in `Startup` and shown once. A re-import's report
+  is the command's return value, shown under the button.
 
 ## Settings
 
@@ -144,7 +155,7 @@ them. An invalid value fails startup instead of being ignored.
 | Variable              | Replaces                                         |
 | --------------------- | ------------------------------------------------ |
 | `TK_DATA_DIR`         | the app data dir                                 |
-| `TK_V1_IMPORT_DB`     | the v1 database the first-run import reads       |
+| `TK_V1_IMPORT_DB`     | the v1 database both imports read                |
 | `TK_HEARTBEAT_SECS`   | the 30-second heartbeat interval                 |
 | `TK_STALE_AFTER_SECS` | the two-minute stale window `recover_stale` uses |
 
