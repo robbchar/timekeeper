@@ -3,7 +3,7 @@
   <g fill="none" stroke="#fff" stroke-linecap="round">
     <circle cx="512" cy="512" r="320" stroke-width="88"/>
     <!-- 10:10, both hands in the top half; the timing dot sits bottom-right -->
-    <path d="M512 512 L373 414 M512 512 L711 397" stroke-width="96"/>
+    <path d="M512 512 L373 414 M512 512 L685 412" stroke-width="96"/>
   </g>
   <circle cx="512" cy="512" r="64" fill="#fff"/>
 </svg>
