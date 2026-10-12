@@ -46,8 +46,12 @@ and open <http://localhost:1420>.
   (Linux: `~/.local/share/dev.cathedraltree.timekeeper/`).
 - On first launch it imports v1 from `%APPDATA%\timekeeper\timekeeper.db`. The v1 file is opened
   **read-only** and never changed.
-- The import is one-time. Time you keep recording in v1 afterwards won't appear in v2. To re-import
-  a fresh copy, quit v2 and delete the v2 database folder above.
+- To bring in time recorded in v1 since then, use **Settings → Import new sessions from v1**. It
+  adds only sessions v2 doesn't have yet, so running it twice adds nothing.
+- Sessions still open in v1 are left out until you end them there. The next import brings them in
+  whole.
+- An imported session you later edit in v1 keeps its imported values in v2. An imported entry you
+  delete in v2 comes back, with v1's current values, the next time you import.
 - v1 sessions whose project was deleted, or whose start time can't be read, are skipped and counted
   in the import notice rather than failing the import.
 - While v2 is in progress, keep tracking real time in v1. Running both means two separate timers.

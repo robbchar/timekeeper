@@ -6,6 +6,7 @@ mod overrides;
 use chrono::{DateTime, Duration, Local, NaiveDate, Utc};
 use overrides::Overrides;
 use serde::Serialize;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard};
 use tauri::{
@@ -15,7 +16,8 @@ use tauri::{
     AppHandle, Emitter, Manager, State, WindowEvent, Wry,
 };
 use timekeeper_core::{
-    Entry, ImportReport, ManualTime, Project, Recovered, Status, Store, Totals, WeekStart, PALETTE,
+    Entry, ImportReport, ManualTime, Project, Recovered, Status, Store, Totals, V1Data, WeekStart,
+    PALETTE,
 };
 
 /// Settings the UI is allowed to write.
@@ -26,6 +28,8 @@ struct AppState {
     startup: Startup,
     /// Where the v2 database lives, shown on the Settings page.
     data_dir: String,
+    /// The v1 database the import reads, at first run and from Settings.
+    v1_db: PathBuf,
 }
 
 impl AppState {
@@ -257,6 +261,17 @@ fn set_setting(state: State<AppState>, key: String, value: String) -> Result<(),
         return Err(format!("unknown setting {key}"));
     }
     state.lock_store().set_setting(&key, &value).map_err(err)
+}
+
+// Runs off the main thread, and reads v1 before locking the store, so neither
+// the window nor other commands wait on the v1 read.
+#[tauri::command(async)]
+fn import_v1_again(state: State<AppState>) -> Result<ImportReport, String> {
+    let v1 = V1Data::read(&state.v1_db).map_err(err)?;
+    state
+        .lock_store()
+        .import_v1_again(v1, local_day)
+        .map_err(err)
 }
 
 // ---------------------------------------------------------------------- tray
@@ -500,9 +515,19 @@ fn log_panics_to(path: std::path::PathBuf) {
 
 // ----------------------------------------------------------------------- run
 
+/// v1 (Electron) kept its database in the per-user config dir under "timekeeper".
+fn v1_db_path(app: &AppHandle, overrides: &Overrides) -> tauri::Result<PathBuf> {
+    if let Some(path) = &overrides.v1_import_db {
+        return Ok(path.clone());
+    }
+    let config = app.path().config_dir()?;
+    Ok(config.join("timekeeper").join("timekeeper.db"))
+}
+
 fn open_store(
     app: &AppHandle,
     overrides: &Overrides,
+    v1_db: &Path,
 ) -> Result<(Store, Startup, String), Box<dyn std::error::Error>> {
     let dir = match &overrides.data_dir {
         Some(dir) => dir.clone(),
@@ -513,22 +538,12 @@ fn open_store(
     let mut store = Store::open(dir.join("timekeeper.db"))?;
     let mut startup = Startup::default();
 
-    // First run: bring in v1's data. v1 (Electron) kept its database in the
-    // per-user config dir under "timekeeper"; it is opened read-only.
+    // First run: bring in v1's data, opened read-only. No v1 database is fine.
     if store.is_empty()? && store.setting("v1_imported_at")?.is_none() {
-        let v1 = match &overrides.v1_import_db {
-            Some(path) => path.clone(),
-            None => app
-                .path()
-                .config_dir()?
-                .join("timekeeper")
-                .join("timekeeper.db"),
-        };
-        if v1.exists() {
-            match store.import_v1(&v1, local_day) {
-                Ok(report) => startup.imported = Some(report),
-                Err(e) => startup.import_error = Some(e.to_string()),
-            }
+        match V1Data::read(v1_db).and_then(|v1| store.import_v1(v1, local_day)) {
+            Ok(report) => startup.imported = Some(report),
+            Err(timekeeper_core::Error::NoV1Database(_)) => {}
+            Err(e) => startup.import_error = Some(e.to_string()),
         }
     }
 
@@ -546,12 +561,14 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle().clone();
             let overrides = Overrides::from_env()?;
-            let (store, startup, data_dir) = open_store(&handle, &overrides)?;
+            let v1_db = v1_db_path(&handle, &overrides)?;
+            let (store, startup, data_dir) = open_store(&handle, &overrides, &v1_db)?;
             let status = store.status(Utc::now())?;
             app.manage(AppState {
                 store: Mutex::new(store),
                 startup,
                 data_dir,
+                v1_db,
             });
             let tray = build_tray(&handle)?;
             app.manage(tray);
@@ -580,7 +597,8 @@ pub fn run() {
             rename_project,
             set_project_color,
             set_project_archived,
-            set_setting
+            set_setting,
+            import_v1_again
         ])
         .run(tauri::generate_context!())
         .expect("error while running TimeKeeper");

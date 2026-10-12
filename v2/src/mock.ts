@@ -1,7 +1,7 @@
 // In-memory stand-in for the Rust backend, used only when the UI is opened in
 // a plain browser. Synthetic data; no real records.
 
-import type { Entry, Project, Snapshot, Status, Totals } from "./api";
+import type { Entry, ImportReport, Project, Snapshot, Status, Totals } from "./api";
 import { addDays, localDay } from "./format";
 
 const projects: Project[] = [
@@ -66,6 +66,7 @@ for (let i = 1; i <= 40; i++) {
 let running: { entryId: number; startedAt: number } | null = null;
 let lastProjectId: number | null = 1;
 const settings: Record<string, string> = {};
+let v1ImportedAt: string | null = null;
 
 function secondsOf(e: MockEntry): number {
   const live = running?.entryId === e.id ? (Date.now() - running.startedAt) / 1000 : 0;
@@ -133,7 +134,7 @@ function handle<T>(cmd: string, a: Record<string, unknown>): T {
         settings,
         startup: { recovered: null, imported: null, importError: null },
         dataDir: "(browser preview: in-memory sample data)",
-        v1ImportedAt: null,
+        v1ImportedAt,
       } satisfies Snapshot as T;
     }
     case "start": {
@@ -272,6 +273,20 @@ function handle<T>(cmd: string, a: Record<string, unknown>): T {
     case "set_setting":
       settings[a.key as string] = a.value as string;
       return undefined as T;
+    case "import_v1_again":
+      // No v1 database in the browser preview, so there's never anything new.
+      v1ImportedAt = new Date().toISOString();
+      return {
+        projects: 0,
+        entries: 0,
+        seconds: 0,
+        unclosedSessions: 0,
+        missingDurations: 0,
+        alreadyImported: 0,
+        orphanedSessions: 0,
+        unparseableSessions: 0,
+        stillOpen: 0,
+      } satisfies ImportReport as T;
   }
   throw new Error(`mock: unknown command ${cmd}`);
 }

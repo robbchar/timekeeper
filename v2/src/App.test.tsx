@@ -24,6 +24,7 @@ const imported: ImportReport = {
   alreadyImported: 0,
   orphanedSessions: 0,
   unparseableSessions: 0,
+  stillOpen: 0,
 };
 
 const snapshot: Snapshot = {

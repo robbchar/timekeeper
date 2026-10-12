@@ -155,7 +155,7 @@ export default function App() {
         <SettingsPage
           snapshot={snap}
           onSetting={(k, v) => void saveSetting(k, v)}
-          onProjectsChanged={refresh}
+          onChanged={refresh}
           onError={reportError}
         />
       </div>
