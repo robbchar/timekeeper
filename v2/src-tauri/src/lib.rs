@@ -274,6 +274,21 @@ fn import_v1_again(state: State<AppState>) -> Result<ImportReport, String> {
         .map_err(err)
 }
 
+/// Copies the database to a timestamped file under Documents, outside the app data
+/// dir so uninstalling with "delete app data" doesn't take the backups too.
+#[tauri::command(async)]
+fn backup_now(app: AppHandle, state: State<AppState>) -> Result<String, String> {
+    let name = format!("timekeeper-{}.db", Local::now().format("%Y-%m-%d_%H%M%S"));
+    let path = app
+        .path()
+        .document_dir()
+        .map_err(err)?
+        .join("TimeKeeper backups")
+        .join(name);
+    state.lock_store().backup_to(&path).map_err(err)?;
+    Ok(path.display().to_string())
+}
+
 // ---------------------------------------------------------------------- tray
 
 struct TrayHandles {
@@ -598,7 +613,8 @@ pub fn run() {
             set_project_color,
             set_project_archived,
             set_setting,
-            import_v1_again
+            import_v1_again,
+            backup_now
         ])
         .run(tauri::generate_context!())
         .expect("error while running TimeKeeper");
@@ -620,6 +636,13 @@ mod tests {
         *lock_recovering(&m) += 1;
         assert_eq!(*lock_recovering(&m), 2);
         assert!(!m.is_poisoned());
+    }
+
+    #[test]
+    fn version_matches_package_json() {
+        let pkg: serde_json::Value =
+            serde_json::from_str(include_str!("../../package.json")).unwrap();
+        assert_eq!(pkg["version"], env!("CARGO_PKG_VERSION"));
     }
 
     #[test]

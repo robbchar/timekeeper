@@ -49,6 +49,21 @@ export function SettingsPage({ snapshot, onSetting, onChanged, onError }: Props)
     void onChanged();
   };
 
+  const [backingUp, setBackingUp] = useState(false);
+  const [backedUpTo, setBackedUpTo] = useState<string | null>(null);
+
+  const backUp = async () => {
+    setBackingUp(true);
+    setBackedUpTo(null);
+    try {
+      setBackedUpTo(await api.backupNow());
+    } catch (err) {
+      onError(err);
+    } finally {
+      setBackingUp(false);
+    }
+  };
+
   return (
     <div className="settings-page">
       <ProjectSettings
@@ -132,6 +147,18 @@ export function SettingsPage({ snapshot, onSetting, onChanged, onError }: Props)
         {imported && (
           <p className="panel__hint" role="status">
             {imported}
+          </p>
+        )}
+        <button
+          className="btn btn--ghost panel__action"
+          disabled={backingUp}
+          onClick={() => void backUp()}
+        >
+          {backingUp ? "Backing up…" : "Back up now"}
+        </button>
+        {backedUpTo && (
+          <p className="panel__hint" role="status">
+            Backed up to <code>{backedUpTo}</code>
           </p>
         )}
       </section>

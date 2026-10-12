@@ -4,7 +4,7 @@ import { api, ImportReport, Snapshot } from "../api";
 import { SettingsPage } from "./SettingsPage";
 
 vi.mock("../api", () => ({
-  api: { importV1Again: vi.fn() },
+  api: { importV1Again: vi.fn(), backupNow: vi.fn() },
 }));
 
 const snapshot: Snapshot = {
@@ -124,5 +124,46 @@ describe("SettingsPage: import new sessions from v1", () => {
     finish(report({}));
     expect(await screen.findByRole("status")).toBeInTheDocument();
     expect(importButton()).toBeEnabled();
+  });
+});
+
+const backupButton = () => screen.getByRole("button", { name: "Back up now" });
+
+describe("SettingsPage: back up now", () => {
+  beforeEach(() => vi.mocked(api.backupNow).mockReset());
+
+  it("shows where the backup went", async () => {
+    const path = String.raw`C:\Docs\TimeKeeper backups\timekeeper-2026-10-12_153012.db`;
+    vi.mocked(api.backupNow).mockResolvedValueOnce(path);
+    renderPage();
+    fireEvent.click(backupButton());
+
+    expect(await screen.findByRole("status")).toHaveTextContent(`Backed up to ${path}`);
+  });
+
+  it("reports a failed backup", async () => {
+    vi.mocked(api.backupNow).mockRejectedValueOnce("disk full");
+    const { onError } = renderPage();
+    fireEvent.click(backupButton());
+
+    await waitFor(() => expect(onError).toHaveBeenCalledWith("disk full"));
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(backupButton()).toBeEnabled();
+  });
+
+  it("can't be clicked again while a backup is running", async () => {
+    let finish: (path: string) => void = () => {};
+    vi.mocked(api.backupNow).mockReturnValueOnce(new Promise((res) => (finish = res)));
+    renderPage();
+    fireEvent.click(backupButton());
+
+    const busy = screen.getByRole("button", { name: "Backing up…" });
+    expect(busy).toBeDisabled();
+    fireEvent.click(busy);
+    expect(api.backupNow).toHaveBeenCalledTimes(1);
+
+    finish("backup.db");
+    expect(await screen.findByRole("status")).toBeInTheDocument();
+    expect(backupButton()).toBeEnabled();
   });
 });

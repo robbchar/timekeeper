@@ -2,6 +2,10 @@
 members = ["core", "src-tauri"]
 resolver = "2"
 
+# Keep in sync with package.json (`version_matches_package_json` checks).
+[workspace.package]
+version = "0.2.0"
+
 [profile.release]
 codegen-units = 1
 lto = true

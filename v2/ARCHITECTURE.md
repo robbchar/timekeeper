@@ -134,6 +134,13 @@ the `import_v1_again` command from Settings (`Store::import_v1_again`).
 - The startup result (or error) is passed to the UI in `Startup` and shown once. A re-import's report
   is the command's return value, shown under the button.
 
+## Backups
+
+The `backup_now` command (Settings → Data) calls `Store::backup_to`, which runs `VACUUM INTO`: one
+consistent snapshot, WAL included, so it's safe while the timer runs. The shell picks the path,
+`<Documents>/TimeKeeper backups/timekeeper-<local date>_<time>.db`, outside the app data dir so the
+uninstaller's "delete app data" option leaves backups alone. An existing file is never overwritten.
+
 ## Settings
 
 Settings are rows in the `settings` table. The UI may only read and write the keys in `UI_SETTINGS`

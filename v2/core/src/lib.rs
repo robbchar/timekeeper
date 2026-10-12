@@ -749,6 +749,22 @@ impl Store {
         import::import_v1(&mut self.conn, v1, open, local_day)
     }
 
+    /// Writes a consistent copy of the database to `path`, which must not exist.
+    /// Safe while the timer runs: it reads one snapshot, WAL included.
+    pub fn backup_to(&self, path: &Path) -> Result<()> {
+        if path.exists() {
+            return Err(Error::Invalid(format!("{} already exists", path.display())));
+        }
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir).map_err(|e| Error::Invalid(e.to_string()))?;
+        }
+        let target = path
+            .to_str()
+            .ok_or_else(|| Error::Invalid(format!("{} isn't valid UTF-8", path.display())))?;
+        self.conn.execute("VACUUM INTO ?1", [target])?;
+        Ok(())
+    }
+
     pub fn is_empty(&self) -> Result<bool> {
         let n: i64 = self
             .conn

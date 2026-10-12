@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "TimeKeeper v2",
-  "version": "0.1.0",
+  "version": "../package.json",
   "identifier": "dev.cathedraltree.timekeeper",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -26,7 +26,13 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "publisher": "Robb Charnock",
+    "targets": ["nsis"],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

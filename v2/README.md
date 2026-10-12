@@ -2,7 +2,7 @@
 
 Tauri 2 + React/TypeScript + SQLite. A tray-first replacement for the v1 Electron app, in progress.
 
-- [ARCHITECTURE.md](ARCHITECTURE.md): layers, data model, times, migrations, v1 import and settings.
+- [ARCHITECTURE.md](ARCHITECTURE.md): layers, data model, times, migrations, v1 import, backups and settings.
 - [CLAUDE.md](CLAUDE.md): rules and checklists for changing the code.
 
 ## Layout
@@ -31,7 +31,7 @@ npm install
 npm run tauri dev      # first build takes a few minutes; later ones are fast
 ```
 
-`npm run tauri build` produces an installer under `target/release/bundle/`.
+`npm run tauri build` produces the installer, `target/release/bundle/nsis/TimeKeeper v2_<version>_x64-setup.exe`.
 
 The app icon's source is `src-tauri/icons/icon.svg`. After editing it, regenerate the sizes with
 `npm run icons`. Keep the clock hands out of the bottom-right corner, where the timing dot covers
@@ -40,10 +40,30 @@ part of the ring.
 To work on the UI alone in a browser (in-memory sample data, no Rust needed): `npm run dev`
 and open <http://localhost:1420>.
 
+## Install, upgrade, uninstall (Windows)
+
+- **Install**: run the setup exe. It installs for the current user only (no admin prompt) into
+  `%LOCALAPPDATA%\TimeKeeper v2`, with a Start menu shortcut. It installs alongside v1, which uses
+  different folders and shortcuts.
+- **Upgrade**: run a newer setup exe. Either answer to "uninstall before installing" keeps your data.
+- **Uninstall**: Settings → Apps → TimeKeeper v2. Your data is kept unless you tick "Delete the
+  application data", which removes `%APPDATA%\dev.cathedraltree.timekeeper`. Backups in Documents
+  are never touched.
+- **Version**: set it in `package.json`; `tauri.conf.json` reads it from there. The crates take
+  theirs from `[workspace.package]` in `Cargo.toml`, and a shell test fails if the two differ.
+- **Don't change** `identifier`, `productName` or `bundle.publisher` in `tauri.conf.json` lightly.
+  The identifier names the data folder. The installer finds the previous install under
+  `HKCU\Software\<publisher>\<productName>`, so changing either breaks "uninstall before installing"
+  for existing installs ("Unable to uninstall!"); choosing "Do not uninstall" gets past it once.
+
 ## Your data
 
 - v2 keeps its database at `%APPDATA%\dev.cathedraltree.timekeeper\timekeeper.db`
   (Linux: `~/.local/share/dev.cathedraltree.timekeeper/`).
+- **Settings → Back up now** writes a copy of the database to
+  `Documents\TimeKeeper backups\timekeeper-<date>_<time>.db`. It's safe while the timer runs. To
+  restore one, quit v2, delete `timekeeper.db-wal` and `timekeeper.db-shm` if present, and copy the
+  backup over `timekeeper.db`.
 - On first launch it imports v1 from `%APPDATA%\timekeeper\timekeeper.db`. The v1 file is opened
   **read-only** and never changed.
 - To bring in time recorded in v1 since then, use **Settings → Import new sessions from v1**. It

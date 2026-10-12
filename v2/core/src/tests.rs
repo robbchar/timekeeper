@@ -450,6 +450,49 @@ fn migrations_are_idempotent() {
     std::fs::remove_dir_all(dir).ok();
 }
 
+// --------------------------------------------------------------------- backup
+
+#[test]
+fn backup_copies_everything_including_a_running_timer() {
+    let dir = std::env::temp_dir().join(format!("tk-backup-{}", std::process::id()));
+    std::fs::remove_dir_all(&dir).ok();
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut s = Store::open(dir.join("live.db")).unwrap();
+    let p = s
+        .create_project("Elevate", at("2026-10-01T00:00:00Z"))
+        .unwrap();
+    s.start(
+        p.id,
+        Some("LABS-1"),
+        at("2026-10-05T15:00:00Z"),
+        day("2026-10-05"),
+    )
+    .unwrap();
+
+    let copy = dir.join("nested").join("backup.db");
+    s.backup_to(&copy).unwrap();
+
+    let b = Store::open(&copy).unwrap();
+    assert_eq!(b.projects().unwrap(), s.projects().unwrap());
+    let st = b.status(at("2026-10-05T15:30:00Z")).unwrap();
+    assert_eq!(st.running.unwrap().project_id, p.id);
+    assert_eq!(st.elapsed_seconds, 1800);
+    std::fs::remove_dir_all(dir).ok();
+}
+
+#[test]
+fn backup_refuses_to_overwrite() {
+    let dir = std::env::temp_dir().join(format!("tk-backup-exists-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let copy = dir.join("backup.db");
+    std::fs::write(&copy, b"keep me").unwrap();
+
+    let (s, _) = store_with_project();
+    assert!(matches!(s.backup_to(&copy), Err(Error::Invalid(_))));
+    assert_eq!(std::fs::read(&copy).unwrap(), b"keep me");
+    std::fs::remove_dir_all(dir).ok();
+}
+
 // ------------------------------------------------------------------ v1 import
 
 /// Builds a small v1 database with the v1 schema, covering the awkward cases
