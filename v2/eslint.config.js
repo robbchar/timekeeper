@@ -27,6 +27,10 @@ export default tseslint.config(
     rules: { "@typescript-eslint/require-await": "off" },
   },
   {
+    files: ["scripts/**/*.ts"],
+    languageOptions: { globals: globals.node },
+  },
+  {
     files: ["*.config.{js,ts}"],
     extends: [tseslint.configs.disableTypeChecked],
     languageOptions: { globals: globals.node },
