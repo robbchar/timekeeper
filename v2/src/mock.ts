@@ -177,6 +177,14 @@ function handle<T>(cmd: string, a: Record<string, unknown>): T {
       e.closedSeconds = seconds;
       return undefined as T;
     }
+    case "delete_entry": {
+      const id = a.entryId as number;
+      const i = entries.findIndex((x) => x.id === id);
+      if (i < 0) throw new Error(`entry ${id} not found`);
+      if (running?.entryId === id) throw new Error(`stop the timer before deleting entry ${id}`);
+      entries.splice(i, 1);
+      return undefined as T;
+    }
     case "create_project": {
       const p: Project = {
         id: projects.length + 1,

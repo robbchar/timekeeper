@@ -27,6 +27,8 @@ pub enum Error {
     ProjectNotFound(i64),
     #[error("entry {0} not found")]
     EntryNotFound(i64),
+    #[error("stop the timer before deleting entry {0}")]
+    EntryRunning(i64),
     #[error("{0}")]
     Invalid(String),
 }
@@ -517,6 +519,28 @@ impl Store {
         )?;
         tx.commit()?;
         Ok(())
+    }
+
+    /// Deletes an entry and, by cascade, its intervals. Refused while it is running.
+    pub fn delete_entry(&self, entry_id: i64) -> Result<()> {
+        let deleted = self.conn.execute(
+            "DELETE FROM entries WHERE id = ?1 AND NOT EXISTS
+               (SELECT 1 FROM intervals WHERE entry_id = ?1 AND end_at IS NULL)",
+            [entry_id],
+        )?;
+        if deleted > 0 {
+            return Ok(());
+        }
+        let exists: bool = self.conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM entries WHERE id = ?1)",
+            [entry_id],
+            |r| r.get(0),
+        )?;
+        Err(if exists {
+            Error::EntryRunning(entry_id)
+        } else {
+            Error::EntryNotFound(entry_id)
+        })
     }
 
     fn seconds_between(

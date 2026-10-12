@@ -86,6 +86,7 @@ export const api = {
   setNotes: (entryId: number, notes: string) => call<void>("set_notes", { entryId, notes }),
   setEntrySeconds: (entryId: number, seconds: number) =>
     call<void>("set_entry_seconds", { entryId, seconds }),
+  deleteEntry: (entryId: number) => call<void>("delete_entry", { entryId }),
   createProject: (name: string) => call<Project>("create_project", { name }),
   setSetting: (key: string, value: string) => call<void>("set_setting", { key, value }),
 

@@ -7,6 +7,7 @@ vi.mock("../api", () => ({
   api: {
     setNotes: vi.fn(() => Promise.resolve()),
     setEntrySeconds: vi.fn(() => Promise.resolve()),
+    deleteEntry: vi.fn(() => Promise.resolve()),
     copy: vi.fn(),
   },
 }));
@@ -185,5 +186,55 @@ describe("DayList duration editing", () => {
     render(list({ ...entry, running: true }, vi.fn()));
     expect(screen.queryByTitle(/Edit duration/)).toBeNull();
     expect(screen.getByText("00:10:00")).toBeInTheDocument();
+  });
+});
+
+describe("DayList deleting", () => {
+  beforeEach(() => vi.mocked(api.deleteEntry).mockClear());
+
+  function openConfirm(e = entry) {
+    const onError = vi.fn();
+    const onChanged = vi.fn();
+    render(list(e, onError, onChanged));
+    fireEvent.click(screen.getByTitle("Delete entry"));
+    return { onError, onChanged, group: screen.getByRole("group", { name: "Confirm delete" }) };
+  }
+
+  it("asks before deleting and focuses Cancel", () => {
+    openConfirm();
+    expect(api.deleteEntry).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveFocus();
+  });
+
+  it("deletes on confirm and refreshes", async () => {
+    const { onChanged } = openConfirm();
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(api.deleteEntry).toHaveBeenCalledWith(3);
+    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
+  });
+
+  it("Cancel keeps the entry and returns focus to Delete", () => {
+    openConfirm();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(api.deleteEntry).not.toHaveBeenCalled();
+    expect(screen.getByTitle("Delete entry")).toHaveFocus();
+  });
+
+  it("Escape cancels", () => {
+    const { group } = openConfirm();
+    fireEvent.keyDown(group, { key: "Escape" });
+    expect(screen.queryByRole("group", { name: "Confirm delete" })).toBeNull();
+    expect(api.deleteEntry).not.toHaveBeenCalled();
+  });
+
+  it("reports a refused delete of the running entry", async () => {
+    vi.mocked(api.deleteEntry).mockRejectedValueOnce("stop the timer before deleting entry 3");
+    const { onError, onChanged } = openConfirm({ ...entry, running: true });
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() =>
+      expect(onError).toHaveBeenCalledWith("stop the timer before deleting entry 3"),
+    );
+    expect(onChanged).not.toHaveBeenCalled();
+    expect(screen.getByTitle("Delete entry")).toHaveFocus();
   });
 });

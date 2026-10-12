@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, Entry } from "../api";
 import {
   dayHeading,
@@ -86,6 +86,29 @@ function EntryRow({
   const [pending, setPending] = useState<Pending | null>(null);
   if (pending && pending.base !== entry.seconds) setPending(null);
   const seconds = pending?.seconds ?? entry.seconds;
+  const [confirming, setConfirming] = useState(false);
+  const deleteButton = useRef<HTMLButtonElement>(null);
+  // Set when the confirm closes, so focus goes back to the Delete button instead of the body.
+  const restoreFocus = useRef(false);
+
+  useEffect(() => {
+    if (!confirming && restoreFocus.current) {
+      restoreFocus.current = false;
+      deleteButton.current?.focus();
+    }
+  }, [confirming]);
+
+  const remove = async () => {
+    try {
+      await api.deleteEntry(entry.id);
+    } catch (err) {
+      setConfirming(false);
+      restoreFocus.current = true;
+      onError(err);
+      return;
+    }
+    onChanged();
+  };
 
   return (
     <div className={`entry ${entry.running ? "entry--running" : ""}`}>
@@ -128,9 +151,29 @@ function EntryRow({
         onError={onError}
       />
       <div className="entry__copy">
-        <CopyButton label="Time" text={formatDuration(seconds, durationFormat)} />
-        <CopyButton label="Notes" text={entry.notes} />
-        <CopyButton label="Date" text={formatDate(entry.day, dateFormat)} />
+        {confirming ? (
+          <DeleteConfirm
+            onConfirm={() => void remove()}
+            onCancel={() => {
+              setConfirming(false);
+              restoreFocus.current = true;
+            }}
+          />
+        ) : (
+          <>
+            <CopyButton label="Time" text={formatDuration(seconds, durationFormat)} />
+            <CopyButton label="Notes" text={entry.notes} />
+            <CopyButton label="Date" text={formatDate(entry.day, dateFormat)} />
+            <button
+              ref={deleteButton}
+              className="copy copy--delete"
+              title="Delete entry"
+              onClick={() => setConfirming(true)}
+            >
+              Delete
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
@@ -221,6 +264,35 @@ function DurationCell({
     >
       {formatDuration(shown, durationFormat)}
     </button>
+  );
+}
+
+function DeleteConfirm({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <div
+      className="entry__confirm"
+      role="group"
+      aria-label="Confirm delete"
+      onKeyDown={(e) => {
+        if (e.key === "Escape" && !busy) onCancel();
+      }}
+    >
+      <span>Delete entry?</span>
+      <button
+        className="copy copy--delete"
+        disabled={busy}
+        onClick={() => {
+          setBusy(true);
+          onConfirm();
+        }}
+      >
+        Delete
+      </button>
+      <button className="copy" autoFocus disabled={busy} onClick={onCancel}>
+        Cancel
+      </button>
+    </div>
   );
 }
 

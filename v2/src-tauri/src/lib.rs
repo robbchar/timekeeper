@@ -169,6 +169,11 @@ fn set_entry_seconds(state: State<AppState>, entry_id: i64, seconds: i64) -> Res
 }
 
 #[tauri::command]
+fn delete_entry(state: State<AppState>, entry_id: i64) -> Result<(), String> {
+    state.lock_store().delete_entry(entry_id).map_err(err)
+}
+
+#[tauri::command]
 fn create_project(state: State<AppState>, name: String) -> Result<Project, String> {
     state
         .lock_store()
@@ -499,6 +504,7 @@ pub fn run() {
             totals,
             set_notes,
             set_entry_seconds,
+            delete_entry,
             create_project,
             set_setting
         ])
