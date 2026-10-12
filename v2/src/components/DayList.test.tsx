@@ -148,6 +148,39 @@ describe("DayList duration editing", () => {
     expect(screen.getByLabelText("Duration")).toHaveValue("1:30");
   });
 
+  it("click-away on an invalid value reports it and keeps the draft", async () => {
+    const { box, onError } = editDuration("1.5");
+    fireEvent.blur(box);
+    await waitFor(() => expect(onError).toHaveBeenCalledTimes(1));
+    expect(api.setEntrySeconds).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTitle(/Edit duration/));
+    expect(screen.getByLabelText("Duration")).toHaveValue("1.5");
+  });
+
+  it("can't be reopened while saving, and Copy Time follows the shown value", async () => {
+    let resolve = () => {};
+    vi.mocked(api.setEntrySeconds).mockReturnValueOnce(new Promise<void>((r) => (resolve = r)));
+    const { box, onChanged } = editDuration("1:30");
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(screen.getByTitle(/Edit duration/)).toBeDisabled();
+    expect(screen.getByTitle("Copy: 01:30:00")).toBeInTheDocument();
+    resolve();
+    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
+    expect(screen.getByTitle(/Edit duration/)).toBeEnabled();
+    fireEvent.click(screen.getByTitle(/Edit duration/));
+    expect(screen.getByLabelText("Duration")).toHaveValue("1:30:00");
+  });
+
+  it("drops the saved value once the entry's seconds change", async () => {
+    const onChanged = vi.fn();
+    const { box, rerender } = editDuration("1:30", { onChanged });
+    fireEvent.keyDown(box, { key: "Enter" });
+    await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1));
+    rerender(list({ ...entry, seconds: 5400 }, vi.fn()));
+    rerender(list(entry, vi.fn()));
+    expect(screen.getByTitle(/Edit duration/)).toHaveTextContent("00:10:00");
+  });
+
   it("is not editable while the entry is running", () => {
     render(list({ ...entry, running: true }, vi.fn()));
     expect(screen.queryByTitle(/Edit duration/)).toBeNull();

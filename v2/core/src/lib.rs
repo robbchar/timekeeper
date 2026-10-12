@@ -142,6 +142,9 @@ const SECONDS_SQL: &str = "CAST(ROUND(COALESCE(SUM(
         (julianday(COALESCE(i.end_at, :now)) - julianday(i.start_at)) * 86400.0
     ), 0)) AS INTEGER)";
 
+/// The most an entry's duration can be set to: one day.
+pub const MAX_ENTRY_SECONDS: i64 = 24 * 3600;
+
 /// Ends every open interval at `?1`, never before its own start.
 const CLOSE_OPEN_INTERVALS: &str =
     "UPDATE intervals SET end_at = MAX(start_at, ?1) WHERE end_at IS NULL";
@@ -429,7 +432,8 @@ impl Store {
 
     /// Sets a stopped entry's duration. Raising adds a `manual` interval that
     /// ends where the entry's last interval ends (or at `local_noon` of its day
-    /// if it has none); lowering trims intervals from the latest backwards.
+    /// if it has none); lowering trims intervals from the latest end backwards,
+    /// so a raise is undone before recorded time.
     pub fn set_entry_seconds(
         &mut self,
         entry_id: i64,
@@ -439,6 +443,9 @@ impl Store {
     ) -> Result<()> {
         if seconds < 0 {
             return Err(Error::Invalid("duration can't be negative".into()));
+        }
+        if seconds > MAX_ENTRY_SECONDS {
+            return Err(Error::Invalid("duration can't exceed 24 hours".into()));
         }
         let tx = self.conn.transaction()?;
         let day: String = tx
@@ -453,7 +460,7 @@ impl Store {
         {
             let mut stmt = tx.prepare(
                 "SELECT id, start_at, end_at FROM intervals WHERE entry_id = ?1
-                 ORDER BY start_at DESC, id DESC",
+                 ORDER BY end_at DESC, id DESC",
             )?;
             let mut rows = stmt.query([entry_id])?;
             while let Some(r) = rows.next()? {

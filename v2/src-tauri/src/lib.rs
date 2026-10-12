@@ -74,11 +74,12 @@ fn today() -> NaiveDate {
 fn local_day(t: DateTime<Utc>) -> NaiveDate {
     t.with_timezone(&Local).date_naive()
 }
-/// Noon on local day `d`, falling back to UTC noon if the zone skips it.
+/// Noon on local day `d`, or an hour later if the zone skips noon.
 fn local_noon(d: NaiveDate) -> DateTime<Utc> {
     let noon = d.and_hms_opt(12, 0, 0).expect("12:00:00 is a valid time");
-    noon.and_local_timezone(Local)
-        .earliest()
+    [noon, noon + Duration::hours(1)]
+        .into_iter()
+        .find_map(|t| t.and_local_timezone(Local).earliest())
         .map_or_else(|| noon.and_utc(), |t| t.with_timezone(&Utc))
 }
 fn err(e: impl std::fmt::Display) -> String {

@@ -571,6 +571,52 @@ fn setting_seconds_refuses_a_running_entry() {
 }
 
 #[test]
+fn lowering_after_a_raise_trims_the_manual_interval_first() {
+    let (mut s, p) = store_with_project();
+    let id = two_intervals(&mut s, p);
+    s.set_entry_seconds(id, 4 * 3600, at(EDIT_AT), pacific_noon)
+        .unwrap();
+    s.set_entry_seconds(id, 3 * 3600, at(EDIT_AT), pacific_noon)
+        .unwrap();
+
+    assert_eq!(
+        intervals_of(&s, id),
+        [
+            (
+                "2026-10-05T15:00:00.000Z".to_string(),
+                Some("2026-10-05T16:00:00.000Z".to_string()),
+                "timer".to_string()
+            ),
+            (
+                "2026-10-05T16:00:00.000Z".to_string(),
+                Some("2026-10-05T17:00:00.000Z".to_string()),
+                "manual".to_string()
+            ),
+            (
+                "2026-10-05T17:00:00.000Z".to_string(),
+                Some("2026-10-05T18:00:00.000Z".to_string()),
+                "timer".to_string()
+            ),
+        ]
+    );
+}
+
+#[test]
+fn setting_seconds_rejects_more_than_a_day() {
+    let (mut s, p) = store_with_project();
+    log(&mut s, p, "2026-10-05", 1);
+    let id = only_entry(&s, "2026-10-05").id;
+
+    s.set_entry_seconds(id, MAX_ENTRY_SECONDS, at(EDIT_AT), pacific_noon)
+        .unwrap();
+    for seconds in [MAX_ENTRY_SECONDS + 1, i64::MAX] {
+        let r = s.set_entry_seconds(id, seconds, at(EDIT_AT), pacific_noon);
+        assert!(matches!(r, Err(Error::Invalid(_))), "{r:?}");
+    }
+    assert_eq!(only_entry(&s, "2026-10-05").seconds, MAX_ENTRY_SECONDS);
+}
+
+#[test]
 fn setting_seconds_rejects_negative_values_and_unknown_entries() {
     let (mut s, p) = store_with_project();
     log(&mut s, p, "2026-10-05", 1);

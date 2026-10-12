@@ -58,8 +58,8 @@ Defined in `core/src/schema.rs`.
 - `source` is `timer`, `manual` or `import`, enforced by a `CHECK`.
 - **Editing a duration edits intervals.** `set_entry_seconds` raises a total by adding a `manual`
   interval that ends where the entry's last interval ends (or at local noon on its day if it has
-  none), and lowers it by trimming or deleting intervals from the latest backwards. It refuses a
-  running entry. A raise can overlap the entry's own intervals; only their sum is meaningful.
+  none), and lowers it by trimming or deleting intervals from the latest end backwards, so a raise
+  is undone before recorded time. It refuses a running entry and anything over 24 hours. A raise can overlap the entry's own intervals; only their sum is meaningful.
 - Deleting a project cascades to its entries and their intervals.
 
 Because the running timer is a row, a crash loses nothing. While timing, the shell writes a
