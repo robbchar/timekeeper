@@ -4,7 +4,7 @@ import { formatClock } from "../format";
 
 interface Props {
   projects: Project[];
-  lastProjectId: number | null;
+  resumeProjectId: number | null;
   status: Status;
   liveSeconds: number;
   entries: Entry[];
@@ -17,7 +17,7 @@ const NEW_PROJECT = -1;
 
 export function TimerPanel({
   projects,
-  lastProjectId,
+  resumeProjectId,
   status,
   liveSeconds,
   entries,
@@ -26,15 +26,19 @@ export function TimerPanel({
   onError,
 }: Props) {
   const running = status.running;
-  const active = projects.filter((p) => !p.archived);
+  // A project just added is listed here until the refresh brings it in.
+  const [added, setAdded] = useState<Project | null>(null);
+  const listed =
+    added && !projects.some((p) => p.id === added.id) ? [...projects, added] : projects;
   // Archived projects are hidden, except a running one so the picker still shows it.
-  const choices = projects.filter((p) => !p.archived || p.id === running?.projectId);
-  const [chosen, setSelected] = useState<number | null>(
-    running?.projectId ?? lastProjectId ?? active[0]?.id ?? null,
-  );
-  // A choice that has since been archived falls back to the first active project.
-  const selected = choices.some((p) => p.id === chosen) ? chosen : (active[0]?.id ?? null);
-  const [adding, setAdding] = useState(choices.length === 0);
+  const choices = listed.filter((p) => !p.archived || p.id === running?.projectId);
+  const [chosen, setChosen] = useState<number | null>(running?.projectId ?? resumeProjectId);
+  // A choice hidden since (an archived timer that stopped) falls back to the resume project.
+  const hidden = listed.some((p) => p.id === chosen) && !choices.some((p) => p.id === chosen);
+  const selected = hidden ? resumeProjectId : chosen;
+  const [adding, setAdding] = useState(false);
+  // With nothing to pick, the form is the only way to get a project.
+  const showForm = adding || choices.length === 0;
   const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -43,7 +47,7 @@ export function TimerPanel({
   const [seenRunningProjectId, setSeenRunningProjectId] = useState(runningProjectId);
   if (runningProjectId !== seenRunningProjectId) {
     setSeenRunningProjectId(runningProjectId);
-    if (runningProjectId != null) setSelected(runningProjectId);
+    if (runningProjectId != null) setChosen(runningProjectId);
   }
 
   // The notes box edits the entry the timer would use: the running one (from
@@ -107,7 +111,8 @@ export function TimerPanel({
     act(async () => {
       if (!newName.trim()) return;
       const p = await api.createProject(newName);
-      setSelected(p.id);
+      setAdded(p);
+      setChosen(p.id);
       setAdding(false);
       setNewName("");
     });
@@ -117,7 +122,7 @@ export function TimerPanel({
   return (
     <section className={`timer ${running ? "timer--running" : ""}`}>
       <div className="timer__row">
-        {adding ? (
+        {showForm ? (
           <form
             className="timer__new-project"
             onSubmit={(e) => {
@@ -147,7 +152,7 @@ export function TimerPanel({
             onChange={(e) => {
               const v = Number(e.target.value);
               if (v === NEW_PROJECT) setAdding(true);
-              else setSelected(v);
+              else setChosen(v);
             }}
           >
             {choices.map((p) => (

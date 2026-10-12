@@ -50,7 +50,7 @@ const runningAcme: Status = {
 type Props = ComponentProps<typeof TimerPanel>;
 const defaults: Props = {
   projects: [acme, beta],
-  lastProjectId: 1,
+  resumeProjectId: 1,
   status: idle,
   liveSeconds: 0,
   entries: [],
@@ -78,16 +78,79 @@ describe("TimerPanel", () => {
   });
 
   it("follows a timer started elsewhere", () => {
-    const { rerender } = render(<TimerPanel {...defaults} lastProjectId={2} />);
+    const { rerender } = render(<TimerPanel {...defaults} resumeProjectId={2} />);
     expect(screen.getByRole("combobox")).toHaveValue("2");
-    rerender(<TimerPanel {...defaults} lastProjectId={2} status={runningAcme} />);
+    rerender(<TimerPanel {...defaults} resumeProjectId={2} status={runningAcme} />);
     expect(screen.getByRole("combobox")).toHaveValue("1");
   });
 
-  it("hides archived projects and falls back from an archived last project", () => {
-    render(<TimerPanel {...defaults} projects={[{ ...acme, archived: true }, beta]} />);
+  it("hides archived projects", () => {
+    render(
+      <TimerPanel
+        {...defaults}
+        projects={[{ ...acme, archived: true }, beta]}
+        resumeProjectId={2}
+      />,
+    );
     expect(screen.getByRole("combobox")).toHaveValue("2");
     expect(screen.queryByRole("option", { name: "Acme" })).toBeNull();
+  });
+
+  it("falls back to the resume project when an archived timer stops", () => {
+    const gamma: Project = { id: 3, name: "Gamma", color: null, archived: false };
+    // Gamma, not the first active project, so the test pins the resume project.
+    const props = {
+      ...defaults,
+      projects: [{ ...acme, archived: true }, beta, gamma],
+      resumeProjectId: 3,
+    };
+    const { rerender } = render(
+      <TimerPanel {...props} status={runningAcme} entries={[lateEntry]} />,
+    );
+    expect(screen.getByRole("combobox")).toHaveValue("1");
+    rerender(<TimerPanel {...props} />);
+    expect(screen.getByRole("combobox")).toHaveValue("3");
+    expect(screen.queryByRole("option", { name: "Acme" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    expect(api.start).toHaveBeenCalledWith(3, "");
+  });
+
+  it("offers the new-project form once a stopped archived timer leaves nothing to pick", () => {
+    const props = { ...defaults, projects: [{ ...acme, archived: true }], resumeProjectId: null };
+    const { rerender } = render(
+      <TimerPanel {...props} status={runningAcme} entries={[lateEntry]} />,
+    );
+    expect(screen.getByRole("combobox")).toHaveValue("1");
+    rerender(<TimerPanel {...props} />);
+    expect(screen.getByPlaceholderText("New project name")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
+  });
+
+  it("keeps a just-added project and the draft notes while the list refreshes", async () => {
+    const gamma: Project = { id: 3, name: "Gamma", color: null, archived: false };
+    vi.mocked(api.createProject).mockResolvedValueOnce(gamma);
+    const acmeToday: Entry = { ...betaToday, id: 9, projectId: 1, projectName: "Acme" };
+    // Acme, the resume project, has an entry today; switching to it would replace the draft.
+    const props = { ...defaults, entries: [acmeToday] };
+    const { rerender } = render(<TimerPanel {...props} />);
+    const notes = () => screen.getByPlaceholderText(/^(Notes for today|What are you working on)/);
+
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "2" } });
+    fireEvent.change(notes(), { target: { value: "draft" } });
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "-1" } });
+    fireEvent.change(screen.getByPlaceholderText("New project name"), {
+      target: { value: "Gamma" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    // Listed and selected before the refresh brings it in, so Start times what the picker shows.
+    expect(await screen.findByRole("combobox")).toHaveValue("3");
+    expect(screen.getByRole("option", { name: "Gamma" })).toBeInTheDocument();
+    expect(notes()).toHaveValue("draft");
+
+    rerender(<TimerPanel {...props} projects={[acme, beta, gamma]} />);
+    expect(screen.getByRole("combobox")).toHaveValue("3");
+    expect(screen.getAllByRole("option", { name: "Gamma" })).toHaveLength(1);
+    expect(notes()).toHaveValue("draft");
   });
 
   it("keeps the running project listed after it is archived", () => {

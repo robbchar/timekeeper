@@ -4,16 +4,16 @@ import { parseDuration } from "../format";
 
 interface Props {
   projects: Project[];
-  lastProjectId: number | null;
+  resumeProjectId: number | null;
   today: string;
   onChanged: () => Promise<void>;
   onError: (err: unknown) => void;
 }
 
 /** Adds time to a day by hand, for days the timer missed or started late. */
-export function AddTimeForm({ projects, lastProjectId, today, onChanged, onError }: Props) {
+export function AddTimeForm({ projects, resumeProjectId, today, onChanged, onError }: Props) {
   const active = projects.filter((p) => !p.archived);
-  const defaultProject = active.find((p) => p.id === lastProjectId)?.id ?? active[0]?.id;
+  const defaultProject = resumeProjectId ?? undefined;
 
   const [open, setOpen] = useState(false);
   const [projectId, setProjectId] = useState(defaultProject);

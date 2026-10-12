@@ -115,20 +115,27 @@ export function invoke<T>(cmd: string, args: Record<string, unknown> = {}): Prom
 
 function handle<T>(cmd: string, a: Record<string, unknown>): T {
   switch (cmd) {
-    case "snapshot":
+    case "snapshot": {
+      // Copies, ordered like the backend: active first, then by name in SQLite's binary order.
+      const sorted = projects
+        .map((p) => ({ ...p }))
+        .sort(
+          (x, y) =>
+            Number(x.archived) - Number(y.archived) ||
+            (x.name < y.name ? -1 : x.name > y.name ? 1 : 0),
+        );
+      const active = sorted.filter((p) => !p.archived);
       return {
         status: status(),
-        // Copies, ordered like the backend: active first, then by name.
-        projects: projects
-          .map((p) => ({ ...p }))
-          .sort((x, y) => Number(x.archived) - Number(y.archived) || x.name.localeCompare(y.name)),
+        projects: sorted,
         palette,
-        lastProjectId,
+        resumeProjectId: (active.find((p) => p.id === lastProjectId) ?? active[0])?.id ?? null,
         settings,
         startup: { recovered: null, imported: null, importError: null },
         dataDir: "(browser preview: in-memory sample data)",
         v1ImportedAt: null,
       } satisfies Snapshot as T;
+    }
     case "start": {
       const projectId = a.projectId as number;
       if (running && entries.find((e) => e.id === running!.entryId)!.projectId === projectId)

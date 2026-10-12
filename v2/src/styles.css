@@ -12,13 +12,13 @@
   --shadow: 0 1px 2px rgb(0 0 0 / 0.05), 0 2px 8px rgb(0 0 0 / 0.04);
   --radius: 10px;
   --mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", "SF Mono", Menlo, monospace;
-  /* Project colors, keyed by core::PALETTE. At least 3:1 against --surface. */
-  --project-teal: #2a9d8f;
-  --project-coral: #e76f51;
+  /* Project colors, keyed by core::PALETTE. At least 3:1 against --surface and --running-bg. */
+  --project-teal: #29988b;
+  --project-coral: #d7674b;
   --project-blue: #457b9d;
-  --project-gold: #b88a1e;
+  --project-gold: #ac811c;
   --project-purple: #8d6cab;
-  --project-green: #6a994e;
+  --project-green: #67944c;
   color-scheme: light;
 }
 
@@ -557,6 +557,20 @@ button:focus-visible {
 .swatch:focus-visible {
   outline: 2px solid var(--text);
   outline-offset: 4px;
+}
+@media (forced-colors: active) {
+  /* High Contrast would erase the colors and the ring; keep them, in system colors where it counts. */
+  .swatch {
+    forced-color-adjust: none;
+  }
+  .swatch:checked {
+    box-shadow:
+      0 0 0 2px Canvas,
+      0 0 0 4px CanvasText;
+  }
+  .swatch:focus-visible {
+    outline-color: Highlight;
+  }
 }
 .project__archive {
   display: flex;

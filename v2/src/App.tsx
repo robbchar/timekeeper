@@ -154,8 +154,8 @@ export default function App() {
         {errorBanner}
         <SettingsPage
           snapshot={snap}
-          onChange={(k, v) => void saveSetting(k, v)}
-          onChanged={() => void refresh()}
+          onSetting={(k, v) => void saveSetting(k, v)}
+          onProjectsChanged={refresh}
           onError={reportError}
         />
       </div>
@@ -180,7 +180,7 @@ export default function App() {
 
       <TimerPanel
         projects={snap.projects}
-        lastProjectId={snap.lastProjectId}
+        resumeProjectId={snap.resumeProjectId}
         status={status}
         liveSeconds={liveSeconds}
         entries={entries}
@@ -198,7 +198,7 @@ export default function App() {
 
       <AddTimeForm
         projects={snap.projects}
-        lastProjectId={snap.lastProjectId}
+        resumeProjectId={snap.resumeProjectId}
         today={today}
         onChanged={refresh}
         onError={reportError}

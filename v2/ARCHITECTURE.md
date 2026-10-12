@@ -71,8 +71,9 @@ Defined in `core/src/schema.rs`.
   picker lists the same keys `set_project_color` accepts. v1 colors aren't imported; imported
   projects get palette keys in order.
 - **Archiving hides a project from the timer's picker, nothing else.** Its entries, history and
-  totals filter are unchanged, and a running timer keeps running. The tray's Start skips archived
-  projects (`resume_project_id`).
+  totals filter are unchanged, and a running timer keeps running. Which project a start defaults
+  to is `resume_project_id` (the last one timed unless archived, else the first active one).
+  The tray uses it directly, and `snapshot` sends it for the timer picker and Add time.
 - Deleting a project cascades to its entries and their intervals.
 - Deleting an entry cascades to its intervals. `delete_entry` refuses the running entry; stop the
   timer first.

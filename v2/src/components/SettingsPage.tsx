@@ -4,12 +4,12 @@ import { ProjectSettings } from "./ProjectSettings";
 
 interface Props {
   snapshot: Snapshot;
-  onChange: (key: string, value: string) => void;
-  onChanged: () => void;
+  onSetting: (key: string, value: string) => void;
+  onProjectsChanged: () => Promise<void>;
   onError: (err: unknown) => void;
 }
 
-export function SettingsPage({ snapshot, onChange, onChanged, onError }: Props) {
+export function SettingsPage({ snapshot, onSetting, onProjectsChanged, onError }: Props) {
   const s = snapshot.settings;
   const durationFormat = (s.duration_format as DurationFormat) ?? "hms";
   const dateFormat = (s.date_format as DateFormat) ?? "iso";
@@ -20,7 +20,7 @@ export function SettingsPage({ snapshot, onChange, onChanged, onError }: Props) 
       <ProjectSettings
         projects={snapshot.projects}
         palette={snapshot.palette}
-        onChanged={onChanged}
+        onChanged={onProjectsChanged}
         onError={onError}
       />
 
@@ -34,7 +34,7 @@ export function SettingsPage({ snapshot, onChange, onChanged, onError }: Props) 
           <select
             id="duration-format"
             value={durationFormat}
-            onChange={(e) => onChange("duration_format", e.target.value)}
+            onChange={(e) => onSetting("duration_format", e.target.value)}
           >
             {Object.entries(DURATION_FORMATS).map(([k, v]) => (
               <option key={k} value={k}>
@@ -48,7 +48,7 @@ export function SettingsPage({ snapshot, onChange, onChanged, onError }: Props) 
           <select
             id="date-format"
             value={dateFormat}
-            onChange={(e) => onChange("date_format", e.target.value)}
+            onChange={(e) => onSetting("date_format", e.target.value)}
           >
             {Object.entries(DATE_FORMATS).map(([k, v]) => (
               <option key={k} value={k}>
@@ -66,7 +66,7 @@ export function SettingsPage({ snapshot, onChange, onChanged, onError }: Props) 
           <select
             id="week-start"
             value={weekStart}
-            onChange={(e) => onChange("week_start", e.target.value)}
+            onChange={(e) => onSetting("week_start", e.target.value)}
           >
             <option value="monday">Monday</option>
             <option value="sunday">Sunday</option>

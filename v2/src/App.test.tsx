@@ -33,7 +33,7 @@ const snapshot: Snapshot = {
     { id: 2, name: "Beta", color: null, archived: false },
   ],
   palette: [],
-  lastProjectId: 1,
+  resumeProjectId: 1,
   settings: {},
   startup: { recovered: null, imported, importError: null },
   dataDir: "test",

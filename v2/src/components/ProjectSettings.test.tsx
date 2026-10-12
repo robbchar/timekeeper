@@ -14,8 +14,9 @@ vi.mock("../api", () => ({
 const acme: Project = { id: 1, name: "Acme", color: "teal", archived: false };
 const old: Project = { id: 2, name: "Old client", color: "gold", archived: true };
 const palette = ["teal", "coral", "gold"];
+const never = () => new Promise<void>(() => {});
 
-function setup(projects = [acme], onChanged = vi.fn(), onError = vi.fn()) {
+function setup(projects = [acme], onChanged = vi.fn(() => Promise.resolve()), onError = vi.fn()) {
   render(
     <ProjectSettings
       projects={projects}
@@ -28,7 +29,7 @@ function setup(projects = [acme], onChanged = vi.fn(), onError = vi.fn()) {
 }
 
 function rename(value: string, key = "Enter") {
-  const box = screen.getByRole("textbox", { name: "Project name" });
+  const box = screen.getByRole("textbox", { name: "Rename Acme" });
   box.focus();
   fireEvent.change(box, { target: { value } });
   fireEvent.keyDown(box, { key });
@@ -43,6 +44,21 @@ describe("ProjectSettings", () => {
     rename("Acme Corp");
     expect(api.renameProject).toHaveBeenCalledExactlyOnceWith(1, "Acme Corp");
     await waitFor(() => expect(onChanged).toHaveBeenCalled());
+  });
+
+  it("renames on blur", () => {
+    setup();
+    const box = screen.getByRole("textbox", { name: "Rename Acme" });
+    box.focus();
+    fireEvent.change(box, { target: { value: "Acme Corp" } });
+    fireEvent.blur(box);
+    expect(api.renameProject).toHaveBeenCalledExactlyOnceWith(1, "Acme Corp");
+  });
+
+  it("shows the new name while the rename is saving", () => {
+    vi.mocked(api.renameProject).mockImplementationOnce(never);
+    setup();
+    expect(rename("  Acme Corp ")).toHaveValue("Acme Corp");
   });
 
   it("Escape keeps the old name", () => {
@@ -75,9 +91,35 @@ describe("ProjectSettings", () => {
     await waitFor(() => expect(onChanged).toHaveBeenCalled());
   });
 
+  it("keeps the new color checked while it saves", () => {
+    vi.mocked(api.setProjectColor).mockImplementationOnce(never);
+    setup();
+    fireEvent.click(screen.getByRole("radio", { name: "coral" }));
+    expect(screen.getByRole("radio", { name: "coral" })).toBeChecked();
+  });
+
+  it("shows a refreshed color over one still saving", () => {
+    vi.mocked(api.setProjectColor).mockImplementationOnce(never);
+    const props = { palette, onChanged: vi.fn(() => Promise.resolve()), onError: vi.fn() };
+    const { rerender } = render(<ProjectSettings projects={[acme]} {...props} />);
+    fireEvent.click(screen.getByRole("radio", { name: "coral" }));
+    rerender(<ProjectSettings projects={[{ ...acme, color: "gold" }]} {...props} />);
+    expect(screen.getByRole("radio", { name: "gold" })).toBeChecked();
+  });
+
+  it("reports a failed color change and puts the old color back", async () => {
+    vi.mocked(api.setProjectColor).mockRejectedValueOnce("unknown project color");
+    const { onChanged, onError } = setup();
+    fireEvent.click(screen.getByRole("radio", { name: "coral" }));
+    await waitFor(() => expect(onError).toHaveBeenCalledWith("unknown project color"));
+    expect(screen.getByRole("radio", { name: "teal" })).toBeChecked();
+    expect(onChanged).not.toHaveBeenCalled();
+  });
+
   it("archives and unarchives", () => {
     setup([acme, old]);
-    const [acmeBox, oldBox] = screen.getAllByRole("checkbox", { name: "Archived" });
+    const acmeBox = screen.getByRole("checkbox", { name: "Archived: Acme" });
+    const oldBox = screen.getByRole("checkbox", { name: "Archived: Old client" });
     expect(acmeBox).not.toBeChecked();
     expect(oldBox).toBeChecked();
 
@@ -87,11 +129,37 @@ describe("ProjectSettings", () => {
     expect(api.setProjectArchived).toHaveBeenCalledWith(2, false);
   });
 
+  it("undoes an archive with a second click before the first one saves", () => {
+    vi.mocked(api.setProjectArchived).mockImplementationOnce(never).mockImplementationOnce(never);
+    setup();
+    const box = screen.getByRole("checkbox", { name: "Archived: Acme" });
+    fireEvent.click(box);
+    expect(box).toBeChecked();
+    fireEvent.click(box);
+    expect(box).not.toBeChecked();
+    expect(vi.mocked(api.setProjectArchived).mock.calls).toEqual([
+      [1, true],
+      [1, false],
+    ]);
+  });
+
   it("reports a failed archive without refreshing", async () => {
     vi.mocked(api.setProjectArchived).mockRejectedValueOnce("project 1 not found");
     const { onChanged, onError } = setup();
-    fireEvent.click(screen.getByRole("checkbox", { name: "Archived" }));
+    const box = screen.getByRole("checkbox", { name: "Archived: Acme" });
+    fireEvent.click(box);
     await waitFor(() => expect(onError).toHaveBeenCalledWith("project 1 not found"));
+    expect(box).not.toBeChecked();
     expect(onChanged).not.toHaveBeenCalled();
+  });
+
+  it("lists projects in creation order, so archiving doesn't move a row", () => {
+    // Given in the backend's order (active first, then by name), which creation order isn't.
+    setup([
+      { ...acme, id: 2 },
+      { ...old, id: 1 },
+    ]);
+    const names = screen.getAllByRole("textbox").map((box) => (box as HTMLInputElement).value);
+    expect(names).toEqual(["Old client", "Acme"]);
   });
 });

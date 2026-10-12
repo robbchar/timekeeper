@@ -64,7 +64,8 @@ struct Snapshot {
     projects: Vec<Project>,
     /// Project color keys; the UI styles each with a `--project-<key>` token.
     palette: &'static [&'static str],
-    last_project_id: Option<i64>,
+    /// The project a one-click start uses (`Store::resume_project_id`).
+    resume_project_id: Option<i64>,
     settings: std::collections::HashMap<String, String>,
     startup: Startup,
     data_dir: String,
@@ -104,7 +105,7 @@ fn snapshot(state: State<AppState>) -> Result<Snapshot, String> {
         status: store.status(Utc::now()).map_err(err)?,
         projects: store.projects().map_err(err)?,
         palette: PALETTE,
-        last_project_id: store.last_project_id().map_err(err)?,
+        resume_project_id: store.resume_project_id().map_err(err)?,
         settings,
         startup: state.startup.clone(),
         data_dir: state.data_dir.clone(),
@@ -221,21 +222,13 @@ fn create_project(state: State<AppState>, name: String) -> Result<Project, Strin
         .map_err(err)
 }
 
+/// The ticker picks up the new name for the tray within a second.
 #[tauri::command]
-fn rename_project(
-    app: AppHandle,
-    state: State<AppState>,
-    project_id: i64,
-    name: String,
-) -> Result<(), String> {
-    let status = {
-        let store = state.lock_store();
-        store.rename_project(project_id, &name).map_err(err)?;
-        store.status(Utc::now()).map_err(err)?
-    };
-    // The tray shows the running project's name.
-    refresh_tray(&app, &status);
-    Ok(())
+fn rename_project(state: State<AppState>, project_id: i64, name: String) -> Result<(), String> {
+    state
+        .lock_store()
+        .rename_project(project_id, &name)
+        .map_err(err)
 }
 
 #[tauri::command]

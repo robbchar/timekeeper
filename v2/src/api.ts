@@ -61,7 +61,8 @@ export interface Snapshot {
   projects: Project[];
   /** Project color keys; see `projectColor`. */
   palette: string[];
-  lastProjectId: number | null;
+  /** The last project timed unless it's archived, else the first active one. */
+  resumeProjectId: number | null;
   settings: Record<string, string>;
   startup: {
     recovered: { projectName: string; stoppedAt: string } | null;
