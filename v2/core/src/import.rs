@@ -77,8 +77,8 @@ pub enum OpenSessions {
 /// v1's projects and sessions, read before the v2 store is touched so the
 /// store isn't locked while v1 is read.
 pub struct V1Data {
-    /// (projectId, name, color, createdAt)
-    projects: Vec<(i64, String, Option<String>, Option<String>)>,
+    /// (projectId, name, createdAt)
+    projects: Vec<(i64, String, Option<String>)>,
     sessions: Vec<V1Session>,
 }
 
@@ -96,9 +96,9 @@ impl V1Data {
         // v1 may be running and mid-write.
         v1.busy_timeout(std::time::Duration::from_secs(5))?;
 
-        let mut stmt = v1.prepare("SELECT projectId, name, color, createdAt FROM projects")?;
+        let mut stmt = v1.prepare("SELECT projectId, name, createdAt FROM projects")?;
         let projects = stmt
-            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
             .collect::<rusqlite::Result<Vec<_>>>()?;
 
         let mut stmt = v1.prepare(
@@ -131,7 +131,8 @@ pub fn import_v1(
     let mut report = ImportReport::default();
     let tx = conn.transaction()?;
 
-    for (i, (legacy_id, name, color, created)) in v1.projects.into_iter().enumerate() {
+    // v1 colors are free-form, so imports take palette keys instead.
+    for (i, (legacy_id, name, created)) in v1.projects.into_iter().enumerate() {
         let known: bool = tx.query_row(
             "SELECT EXISTS (SELECT 1 FROM projects WHERE legacy_project_id = ?1)",
             [legacy_id],
@@ -150,9 +151,7 @@ pub fn import_v1(
         if adopted == 1 {
             continue;
         }
-        let color = color
-            .filter(|c| !c.trim().is_empty())
-            .unwrap_or_else(|| crate::palette_color(i as i64).to_string());
+        let color = crate::palette_color(i as i64);
         let created = created.as_deref().and_then(parse_v1_time).unwrap_or(now);
         tx.execute(
             "INSERT INTO projects (name, color, created_at, legacy_project_id)

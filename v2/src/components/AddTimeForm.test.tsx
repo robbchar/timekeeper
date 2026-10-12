@@ -19,7 +19,7 @@ function open(props: Partial<Parameters<typeof AddTimeForm>[0]> = {}) {
   render(
     <AddTimeForm
       projects={projects}
-      lastProjectId={2}
+      resumeProjectId={2}
       today="2026-10-10"
       onChanged={onChanged}
       onError={onError}
@@ -35,7 +35,7 @@ const field = (label: string) => screen.getByLabelText(label);
 describe("AddTimeForm", () => {
   beforeEach(() => vi.mocked(api.addManualTime).mockClear());
 
-  it("defaults to the last project and today, and lists only active projects", () => {
+  it("defaults to the resume project and today, and lists only active projects", () => {
     open();
     expect(field("Project")).toHaveValue("2");
     expect(field("Day")).toHaveValue("2026-10-10");

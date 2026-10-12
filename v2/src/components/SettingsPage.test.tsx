@@ -10,7 +10,8 @@ vi.mock("../api", () => ({
 const snapshot: Snapshot = {
   status: { running: null, elapsedSeconds: 0 },
   projects: [],
-  lastProjectId: null,
+  palette: [],
+  resumeProjectId: null,
   settings: {},
   startup: { recovered: null, imported: null, importError: null },
   dataDir: "C:\\data",
@@ -34,7 +35,12 @@ function renderPage() {
   const onChanged = vi.fn(() => Promise.resolve());
   const onError = vi.fn();
   render(
-    <SettingsPage snapshot={snapshot} onChange={vi.fn()} onChanged={onChanged} onError={onError} />,
+    <SettingsPage
+      snapshot={snapshot}
+      onSetting={vi.fn()}
+      onChanged={onChanged}
+      onError={onError}
+    />,
   );
   return { onChanged, onError };
 }
