@@ -1,7 +1,7 @@
-import { useState } from "react";
 import { api, ImportReport, Snapshot } from "../api";
 import { DATE_FORMATS, DateFormat, DURATION_FORMATS, DurationFormat, formatShort } from "../format";
 import { ProjectSettings } from "./ProjectSettings";
+import { useBusyAction } from "./useBusyAction";
 
 interface Props {
   snapshot: Snapshot;
@@ -32,37 +32,12 @@ export function SettingsPage({ snapshot, onSetting, onChanged, onError }: Props)
   const dateFormat = (s.date_format as DateFormat) ?? "iso";
   const weekStart = s.week_start === "sunday" ? "sunday" : "monday";
 
-  const [importing, setImporting] = useState(false);
-  const [imported, setImported] = useState<string | null>(null);
-
-  const importAgain = async () => {
-    setImporting(true);
-    setImported(null);
-    try {
-      setImported(describeImport(await api.importV1Again()));
-    } catch (err) {
-      onError(err);
-      return;
-    } finally {
-      setImporting(false);
-    }
+  const [importAgain, importing, imported] = useBusyAction(async () => {
+    const report = await api.importV1Again();
     void onChanged();
-  };
-
-  const [backingUp, setBackingUp] = useState(false);
-  const [backedUpTo, setBackedUpTo] = useState<string | null>(null);
-
-  const backUp = async () => {
-    setBackingUp(true);
-    setBackedUpTo(null);
-    try {
-      setBackedUpTo(await api.backupNow());
-    } catch (err) {
-      onError(err);
-    } finally {
-      setBackingUp(false);
-    }
-  };
+    return describeImport(report);
+  }, onError);
+  const [backUp, backingUp, backedUpTo] = useBusyAction(api.backupNow, onError);
 
   return (
     <div className="settings-page">

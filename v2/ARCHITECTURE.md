@@ -136,10 +136,13 @@ the `import_v1_again` command from Settings (`Store::import_v1_again`).
 
 ## Backups
 
-The `backup_now` command (Settings → Data) calls `Store::backup_to`, which runs `VACUUM INTO`: one
-consistent snapshot, WAL included, so it's safe while the timer runs. The shell picks the path,
-`<Documents>/TimeKeeper backups/timekeeper-<local date>_<time>.db`, outside the app data dir so the
-uninstaller's "delete app data" option leaves backups alone. An existing file is never overwritten.
+The `backup_now` command (Settings → Data) calls `Store::backup_to`, which runs `VACUUM INTO` on
+its own read-only connection: one consistent snapshot, WAL included, so it's safe while the timer
+runs and doesn't hold the store lock. It writes to `<name>.partial` and renames on success, so a
+failed write never leaves a file that looks like a backup. The shell picks the path,
+`<Documents>/TimeKeeper backups/timekeeper-<local date>_<time with ms>.db`, outside the app data dir
+so the uninstaller's "delete app data" option leaves backups alone. An existing file is never
+overwritten.
 
 ## Settings
 

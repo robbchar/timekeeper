@@ -31,7 +31,8 @@ npm install
 npm run tauri dev      # first build takes a few minutes; later ones are fast
 ```
 
-`npm run tauri build` produces the installer, `target/release/bundle/nsis/TimeKeeper v2_<version>_x64-setup.exe`.
+On Windows, `npm run tauri build` produces the installer, `target/release/bundle/nsis/TimeKeeper v2_<version>_x64-setup.exe`.
+The installer is Windows-only: `bundle.targets` is `nsis`, so other platforms get no bundle.
 
 The app icon's source is `src-tauri/icons/icon.svg`. After editing it, regenerate the sizes with
 `npm run icons`. Keep the clock hands out of the bottom-right corner, where the timing dot covers
@@ -49,8 +50,8 @@ and open <http://localhost:1420>.
 - **Uninstall**: Settings → Apps → TimeKeeper v2. Your data is kept unless you tick "Delete the
   application data", which removes `%APPDATA%\dev.cathedraltree.timekeeper`. Backups in Documents
   are never touched.
-- **Version**: set it in `package.json`; `tauri.conf.json` reads it from there. The crates take
-  theirs from `[workspace.package]` in `Cargo.toml`, and a shell test fails if the two differ.
+- **Version**: set it in `[workspace.package]` in `Cargo.toml`. The crates inherit it, and
+  `tauri.conf.json` has no `version`, so the installer uses it too.
 - **Don't change** `identifier`, `productName` or `bundle.publisher` in `tauri.conf.json` lightly.
   The identifier names the data folder. The installer finds the previous install under
   `HKCU\Software\<publisher>\<productName>`, so changing either breaks "uninstall before installing"

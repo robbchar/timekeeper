@@ -2,7 +2,7 @@
 members = ["core", "src-tauri"]
 resolver = "2"
 
-# Keep in sync with package.json (`version_matches_package_json` checks).
+# The app version. tauri.conf.json has none, so the installer takes this one too.
 [workspace.package]
 version = "0.2.0"
 

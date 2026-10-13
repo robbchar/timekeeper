@@ -1,7 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "TimeKeeper v2",
-  "version": "../package.json",
   "identifier": "dev.cathedraltree.timekeeper",
   "build": {
     "beforeDevCommand": "npm run dev",

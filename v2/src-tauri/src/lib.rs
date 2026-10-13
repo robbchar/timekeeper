@@ -23,11 +23,14 @@ use timekeeper_core::{
 /// Settings the UI is allowed to write.
 const UI_SETTINGS: &[&str] = &["duration_format", "date_format", "week_start"];
 
+/// The v2 database's file name in the data dir.
+const DB_FILE: &str = "timekeeper.db";
+
 struct AppState {
     store: Mutex<Store>,
     startup: Startup,
     /// Where the v2 database lives, shown on the Settings page.
-    data_dir: String,
+    data_dir: PathBuf,
     /// The v1 database the import reads, at first run and from Settings.
     v1_db: PathBuf,
 }
@@ -112,7 +115,7 @@ fn snapshot(state: State<AppState>) -> Result<Snapshot, String> {
         resume_project_id: store.resume_project_id().map_err(err)?,
         settings,
         startup: state.startup.clone(),
-        data_dir: state.data_dir.clone(),
+        data_dir: state.data_dir.display().to_string(),
         v1_imported_at: store.setting("v1_imported_at").map_err(err)?,
     })
 }
@@ -278,14 +281,18 @@ fn import_v1_again(state: State<AppState>) -> Result<ImportReport, String> {
 /// dir so uninstalling with "delete app data" doesn't take the backups too.
 #[tauri::command(async)]
 fn backup_now(app: AppHandle, state: State<AppState>) -> Result<String, String> {
-    let name = format!("timekeeper-{}.db", Local::now().format("%Y-%m-%d_%H%M%S"));
+    // Milliseconds, so a quick second click gets its own file.
+    let name = format!(
+        "timekeeper-{}.db",
+        Local::now().format("%Y-%m-%d_%H%M%S%.3f")
+    );
     let path = app
         .path()
         .document_dir()
         .map_err(err)?
         .join("TimeKeeper backups")
         .join(name);
-    state.lock_store().backup_to(&path).map_err(err)?;
+    Store::backup_to(&state.data_dir.join(DB_FILE), &path).map_err(err)?;
     Ok(path.display().to_string())
 }
 
@@ -543,14 +550,14 @@ fn open_store(
     app: &AppHandle,
     overrides: &Overrides,
     v1_db: &Path,
-) -> Result<(Store, Startup, String), Box<dyn std::error::Error>> {
+) -> Result<(Store, Startup, PathBuf), Box<dyn std::error::Error>> {
     let dir = match &overrides.data_dir {
         Some(dir) => dir.clone(),
         None => app.path().app_data_dir()?,
     };
     std::fs::create_dir_all(&dir)?;
     log_panics_to(dir.join("panic.log"));
-    let mut store = Store::open(dir.join("timekeeper.db"))?;
+    let mut store = Store::open(dir.join(DB_FILE))?;
     let mut startup = Startup::default();
 
     // First run: bring in v1's data, opened read-only. No v1 database is fine.
@@ -563,7 +570,7 @@ fn open_store(
     }
 
     startup.recovered = store.recover_stale(Utc::now(), overrides.stale_after)?;
-    Ok((store, startup, dir.display().to_string()))
+    Ok((store, startup, dir))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -636,13 +643,6 @@ mod tests {
         *lock_recovering(&m) += 1;
         assert_eq!(*lock_recovering(&m), 2);
         assert!(!m.is_poisoned());
-    }
-
-    #[test]
-    fn version_matches_package_json() {
-        let pkg: serde_json::Value =
-            serde_json::from_str(include_str!("../../package.json")).unwrap();
-        assert_eq!(pkg["version"], env!("CARGO_PKG_VERSION"));
     }
 
     #[test]

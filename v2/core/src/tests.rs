@@ -457,7 +457,8 @@ fn backup_copies_everything_including_a_running_timer() {
     let dir = std::env::temp_dir().join(format!("tk-backup-{}", std::process::id()));
     std::fs::remove_dir_all(&dir).ok();
     std::fs::create_dir_all(&dir).unwrap();
-    let mut s = Store::open(dir.join("live.db")).unwrap();
+    let live = dir.join("live.db");
+    let mut s = Store::open(&live).unwrap();
     let p = s
         .create_project("Elevate", at("2026-10-01T00:00:00Z"))
         .unwrap();
@@ -469,14 +470,17 @@ fn backup_copies_everything_including_a_running_timer() {
     )
     .unwrap();
 
+    // `s` stays open, as it does in the app.
     let copy = dir.join("nested").join("backup.db");
-    s.backup_to(&copy).unwrap();
+    Store::backup_to(&live, &copy).unwrap();
+    assert!(!dir.join("nested").join("backup.db.partial").exists());
 
     let b = Store::open(&copy).unwrap();
     assert_eq!(b.projects().unwrap(), s.projects().unwrap());
     let st = b.status(at("2026-10-05T15:30:00Z")).unwrap();
     assert_eq!(st.running.unwrap().project_id, p.id);
     assert_eq!(st.elapsed_seconds, 1800);
+    drop((s, b));
     std::fs::remove_dir_all(dir).ok();
 }
 
@@ -487,9 +491,27 @@ fn backup_refuses_to_overwrite() {
     let copy = dir.join("backup.db");
     std::fs::write(&copy, b"keep me").unwrap();
 
-    let (s, _) = store_with_project();
-    assert!(matches!(s.backup_to(&copy), Err(Error::Invalid(_))));
+    let result = Store::backup_to(&dir.join("live.db"), &copy);
+    assert!(matches!(result, Err(Error::Invalid(_))));
     assert_eq!(std::fs::read(&copy).unwrap(), b"keep me");
+    std::fs::remove_dir_all(dir).ok();
+}
+
+#[test]
+fn failed_backup_leaves_no_file() {
+    let dir = std::env::temp_dir().join(format!("tk-backup-fails-{}", std::process::id()));
+    std::fs::remove_dir_all(&dir).ok();
+    std::fs::create_dir_all(&dir).unwrap();
+    let live = dir.join("live.db");
+    drop(Store::open(&live).unwrap());
+    let copy = dir.join("backup.db");
+    let partial = dir.join("backup.db.partial");
+    // VACUUM INTO refuses a non-empty file, so the write fails.
+    std::fs::write(&partial, b"stale").unwrap();
+
+    assert!(Store::backup_to(&live, &copy).is_err());
+    assert!(!copy.exists());
+    assert!(!partial.exists());
     std::fs::remove_dir_all(dir).ok();
 }
 
