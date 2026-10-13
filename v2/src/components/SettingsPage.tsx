@@ -1,7 +1,7 @@
-import { useState } from "react";
 import { api, ImportReport, Snapshot } from "../api";
 import { DATE_FORMATS, DateFormat, DURATION_FORMATS, DurationFormat, formatShort } from "../format";
 import { ProjectSettings } from "./ProjectSettings";
+import { useBusyAction } from "./useBusyAction";
 
 interface Props {
   snapshot: Snapshot;
@@ -32,22 +32,12 @@ export function SettingsPage({ snapshot, onSetting, onChanged, onError }: Props)
   const dateFormat = (s.date_format as DateFormat) ?? "iso";
   const weekStart = s.week_start === "sunday" ? "sunday" : "monday";
 
-  const [importing, setImporting] = useState(false);
-  const [imported, setImported] = useState<string | null>(null);
-
-  const importAgain = async () => {
-    setImporting(true);
-    setImported(null);
-    try {
-      setImported(describeImport(await api.importV1Again()));
-    } catch (err) {
-      onError(err);
-      return;
-    } finally {
-      setImporting(false);
-    }
+  const [importAgain, importing, imported] = useBusyAction(async () => {
+    const report = await api.importV1Again();
     void onChanged();
-  };
+    return describeImport(report);
+  }, onError);
+  const [backUp, backingUp, backedUpTo] = useBusyAction(api.backupNow, onError);
 
   return (
     <div className="settings-page">
@@ -132,6 +122,18 @@ export function SettingsPage({ snapshot, onSetting, onChanged, onError }: Props)
         {imported && (
           <p className="panel__hint" role="status">
             {imported}
+          </p>
+        )}
+        <button
+          className="btn btn--ghost panel__action"
+          disabled={backingUp}
+          onClick={() => void backUp()}
+        >
+          {backingUp ? "Backing up…" : "Back up now"}
+        </button>
+        {backedUpTo && (
+          <p className="panel__hint" role="status">
+            Backed up to <code>{backedUpTo}</code>
           </p>
         )}
       </section>

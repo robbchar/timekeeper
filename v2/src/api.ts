@@ -104,6 +104,8 @@ export const api = {
   setSetting: (key: string, value: string) => call<void>("set_setting", { key, value }),
   /** Brings in v1 sessions recorded since the last import; still-open ones wait. */
   importV1Again: () => call<ImportReport>("import_v1_again"),
+  /** Copies the database to a new timestamped file; resolves to its path. */
+  backupNow: () => call<string>("backup_now"),
 
   copy: (text: string) => (inTauri ? writeText(text) : navigator.clipboard.writeText(text)),
 

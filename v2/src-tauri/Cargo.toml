@@ -1,6 +1,6 @@
 [package]
 name = "timekeeper"
-version = "0.1.0"
+version.workspace = true
 description = "TimeKeeper v2"
 authors = ["Robb"]
 edition = "2021"

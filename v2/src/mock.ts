@@ -287,6 +287,8 @@ function handle<T>(cmd: string, a: Record<string, unknown>): T {
         unparseableSessions: 0,
         stillOpen: 0,
       } satisfies ImportReport as T;
+    case "backup_now":
+      return "(browser preview: nothing written)" as T;
   }
   throw new Error(`mock: unknown command ${cmd}`);
 }

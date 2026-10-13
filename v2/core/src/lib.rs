@@ -15,9 +15,9 @@ mod schema;
 pub use import::{ImportReport, V1Data};
 
 use chrono::{DateTime, Datelike, Duration, NaiveDate, SecondsFormat, Utc};
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use serde::Serialize;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -747,6 +747,34 @@ impl Store {
     ) -> Result<ImportReport> {
         let open = import::OpenSessions::Skip;
         import::import_v1(&mut self.conn, v1, open, local_day)
+    }
+
+    /// Writes a consistent copy of the database at `db` to `path`, which must not exist.
+    /// Reads one snapshot, WAL included, on its own read-only connection, so a `Store` on `db`
+    /// needn't be locked meanwhile.
+    pub fn backup_to(db: &Path, path: &Path) -> Result<()> {
+        let io = |p: &Path, e: std::io::Error| Error::Invalid(format!("{}: {e}", p.display()));
+        if path.try_exists().map_err(|e| io(path, e))? {
+            return Err(Error::Invalid(format!("{} already exists", path.display())));
+        }
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir).map_err(|e| io(dir, e))?;
+        }
+        // Written under a temporary name, so a failed write never looks like a backup.
+        let mut partial = path.as_os_str().to_owned();
+        partial.push(".partial");
+        let partial = PathBuf::from(partial);
+        let target = partial
+            .to_str()
+            .ok_or_else(|| Error::Invalid(format!("{} isn't valid UTF-8", path.display())))?;
+        let written = Connection::open_with_flags(db, OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .and_then(|conn| conn.execute("VACUUM INTO ?1", [target]))
+            .map_err(Error::from)
+            .and_then(|_| std::fs::rename(&partial, path).map_err(|e| io(path, e)));
+        if written.is_err() {
+            std::fs::remove_file(&partial).ok();
+        }
+        written
     }
 
     pub fn is_empty(&self) -> Result<bool> {
