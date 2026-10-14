@@ -1,6 +1,7 @@
 import { api, ImportReport, Snapshot } from "../api";
 import { DATE_FORMATS, DateFormat, DURATION_FORMATS, DurationFormat, formatShort } from "../format";
 import { ProjectSettings } from "./ProjectSettings";
+import { StartAtLogin } from "./StartAtLogin";
 import { useBusyAction } from "./useBusyAction";
 
 interface Props {
@@ -97,6 +98,8 @@ export function SettingsPage({ snapshot, onSetting, onChanged, onError }: Props)
           </select>
         </div>
       </section>
+
+      <StartAtLogin onError={onError} />
 
       <section className="panel">
         <h2>Data</h2>

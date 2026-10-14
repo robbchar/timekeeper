@@ -48,7 +48,7 @@ From `v2/`:
 
 ```bash
 cargo test -p timekeeper-core   # core: schema, timer, totals, import
-cargo test -p timekeeper        # shell: debug overrides (needs dist/)
+cargo test -p timekeeper        # shell: debug overrides, login entry (needs dist/)
 npm test                        # UI: Vitest + jsdom, api.ts mocked; runs once
 npm run lint                    # ESLint, type-checked rules
 npm run format:check            # Prettier; `npm run format` fixes

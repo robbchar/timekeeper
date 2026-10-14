@@ -106,6 +106,9 @@ export const api = {
   importV1Again: () => call<ImportReport>("import_v1_again"),
   /** Copies the database to a new timestamped file; resolves to its path. */
   backupNow: () => call<string>("backup_now"),
+  /** Whether the app starts hidden in the tray at login; `null` where that isn't supported. */
+  startAtLogin: () => call<boolean | null>("start_at_login"),
+  setStartAtLogin: (enabled: boolean) => call<void>("set_start_at_login", { enabled }),
 
   copy: (text: string) => (inTauri ? writeText(text) : navigator.clipboard.writeText(text)),
 
