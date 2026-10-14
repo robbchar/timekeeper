@@ -10,6 +10,8 @@ pub const HIDDEN_ARG: &str = "--hidden";
 pub const SETTING: &str = "start_at_login";
 
 /// What Windows has for the app's login entry.
+// Only the Windows module constructs these outside tests.
+#[cfg_attr(not(windows), allow(dead_code))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LoginEntry {
     Missing,
