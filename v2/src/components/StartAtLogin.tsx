@@ -13,9 +13,16 @@ export function StartAtLogin({ onError }: Props) {
 
   useEffect(() => {
     let live = true;
-    api.startAtLogin().then((on) => {
-      if (live) setEnabled(on);
-    }, onError);
+    api.startAtLogin().then(
+      (on) => {
+        if (live) setEnabled(on);
+      },
+      (err: unknown) => {
+        // A toggle that can't be read can't be trusted either.
+        if (live) setEnabled(null);
+        onError(err);
+      },
+    );
     return () => {
       live = false;
     };
@@ -30,6 +37,8 @@ export function StartAtLogin({ onError }: Props) {
       setEnabled(on);
     } catch (err) {
       onError(err);
+      // A failure may have landed halfway, so show what Windows has now.
+      setEnabled(await api.startAtLogin().catch(() => null));
     } finally {
       setSaving(false);
     }

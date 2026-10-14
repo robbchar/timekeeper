@@ -51,8 +51,9 @@ and open <http://localhost:1420>.
   application data", which removes `%APPDATA%\dev.cathedraltree.timekeeper`. Backups in Documents
   are never touched. It also removes the start-at-login entry.
 - **Start at login**: Settings → Startup → "Start TimeKeeper when I log in" (off by default). It
-  starts in the tray with no window. It stays on across upgrades. Turning it off in Task Manager's
-  Startup apps turns the toggle off too.
+  starts in the tray with no window. Either choice survives upgrades, including turning it off in
+  Task Manager's Startup apps, which turns the toggle off too. Release builds only: debug builds
+  hide the toggle.
 - **Version**: set it in `[workspace.package]` in `Cargo.toml`. The crates inherit it, and
   `tauri.conf.json` has no `version`, so the installer uses it too.
 - **Don't change** `identifier`, `productName` or `bundle.publisher` in `tauri.conf.json` lightly.

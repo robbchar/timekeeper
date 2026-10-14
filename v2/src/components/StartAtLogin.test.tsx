@@ -78,23 +78,35 @@ describe("StartAtLogin", () => {
     expect(checkbox()).toBeChecked();
   });
 
-  it("reports a failed change and keeps the old state", async () => {
+  it("reports a failed change and shows the state Windows still has", async () => {
     vi.mocked(api.setStartAtLogin).mockRejectedValueOnce("Access is denied.");
     const { onError } = renderToggle(false);
+    vi.mocked(api.startAtLogin).mockResolvedValueOnce(false);
     await waitFor(() => expect(checkbox()).toBeEnabled());
     fireEvent.click(checkbox());
 
     await waitFor(() => expect(onError).toHaveBeenCalledWith("Access is denied."));
+    await waitFor(() => expect(checkbox()).toBeEnabled());
     expect(checkbox()).not.toBeChecked();
-    expect(checkbox()).toBeEnabled();
   });
 
-  it("reports a failed load", async () => {
+  it("shows a change that landed halfway before failing", async () => {
+    vi.mocked(api.setStartAtLogin).mockRejectedValueOnce("database is locked");
+    const { onError } = renderToggle(false);
+    vi.mocked(api.startAtLogin).mockResolvedValueOnce(true);
+    await waitFor(() => expect(checkbox()).toBeEnabled());
+    fireEvent.click(checkbox());
+
+    await waitFor(() => expect(checkbox()).toBeChecked());
+    expect(onError).toHaveBeenCalledWith("database is locked");
+  });
+
+  it("reports a failed load and hides the toggle", async () => {
     vi.mocked(api.startAtLogin).mockRejectedValueOnce("registry unavailable");
     const onError = vi.fn();
     render(<StartAtLogin onError={onError} />);
 
     await waitFor(() => expect(onError).toHaveBeenCalledWith("registry unavailable"));
-    expect(checkbox()).toBeDisabled();
+    await waitFor(() => expect(screen.queryByRole("checkbox")).toBeNull());
   });
 });

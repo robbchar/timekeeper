@@ -14,7 +14,8 @@ pub const SETTING: &str = "start_at_login";
 pub enum LoginEntry {
     Missing,
     Enabled,
-    /// Registered, but switched off in Task Manager's Startup apps.
+    /// Switched off in Task Manager's Startup apps. The flag outlives the Run value,
+    /// so an upgrade that deletes the entry doesn't turn it back on.
     DisabledInTaskManager,
 }
 
@@ -22,14 +23,14 @@ pub fn launched_hidden<S: AsRef<OsStr>>(args: impl IntoIterator<Item = S>) -> bo
     args.into_iter().any(|a| a.as_ref() == HIDDEN_ARG)
 }
 
-/// At launch: whether to (re)write the entry, and what the saved choice should become.
-/// Windows wins when the entry exists; a missing one is restored if the choice was on,
+/// At launch: whether the entry should be on, which is also the choice to save.
+/// Windows wins when it has an answer; a missing entry is restored if the choice was on,
 /// since the installer's "uninstall first" step deletes it on every manual upgrade.
-pub fn reconcile(entry: LoginEntry, saved_on: bool) -> (bool, bool) {
+pub fn reconcile(entry: LoginEntry, saved_on: bool) -> bool {
     match entry {
-        LoginEntry::Enabled => (true, true),
-        LoginEntry::DisabledInTaskManager => (false, false),
-        LoginEntry::Missing => (saved_on, saved_on),
+        LoginEntry::Enabled => true,
+        LoginEntry::DisabledInTaskManager => false,
+        LoginEntry::Missing => saved_on,
     }
 }
 
@@ -97,9 +98,6 @@ mod windows {
 
         pub fn state(&self) -> Result<LoginEntry, String> {
             let err = |e: windows_result::Error| e.to_string();
-            if self.value(&self.run).map_err(err)?.is_none() {
-                return Ok(LoginEntry::Missing);
-            }
             // Task Manager writes a flag byte: even means enabled, odd means disabled.
             let disabled = self
                 .value(&self.approved)
@@ -107,8 +105,10 @@ mod windows {
                 .is_some_and(|v| v.first().is_some_and(|b| b & 1 == 1));
             Ok(if disabled {
                 LoginEntry::DisabledInTaskManager
-            } else {
+            } else if self.value(&self.run).map_err(err)?.is_some() {
                 LoginEntry::Enabled
+            } else {
+                LoginEntry::Missing
             })
         }
 
@@ -126,7 +126,17 @@ mod windows {
                 .map_err(|e| e.to_string())
         }
 
-        #[cfg(test)]
+        /// Writes the Run value unless it already launches this exe; leaves the flag alone.
+        pub fn refresh(&self) -> Result<(), String> {
+            if self.command().map_err(|e| e.to_string())?.as_deref() == Some(&self.command) {
+                return Ok(());
+            }
+            CURRENT_USER
+                .create(&self.run)
+                .and_then(|k| k.set_string(&self.name, &self.command))
+                .map_err(|e| e.to_string())
+        }
+
         pub(crate) fn command(&self) -> windows_registry::Result<Option<String>> {
             Ok(self
                 .value(&self.run)?
@@ -150,6 +160,9 @@ impl LoginItem {
     pub fn set(&self, _on: bool) -> Result<(), String> {
         match self.0 {}
     }
+    pub fn refresh(&self) -> Result<(), String> {
+        match self.0 {}
+    }
 }
 
 #[cfg(test)]
@@ -170,22 +183,16 @@ mod tests {
 
     #[test]
     fn reconcile_follows_windows_when_the_entry_exists() {
-        assert_eq!(reconcile(LoginEntry::Enabled, false), (true, true));
-        assert_eq!(reconcile(LoginEntry::Enabled, true), (true, true));
-        assert_eq!(
-            reconcile(LoginEntry::DisabledInTaskManager, true),
-            (false, false)
-        );
-        assert_eq!(
-            reconcile(LoginEntry::DisabledInTaskManager, false),
-            (false, false)
-        );
+        assert!(reconcile(LoginEntry::Enabled, false));
+        assert!(reconcile(LoginEntry::Enabled, true));
+        assert!(!reconcile(LoginEntry::DisabledInTaskManager, true));
+        assert!(!reconcile(LoginEntry::DisabledInTaskManager, false));
     }
 
     #[test]
     fn reconcile_restores_a_missing_entry_only_if_it_was_on() {
-        assert_eq!(reconcile(LoginEntry::Missing, true), (true, true));
-        assert_eq!(reconcile(LoginEntry::Missing, false), (false, false));
+        assert!(reconcile(LoginEntry::Missing, true));
+        assert!(!reconcile(LoginEntry::Missing, false));
     }
 
     /// Uses scratch keys under HKCU, never the real Run key.
@@ -251,6 +258,46 @@ mod tests {
                 .unwrap();
             item.set(true).unwrap();
             assert_eq!(item.state().unwrap(), LoginEntry::Enabled);
+        }
+
+        #[test]
+        fn task_manager_off_survives_losing_the_run_value() {
+            let (s, item) = scratch("upgrade");
+            item.set(true).unwrap();
+            let approved = CURRENT_USER.create(format!(r"{}\Approved", s.0)).unwrap();
+            approved
+                .set_bytes("TimeKeeper Test", windows_registry::Type::Bytes, &[3; 12])
+                .unwrap();
+            // What the uninstaller does on a manual upgrade.
+            CURRENT_USER
+                .create(format!(r"{}\Run", s.0))
+                .unwrap()
+                .remove_value("TimeKeeper Test")
+                .unwrap();
+            assert_eq!(item.state().unwrap(), LoginEntry::DisabledInTaskManager);
+        }
+
+        #[test]
+        fn refresh_rewrites_a_stale_command_and_keeps_the_flag() {
+            let (s, item) = scratch("refresh");
+            let run = CURRENT_USER.create(format!(r"{}\Run", s.0)).unwrap();
+            run.set_string("TimeKeeper Test", r#""C:\old\timekeeper.exe" --hidden"#)
+                .unwrap();
+            let approved = CURRENT_USER.create(format!(r"{}\Approved", s.0)).unwrap();
+            approved
+                .set_bytes("TimeKeeper Test", windows_registry::Type::Bytes, &[2; 12])
+                .unwrap();
+
+            item.refresh().unwrap();
+            assert_eq!(
+                item.command().unwrap().as_deref(),
+                Some(r#""C:\Program Files\TimeKeeper v2\timekeeper.exe" --hidden"#)
+            );
+            assert!(approved.get_value("TimeKeeper Test").is_ok());
+
+            let (_m, missing) = scratch("refresh-missing");
+            missing.refresh().unwrap();
+            assert_eq!(missing.state().unwrap(), LoginEntry::Enabled);
         }
     }
 }

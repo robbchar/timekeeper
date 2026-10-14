@@ -34,7 +34,7 @@ struct AppState {
     data_dir: PathBuf,
     /// The v1 database the import reads, at first run and from Settings.
     v1_db: PathBuf,
-    /// The login entry; `None` where start at login isn't supported.
+    /// The login entry; `None` in debug builds and where start at login isn't supported.
     login: Option<login::LoginItem>,
 }
 
@@ -284,12 +284,21 @@ fn set_start_at_login(state: State<AppState>, enabled: bool) -> Result<(), Strin
     let Some(item) = &state.login else {
         return Err("starting at login isn't supported here".into());
     };
-    item.set(enabled)?;
-    let value = if enabled { "on" } else { "off" };
-    state
-        .lock_store()
-        .set_setting(login::SETTING, value)
-        .map_err(err)
+    // "on" is saved only once the entry exists, and "off" before it goes, so a failure
+    // midway never leaves a saved "on" that the next launch would restore.
+    let save = |value| {
+        state
+            .lock_store()
+            .set_setting(login::SETTING, value)
+            .map_err(err)
+    };
+    if enabled {
+        item.set(true)?;
+        save("on")
+    } else {
+        save("off")?;
+        item.set(false)
+    }
 }
 
 // Runs off the main thread, and reads v1 before locking the store, so neither
@@ -564,23 +573,33 @@ fn log_panics_to(path: std::path::PathBuf) {
 // ----------------------------------------------------------------------- run
 
 /// Brings the login entry in line with the saved choice; see `login::reconcile`.
-/// Release builds only, so dev and smoke-test runs never repoint it at a debug exe.
 fn sync_login_item(state: &AppState) -> Result<(), String> {
-    let Some(item) = state.login.as_ref().filter(|_| !cfg!(debug_assertions)) else {
+    let Some(item) = &state.login else {
         return Ok(());
     };
-    let store = state.lock_store();
-    let saved_on = store.setting(login::SETTING).map_err(err)?.as_deref() == Some("on");
-    let (register, keep_on) = login::reconcile(item.state()?, saved_on);
-    // Rewriting also refreshes the exe path if the install moved.
-    if register {
-        item.set(true)?;
+    let setting = state.lock_store().setting(login::SETTING).map_err(err)?;
+    let saved_on = setting.as_deref() == Some("on");
+    let on = login::reconcile(item.state()?, saved_on);
+    // Also repoints the entry if the install moved.
+    if on {
+        item.refresh()?;
     }
-    if keep_on != saved_on {
-        let value = if keep_on { "on" } else { "off" };
-        store.set_setting(login::SETTING, value).map_err(err)?;
+    if on != saved_on {
+        let value = if on { "on" } else { "off" };
+        state
+            .lock_store()
+            .set_setting(login::SETTING, value)
+            .map_err(err)?;
     }
     Ok(())
+}
+
+/// Release builds only, so dev and smoke-test runs never point the entry at a debug exe.
+fn login_item(app: &tauri::App) -> Option<login::LoginItem> {
+    if cfg!(debug_assertions) {
+        return None;
+    }
+    login::LoginItem::for_current_exe(&app.package_info().name)
 }
 
 /// v1 (Electron) kept its database in the per-user config dir under "timekeeper".
@@ -640,7 +659,7 @@ pub fn run() {
                 startup,
                 data_dir,
                 v1_db,
-                login: login::LoginItem::for_current_exe(&app.package_info().name),
+                login: login_item(app),
             };
             if let Err(e) = sync_login_item(&state) {
                 eprintln!("syncing the login entry failed: {e}");
