@@ -1,6 +1,7 @@
 //! Tauri shell: wires `timekeeper-core` to a tray icon and the web UI.
 //! Everything about the data lives in the core crate; this file only adapts it.
 
+mod login;
 mod overrides;
 
 use chrono::{DateTime, Duration, Local, NaiveDate, Utc};
@@ -33,6 +34,8 @@ struct AppState {
     data_dir: PathBuf,
     /// The v1 database the import reads, at first run and from Settings.
     v1_db: PathBuf,
+    /// The login entry; `None` where start at login isn't supported.
+    login: Option<login::LoginItem>,
 }
 
 impl AppState {
@@ -264,6 +267,29 @@ fn set_setting(state: State<AppState>, key: String, value: String) -> Result<(),
         return Err(format!("unknown setting {key}"));
     }
     state.lock_store().set_setting(&key, &value).map_err(err)
+}
+
+/// Whether the app starts at login; `None` where that isn't supported.
+#[tauri::command]
+fn start_at_login(state: State<AppState>) -> Result<Option<bool>, String> {
+    state
+        .login
+        .as_ref()
+        .map(|l| l.state().map(|e| e == login::LoginEntry::Enabled))
+        .transpose()
+}
+
+#[tauri::command]
+fn set_start_at_login(state: State<AppState>, enabled: bool) -> Result<(), String> {
+    let Some(item) = &state.login else {
+        return Err("starting at login isn't supported here".into());
+    };
+    item.set(enabled)?;
+    let value = if enabled { "on" } else { "off" };
+    state
+        .lock_store()
+        .set_setting(login::SETTING, value)
+        .map_err(err)
 }
 
 // Runs off the main thread, and reads v1 before locking the store, so neither
@@ -537,6 +563,26 @@ fn log_panics_to(path: std::path::PathBuf) {
 
 // ----------------------------------------------------------------------- run
 
+/// Brings the login entry in line with the saved choice; see `login::reconcile`.
+/// Release builds only, so dev and smoke-test runs never repoint it at a debug exe.
+fn sync_login_item(state: &AppState) -> Result<(), String> {
+    let Some(item) = state.login.as_ref().filter(|_| !cfg!(debug_assertions)) else {
+        return Ok(());
+    };
+    let store = state.lock_store();
+    let saved_on = store.setting(login::SETTING).map_err(err)?.as_deref() == Some("on");
+    let (register, keep_on) = login::reconcile(item.state()?, saved_on);
+    // Rewriting also refreshes the exe path if the install moved.
+    if register {
+        item.set(true)?;
+    }
+    if keep_on != saved_on {
+        let value = if keep_on { "on" } else { "off" };
+        store.set_setting(login::SETTING, value).map_err(err)?;
+    }
+    Ok(())
+}
+
 /// v1 (Electron) kept its database in the per-user config dir under "timekeeper".
 fn v1_db_path(app: &AppHandle, overrides: &Overrides) -> tauri::Result<PathBuf> {
     if let Some(path) = &overrides.v1_import_db {
@@ -576,8 +622,11 @@ fn open_store(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            show_main(app)
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            // A login launch while already running leaves the window as it is.
+            if !login::launched_hidden(args) {
+                show_main(app)
+            }
         }))
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
@@ -586,15 +635,24 @@ pub fn run() {
             let v1_db = v1_db_path(&handle, &overrides)?;
             let (store, startup, data_dir) = open_store(&handle, &overrides, &v1_db)?;
             let status = store.status(Utc::now())?;
-            app.manage(AppState {
+            let state = AppState {
                 store: Mutex::new(store),
                 startup,
                 data_dir,
                 v1_db,
-            });
+                login: login::LoginItem::for_current_exe(&app.package_info().name),
+            };
+            if let Err(e) = sync_login_item(&state) {
+                eprintln!("syncing the login entry failed: {e}");
+            }
+            app.manage(state);
             let tray = build_tray(&handle)?;
             app.manage(tray);
             refresh_tray(&handle, &status);
+            // The window starts hidden (tauri.conf.json) so a login launch never flashes it.
+            if !login::launched_hidden(std::env::args_os()) {
+                show_main(&handle);
+            }
             spawn_ticker(handle, overrides.heartbeat_every_secs);
             Ok(())
         })
@@ -621,7 +679,9 @@ pub fn run() {
             set_project_archived,
             set_setting,
             import_v1_again,
-            backup_now
+            backup_now,
+            start_at_login,
+            set_start_at_login
         ])
         .run(tauri::generate_context!())
         .expect("error while running TimeKeeper");

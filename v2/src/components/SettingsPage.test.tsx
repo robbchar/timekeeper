@@ -4,7 +4,11 @@ import { api, ImportReport, Snapshot } from "../api";
 import { SettingsPage } from "./SettingsPage";
 
 vi.mock("../api", () => ({
-  api: { importV1Again: vi.fn(), backupNow: vi.fn() },
+  api: {
+    importV1Again: vi.fn(),
+    backupNow: vi.fn(),
+    startAtLogin: vi.fn(() => Promise.resolve(null)),
+  },
 }));
 
 const snapshot: Snapshot = {

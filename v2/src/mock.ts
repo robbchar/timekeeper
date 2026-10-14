@@ -67,6 +67,7 @@ let running: { entryId: number; startedAt: number } | null = null;
 let lastProjectId: number | null = 1;
 const settings: Record<string, string> = {};
 let v1ImportedAt: string | null = null;
+let startAtLogin = false;
 
 function secondsOf(e: MockEntry): number {
   const live = running?.entryId === e.id ? (Date.now() - running.startedAt) / 1000 : 0;
@@ -289,6 +290,11 @@ function handle<T>(cmd: string, a: Record<string, unknown>): T {
       } satisfies ImportReport as T;
     case "backup_now":
       return "(browser preview: nothing written)" as T;
+    case "start_at_login":
+      return startAtLogin as T;
+    case "set_start_at_login":
+      startAtLogin = a.enabled as boolean;
+      return undefined as T;
   }
   throw new Error(`mock: unknown command ${cmd}`);
 }

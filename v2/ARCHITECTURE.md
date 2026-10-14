@@ -156,14 +156,39 @@ in `src-tauri/src/lib.rs`:
 | `week_start`      | `sunday`; anything else is Monday |
 
 `set_setting` rejects any other key but does not validate values, and `snapshot` returns only these.
-Internal keys (`v1_imported_at`, `heartbeat_at`, `last_project_id`) share the table but are not
-UI-writable.
+Internal keys (`v1_imported_at`, `heartbeat_at`, `last_project_id`, `start_at_login`) share the
+table but are not UI-writable.
+
+### Start at login
+
+Windows only (`src-tauri/src/login.rs`); elsewhere `start_at_login` returns `null` and the UI hides
+the toggle. It is a per-user value named after `productName` under
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, holding `"<exe>" --hidden`. Task Manager's
+Startup apps on/off switch is a flag under `Explorer\StartupApproved\Run` with the same name.
+
+Windows is the source of truth for the toggle, but the choice is also saved as `start_at_login`
+(`on`/`off`). Upgrading with "uninstall before installing" (the default) deletes the Run value, so
+each release-build launch reconciles the two:
+
+| Run value                     | Action                                       |
+| ----------------------------- | -------------------------------------------- |
+| present, enabled              | rewrite it (picks up a moved exe), save `on` |
+| present, off in Task Manager  | leave it, save `off`                         |
+| missing, saved `on`           | write it again                               |
+| missing, saved `off` or unset | nothing                                      |
+
+Debug builds skip this, so dev and smoke runs never point the entry at a debug exe. Uninstalling
+(not upgrading) deletes the Run value (Tauri's NSIS template) and the Task Manager flag
+(`src-tauri/windows/hooks.nsh`).
 
 ## Shell behavior
 
 - **Tray-first.** Closing the window hides it. The app quits only from the tray menu.
 - **Quitting stops the timer** at that moment, so the timer never runs while the app is closed.
-- **Single instance.** Launching again shows the existing window.
+- **Single instance.** Launching again shows the existing window, unless that launch passed
+  `--hidden`.
+- **Hidden start.** The window is created hidden (`visible: false`) and shown during setup, unless
+  the app was launched with `--hidden`, as the login entry does.
 - **Indicators.** While timing, the tray icon gets a red dot. On Windows the taskbar button gets an
   overlay badge.
 - **Tray changes reach the UI** through the `timer-changed` event, which `api.onTimerChanged`
