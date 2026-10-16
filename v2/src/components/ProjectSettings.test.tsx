@@ -11,8 +11,22 @@ vi.mock("../api", () => ({
   },
 }));
 
-const acme: Project = { id: 1, name: "Acme", color: "teal", archived: false };
-const old: Project = { id: 2, name: "Old client", color: "gold", archived: true };
+const acme: Project = {
+  id: 1,
+  name: "Acme",
+  color: "teal",
+  archived: false,
+  linearEnabled: false,
+  linearTeamKey: null,
+};
+const old: Project = {
+  id: 2,
+  name: "Old client",
+  color: "gold",
+  archived: true,
+  linearEnabled: false,
+  linearTeamKey: null,
+};
 const palette = ["teal", "coral", "gold"];
 const never = () => new Promise<void>(() => {});
 
