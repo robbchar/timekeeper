@@ -28,6 +28,8 @@ src/components/       React UI
   poisoned `Store` lock is recovered, the ticker survives a failed tick, and panics are appended
   to `<app data dir>/panic.log`. This is safe because every `Store` write is a single statement or
   a single transaction.
+- **`src-tauri/src/linear.rs`** is the only code that makes network calls (see [Linear](#linear)),
+  and **`src-tauri/src/keychain.rs`** keeps the Linear key in Windows Credential Manager.
 - **`src/api.ts`** is the single typed boundary. It is the only file under `src/` that imports
   `@tauri-apps/*`. Components and hooks import `api` and never call `invoke` themselves.
 - Outside Tauri (`"__TAURI_INTERNALS__"` absent, e.g. `npm run dev` in a browser), `api.ts` routes
@@ -41,12 +43,12 @@ camelCase throughout.
 
 Defined in `core/src/schema.rs`.
 
-| Table       | Holds                                                           |
-| ----------- | --------------------------------------------------------------- |
-| `projects`  | name, color, archived flag, `legacy_project_id` (v1 id, unique) |
-| `entries`   | a project, a local day and notes; `legacy_session_id` (unique)  |
-| `intervals` | `start_at`, `end_at` (NULL = running), `source`                 |
-| `settings`  | key/value strings                                               |
+| Table       | Holds                                                                                                |
+| ----------- | ---------------------------------------------------------------------------------------------------- |
+| `projects`  | name, color, archived flag, `legacy_project_id` (v1 id, unique), `linear_enabled`, `linear_team_key` |
+| `entries`   | a project, a local day and notes; `legacy_session_id` (unique)                                       |
+| `intervals` | `start_at`, `end_at` (NULL = running), `source`                                                      |
+| `settings`  | key/value strings                                                                                    |
 
 - **An entry is a project + a local day + notes.** It has no duration column. `(project_id, day)`
   is not unique: the v1 import makes one entry per session, and `start` and `add_manual_time` reuse
@@ -184,6 +186,26 @@ midway can't leave a saved `on` that the next launch would restore.
 Uninstalling (not upgrading) deletes the Run value (Tauri's NSIS template). The Task Manager flag is
 left on purpose: the uninstaller can't tell an upgrade from an uninstall, and the flag is what keeps
 a Task Manager "off" through an upgrade.
+
+## Linear
+
+Groundwork for suggesting notes from Linear. Opt-in per project, since Linear is one client's
+system.
+
+- **The key** is one Linear personal API key in Windows Credential Manager: service
+  `dev.cathedraltree.timekeeper`, user `linear-api-key` (`linear-api-key-dev` in debug builds, so
+  `tauri dev` never touches the installed app's key). It is never in SQLite, settings or backups.
+  The UI only ever gets its last four characters; elsewhere than Windows nothing can be saved.
+- **Save checks first.** `save_linear_key` asks Linear for `{ viewer { name } }` and stores the key
+  only if Linear accepts it. `test_linear_connection` repeats the check with the stored key.
+- **One endpoint.** `linear.rs` POSTs to `https://api.linear.app/graphql` with
+  `Authorization: <key>` (no `Bearer`) and a 15 s timeout. Nothing else in the app uses the network.
+- **Errors** map to plain messages: HTTP 401 or `AUTHENTICATION_ERROR` → the key was refused;
+  `RATELIMITED` → rate limited; connect failure or timeout → offline; any other GraphQL error →
+  Linear's own message.
+- **Per project:** `linear_enabled` (0/1) and `linear_team_key` (uppercase letters and digits, NULL
+  = any team). A project uses Linear only if it's switched on and a key is saved. Removing the key
+  keeps each project's settings.
 
 ## Shell behavior
 

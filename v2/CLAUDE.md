@@ -60,6 +60,10 @@ cargo clippy --workspace --all-targets -- -D warnings
 `npm test` already passes `--run`; calling `npx vitest` directly needs it too, or it starts watch
 mode. UI tests run in `America/New_York`, so date tests cross a DST change on every machine.
 
+Tests never touch the real keychain or Linear: `linear.rs` tests use fakes. The one exception is
+`keychain::tests::round_trips_through_credential_manager`, which runs on Windows only and uses a
+scratch entry it deletes.
+
 Promise-returning calls must be awaited, `.catch`-ed or `void`-ed (lint enforces it). UI failures
 go to `App`'s error banner through the components' `onError` prop; so do uncaught errors and
 unhandled rejections, via window listeners in `App`. Render errors are caught by `ErrorBoundary` in
