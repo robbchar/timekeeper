@@ -113,6 +113,13 @@ describe("LinearSettings", () => {
       expect(teamBox("Side")).toBeDisabled();
     });
 
+    it("doesn't mark a project without a team key as unsaved", async () => {
+      setup("1234");
+      await screen.findByText("••••1234");
+      expect(teamBox("Side")).not.toHaveClass("linear-project__team--unsaved");
+      expect(teamBox("Side")).toHaveValue("");
+    });
+
     it("tests the connection", async () => {
       vi.mocked(api.testLinearConnection).mockResolvedValueOnce("Robb");
       setup("1234");

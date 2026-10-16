@@ -165,9 +165,10 @@ function LinearProjectRow({
   const enabled = usePending(project.linearEnabled);
   const teamKey = usePending(project.linearTeamKey);
 
+  // A string, never null: useInlineEdit treats a null value as "no failed save" and would mark it.
   const team = useInlineEdit(
-    teamKey.shown,
-    (key) => key ?? "",
+    teamKey.shown ?? "",
+    (key) => key,
     async (draft) => {
       const next = draft.trim().toUpperCase() || null;
       if (next === teamKey.shown) return;
