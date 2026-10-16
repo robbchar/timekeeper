@@ -13,6 +13,7 @@ vi.mock("./api", () => ({
     start: vi.fn(),
     onTimerChanged: vi.fn(() => Promise.resolve(() => {})),
     startAtLogin: vi.fn(() => Promise.resolve(null)),
+    linearKeyStatus: vi.fn(() => Promise.resolve(null)),
   },
 }));
 

@@ -542,6 +542,48 @@ button:focus-visible {
 .project__name--unsaved {
   border-color: var(--stop);
 }
+.linear-key {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.linear-key input {
+  width: min(100%, 320px);
+}
+.linear-error {
+  margin: -6px 0 0;
+  color: var(--stop);
+  font-size: 13px;
+}
+.linear-projects {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.linear-project {
+  display: grid;
+  grid-template-columns: minmax(0, 260px) auto;
+  justify-content: start;
+  align-items: center;
+  gap: 16px;
+}
+.linear-project__team {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.linear-project__team input {
+  width: 9ch;
+}
+.linear-project__team--unsaved {
+  border-color: var(--stop);
+}
 .swatches {
   display: flex;
   gap: 6px;
