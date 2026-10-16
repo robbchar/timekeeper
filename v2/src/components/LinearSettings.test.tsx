@@ -135,6 +135,17 @@ describe("LinearSettings", () => {
       expect(onError).not.toHaveBeenCalled();
     });
 
+    it("goes back to asking for a key when a failed test finds it was removed elsewhere", async () => {
+      vi.mocked(api.testLinearConnection).mockRejectedValueOnce("No Linear API key is saved.");
+      setup("1234");
+      fireEvent.click(await screen.findByRole("button", { name: "Test connection" }));
+      vi.mocked(api.linearKeyStatus).mockResolvedValueOnce(null);
+
+      expect(await keyBox()).toBeInTheDocument();
+      expect(screen.getByText("No Linear API key is saved.")).toBeInTheDocument();
+      expect(screen.queryByText("••••1234")).toBeNull();
+    });
+
     it("removes the key and goes back to asking for one", async () => {
       setup("1234");
       fireEvent.click(await screen.findByRole("button", { name: "Remove" }));

@@ -18,6 +18,8 @@ pub enum LinearError {
     RateLimited,
     Linear(String),
     Unexpected(u16),
+    /// The HTTP client couldn't be built at startup (e.g. TLS or proxy setup failed).
+    Setup(String),
 }
 
 impl std::fmt::Display for LinearError {
@@ -36,6 +38,7 @@ impl std::fmt::Display for LinearError {
             Self::Unexpected(status) => {
                 write!(f, "Unexpected response from Linear (HTTP {status}).")
             }
+            Self::Setup(reason) => write!(f, "Couldn't set up the connection to Linear: {reason}"),
         }
     }
 }
@@ -43,6 +46,16 @@ impl std::fmt::Display for LinearError {
 pub trait LinearApi {
     /// The name of the Linear user `key` belongs to.
     fn viewer(&self, key: &str) -> impl Future<Output = Result<String, LinearError>> + Send;
+}
+
+/// A client that failed to build at startup; Linear stays unavailable but the app still runs.
+impl<T: LinearApi + Sync> LinearApi for Result<T, String> {
+    async fn viewer(&self, key: &str) -> Result<String, LinearError> {
+        match self {
+            Ok(api) => api.viewer(key).await,
+            Err(reason) => Err(LinearError::Setup(reason.clone())),
+        }
+    }
 }
 
 pub struct Client {
@@ -323,6 +336,25 @@ mod tests {
             .port();
         let client = Client::with_endpoint(&format!("http://127.0.0.1:{port}/graphql")).unwrap();
         assert_eq!(block_on(client.viewer("k")), Err(LinearError::Offline));
+    }
+
+    #[test]
+    fn a_client_that_failed_to_build_reports_it_instead_of_calling() {
+        let broken: Result<FakeLinear, String> = Err("no TLS".into());
+        assert_eq!(
+            block_on(broken.viewer("k")),
+            Err(LinearError::Setup("no TLS".into()))
+        );
+        assert_eq!(
+            LinearError::Setup("no TLS".into()).to_string(),
+            "Couldn't set up the connection to Linear: no TLS"
+        );
+    }
+
+    #[test]
+    fn a_built_client_answers_as_usual() {
+        let ready: Result<FakeLinear, String> = Ok(FakeLinear::replying(Ok("Robb")));
+        assert_eq!(block_on(ready.viewer("k")), Ok("Robb".into()));
     }
 
     #[test]

@@ -60,6 +60,16 @@ export function LinearSettings({ projects, onChanged, onError }: Props) {
       return connected.viewer;
     });
 
+  // The key may have been removed outside the app, so re-read what's saved after testing.
+  const test = async () => {
+    await check(api.testLinearConnection);
+    try {
+      setHint((await api.linearKeyStatus())?.hint ?? null);
+    } catch (err) {
+      onError(err);
+    }
+  };
+
   const remove = async () => {
     try {
       await api.removeLinearKey();
@@ -110,7 +120,7 @@ export function LinearSettings({ projects, onChanged, onError }: Props) {
             type="button"
             className="btn btn--ghost"
             disabled={busy}
-            onClick={() => void check(api.testLinearConnection)}
+            onClick={() => void test()}
           >
             {busy ? "Checking…" : "Test connection"}
           </button>

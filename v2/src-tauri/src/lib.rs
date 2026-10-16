@@ -41,7 +41,8 @@ struct AppState {
     login: Option<login::LoginItem>,
     /// Where the Linear API key lives; never SQLite.
     secrets: keychain::Keychain,
-    linear: linear::Client,
+    /// `Err` if the HTTP client couldn't be built; only Linear's Save and Test fail then.
+    linear: Result<linear::Client, String>,
 }
 
 impl AppState {
@@ -707,7 +708,10 @@ pub fn run() {
                     &app.config().identifier,
                     keychain::linear_key_user(),
                 ),
-                linear: linear::Client::new()?,
+                linear: linear::Client::new().map_err(|e| {
+                    eprintln!("building the Linear client failed: {e}");
+                    e.to_string()
+                }),
             };
             if let Err(e) = sync_login_item(&state) {
                 eprintln!("syncing the login entry failed: {e}");
