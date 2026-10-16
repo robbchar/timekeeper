@@ -61,6 +61,11 @@ pub(crate) const MIGRATIONS: &[&str] = &[
         END
     END;
     "#,
+    // 3: per-project Linear settings; the API key lives in the OS keychain, never here
+    r#"
+    ALTER TABLE projects ADD COLUMN linear_enabled INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE projects ADD COLUMN linear_team_key TEXT;  -- NULL = any team
+    "#,
 ];
 
 #[cfg_attr(not(test), allow(dead_code))]

@@ -436,6 +436,95 @@ fn migration_2_turns_hex_colors_into_palette_keys() {
 }
 
 #[test]
+fn migration_3_leaves_existing_projects_without_linear() {
+    let conn = Connection::open_in_memory().unwrap();
+    conn.execute_batch(&format!(
+        "{} {} PRAGMA user_version = 2;",
+        schema::MIGRATIONS[0],
+        schema::MIGRATIONS[1]
+    ))
+    .unwrap();
+    conn.execute_batch(
+        "INSERT INTO projects (id, name, color, created_at) VALUES (1, 'a', 'teal', 'x');",
+    )
+    .unwrap();
+
+    let s = Store::init(conn).unwrap();
+    let p = &s.projects().unwrap()[0];
+    assert!(!p.linear_enabled);
+    assert_eq!(p.linear_team_key, None);
+}
+
+#[test]
+fn new_projects_start_without_linear() {
+    let (s, id) = store_with_project();
+    let created = project(&s, id);
+    assert!(!created.linear_enabled);
+    assert_eq!(created.linear_team_key, None);
+}
+
+#[test]
+fn set_project_linear_normalizes_the_team_key() {
+    let (s, id) = store_with_project();
+    s.set_project_linear(id, true, Some("  labs ")).unwrap();
+    let p = project(&s, id);
+    assert!(p.linear_enabled);
+    assert_eq!(p.linear_team_key.as_deref(), Some("LABS"));
+
+    s.set_project_linear(id, true, Some("   ")).unwrap();
+    assert_eq!(
+        project(&s, id).linear_team_key,
+        None,
+        "blank means no filter"
+    );
+    s.set_project_linear(id, true, None).unwrap();
+    assert_eq!(project(&s, id).linear_team_key, None);
+}
+
+#[test]
+fn set_project_linear_keeps_the_team_key_when_turned_off() {
+    let (s, id) = store_with_project();
+    s.set_project_linear(id, true, Some("LABS")).unwrap();
+    s.set_project_linear(id, false, Some("LABS")).unwrap();
+    let p = project(&s, id);
+    assert!(!p.linear_enabled);
+    assert_eq!(p.linear_team_key.as_deref(), Some("LABS"));
+}
+
+#[test]
+fn set_project_linear_refuses_a_team_key_that_isnt_letters_and_digits() {
+    let (s, id) = store_with_project();
+    for bad in ["LA-BS", "labs!", "LA BS"] {
+        assert!(
+            matches!(
+                s.set_project_linear(id, true, Some(bad)),
+                Err(Error::Invalid(_))
+            ),
+            "{bad:?} should be refused"
+        );
+    }
+    assert_eq!(project(&s, id).linear_team_key, None, "nothing saved");
+}
+
+#[test]
+fn set_project_linear_refuses_non_ascii() {
+    let (s, id) = store_with_project();
+    assert!(matches!(
+        s.set_project_linear(id, true, Some("ÄBC")),
+        Err(Error::Invalid(_))
+    ));
+}
+
+#[test]
+fn set_project_linear_on_an_unknown_project_fails() {
+    let (s, _) = store_with_project();
+    assert!(matches!(
+        s.set_project_linear(99, true, None),
+        Err(Error::ProjectNotFound(99))
+    ));
+}
+
+#[test]
 fn migrations_are_idempotent() {
     let dir = std::env::temp_dir().join(format!("tk-mig-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();

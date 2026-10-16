@@ -44,6 +44,10 @@ pub struct Project {
     pub name: String,
     pub color: Option<String>,
     pub archived: bool,
+    /// Whether the notes editor offers "Suggest from Linear" for this project.
+    pub linear_enabled: bool,
+    /// Limits Linear suggestions to one team, e.g. `LABS`; `None` means any team.
+    pub linear_team_key: Option<String>,
 }
 
 /// One row in the day list: what gets copied into the client's system.
@@ -132,6 +136,20 @@ pub const PALETTE: &[&str] = &["teal", "coral", "blue", "gold", "purple", "green
 
 pub(crate) fn palette_color(n: i64) -> &'static str {
     PALETTE[(n.max(0) as usize) % PALETTE.len()]
+}
+
+/// A Linear team key as stored: trimmed and uppercased, `None` when blank.
+fn linear_team_key(key: Option<&str>) -> Result<Option<String>> {
+    let key = key.unwrap_or_default().trim();
+    if key.is_empty() {
+        return Ok(None);
+    }
+    if !key.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return Err(Error::Invalid(format!(
+            "a Linear team key is letters and digits, like LABS (got {key:?})"
+        )));
+    }
+    Ok(Some(key.to_ascii_uppercase()))
 }
 
 pub fn ts(t: DateTime<Utc>) -> String {
@@ -230,15 +248,18 @@ impl Store {
     // ---------------------------------------------------------------- projects
 
     pub fn projects(&self) -> Result<Vec<Project>> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT id, name, color, archived FROM projects ORDER BY archived, name")?;
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, color, archived, linear_enabled, linear_team_key
+             FROM projects ORDER BY archived, name",
+        )?;
         let rows = stmt.query_map([], |r| {
             Ok(Project {
                 id: r.get(0)?,
                 name: r.get(1)?,
                 color: r.get(2)?,
                 archived: r.get(3)?,
+                linear_enabled: r.get(4)?,
+                linear_team_key: r.get(5)?,
             })
         })?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
@@ -263,6 +284,8 @@ impl Store {
             name: name.to_string(),
             color: Some(color.to_string()),
             archived: false,
+            linear_enabled: false,
+            linear_team_key: None,
         })
     }
 
@@ -288,6 +311,18 @@ impl Store {
             "UPDATE projects SET archived = ?2 WHERE id = ?1",
             archived,
         )
+    }
+
+    /// Turns Linear on or off for a project, with an optional team key to filter by.
+    pub fn set_project_linear(&self, id: i64, enabled: bool, team_key: Option<&str>) -> Result<()> {
+        let team_key = linear_team_key(team_key)?;
+        match self.conn.execute(
+            "UPDATE projects SET linear_enabled = ?2, linear_team_key = ?3 WHERE id = ?1",
+            params![id, enabled, team_key],
+        )? {
+            0 => Err(Error::ProjectNotFound(id)),
+            _ => Ok(()),
+        }
     }
 
     fn update_project(&self, id: i64, sql: &str, value: impl rusqlite::ToSql) -> Result<()> {
