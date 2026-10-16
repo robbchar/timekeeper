@@ -1,6 +1,8 @@
 //! Tauri shell: wires `timekeeper-core` to a tray icon and the web UI.
 //! Everything about the data lives in the core crate; this file only adapts it.
 
+#[allow(dead_code, unused_imports)] // until the Linear commands use it
+mod keychain;
 mod login;
 mod overrides;
 
