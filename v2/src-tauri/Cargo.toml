@@ -21,8 +21,10 @@ tauri-plugin-clipboard-manager = "2"
 tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+reqwest = { version = "0.13", default-features = false, features = ["json", "native-tls", "system-proxy"] }
 chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
 
 [target."cfg(windows)".dependencies]
 windows-registry = "0.100"
 windows-result = "0.100"
+keyring = "4"

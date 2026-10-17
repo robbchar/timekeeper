@@ -12,6 +12,16 @@ export interface Project {
   name: string;
   color: string | null;
   archived: boolean;
+  /** Whether the notes editor offers Linear suggestions for this project. */
+  linearEnabled: boolean;
+  /** Limits Linear suggestions to one team, e.g. "LABS"; `null` means any team. */
+  linearTeamKey: string | null;
+}
+
+/** A Linear key that was just checked: its last four characters and whose it is. */
+export interface LinearConnection {
+  hint: string;
+  viewer: string;
 }
 
 export interface Entry {
@@ -101,6 +111,11 @@ export const api = {
     call<void>("set_project_color", { projectId, color }),
   setProjectArchived: (projectId: number, archived: boolean) =>
     call<void>("set_project_archived", { projectId, archived }),
+  setProjectLinearEnabled: (projectId: number, enabled: boolean) =>
+    call<void>("set_project_linear_enabled", { projectId, enabled }),
+  /** Normalized by the backend: trimmed, uppercased, blank → `null`; refused unless letters and digits. */
+  setProjectLinearTeam: (projectId: number, teamKey: string | null) =>
+    call<void>("set_project_linear_team", { projectId, teamKey }),
   setSetting: (key: string, value: string) => call<void>("set_setting", { key, value }),
   /** Brings in v1 sessions recorded since the last import; still-open ones wait. */
   importV1Again: () => call<ImportReport>("import_v1_again"),
@@ -109,6 +124,13 @@ export const api = {
   /** Whether the app starts hidden in the tray at login; `null` where that isn't supported. */
   startAtLogin: () => call<boolean | null>("start_at_login"),
   setStartAtLogin: (enabled: boolean) => call<void>("set_start_at_login", { enabled }),
+  /** The saved Linear key's last four characters, or `null`; the key itself never reaches the UI. */
+  linearKeyStatus: () => call<{ hint: string } | null>("linear_key_status"),
+  /** Checks the key with Linear and stores it only if Linear accepts it. */
+  saveLinearKey: (key: string) => call<LinearConnection>("save_linear_key", { key }),
+  /** Resolves to the name of the Linear user the saved key belongs to. */
+  testLinearConnection: () => call<string>("test_linear_connection"),
+  removeLinearKey: () => call<void>("remove_linear_key"),
 
   copy: (text: string) => (inTauri ? writeText(text) : navigator.clipboard.writeText(text)),
 

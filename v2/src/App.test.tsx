@@ -13,6 +13,7 @@ vi.mock("./api", () => ({
     start: vi.fn(),
     onTimerChanged: vi.fn(() => Promise.resolve(() => {})),
     startAtLogin: vi.fn(() => Promise.resolve(null)),
+    linearKeyStatus: vi.fn(() => Promise.resolve(null)),
   },
 }));
 
@@ -31,8 +32,22 @@ const imported: ImportReport = {
 const snapshot: Snapshot = {
   status: { running: null, elapsedSeconds: 0 },
   projects: [
-    { id: 1, name: "Acme", color: null, archived: false },
-    { id: 2, name: "Beta", color: null, archived: false },
+    {
+      id: 1,
+      name: "Acme",
+      color: null,
+      archived: false,
+      linearEnabled: false,
+      linearTeamKey: null,
+    },
+    {
+      id: 2,
+      name: "Beta",
+      color: null,
+      archived: false,
+      linearEnabled: false,
+      linearTeamKey: null,
+    },
   ],
   palette: [],
   resumeProjectId: 1,

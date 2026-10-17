@@ -8,6 +8,7 @@ vi.mock("../api", () => ({
     importV1Again: vi.fn(),
     backupNow: vi.fn(),
     startAtLogin: vi.fn(() => Promise.resolve(null)),
+    linearKeyStatus: vi.fn(() => Promise.resolve(null)),
   },
 }));
 

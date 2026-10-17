@@ -79,6 +79,9 @@ and open <http://localhost:1420>.
   delete in v2 comes back, with v1's current values, the next time you import.
 - v1 sessions whose project was deleted, or whose start time can't be read, are skipped and counted
   in the import notice rather than failing the import.
+- A Linear API key, if you add one, lives in Windows Credential Manager, not in `timekeeper.db` or
+  backups. **Remove** in Settings deletes it. The app talks to `api.linear.app` only when you save
+  or test the key, and to nothing else.
 - While v2 is in progress, keep tracking real time in v1. Running both means two separate timers.
 
 ## Behaviour worth knowing
@@ -94,6 +97,8 @@ and open <http://localhost:1420>.
 - Copy buttons on each day's entry: **Time**, **Notes**, **Date**. Formats, and which day the week starts on, are on the Settings page.
 - Projects are renamed, recolored and archived on the Settings page. An archived project leaves the
   timer's list but keeps its history and stays in the totals filter.
+- Linear is opt-in per project on the Settings page, with an optional team key (e.g. `LABS`). Saving
+  a key checks it with Linear first; a key Linear refuses is never stored.
 
 ## Tests
 

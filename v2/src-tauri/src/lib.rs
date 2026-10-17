@@ -1,10 +1,13 @@
 //! Tauri shell: wires `timekeeper-core` to a tray icon and the web UI.
 //! Everything about the data lives in the core crate; this file only adapts it.
 
+mod keychain;
+mod linear;
 mod login;
 mod overrides;
 
 use chrono::{DateTime, Duration, Local, NaiveDate, Utc};
+use keychain::SecretStore;
 use overrides::Overrides;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -36,6 +39,10 @@ struct AppState {
     v1_db: PathBuf,
     /// The login entry; `None` in debug builds and where start at login isn't supported.
     login: Option<login::LoginItem>,
+    /// Where the Linear API key lives; never SQLite.
+    secrets: keychain::Keychain,
+    /// `Err` if the HTTP client couldn't be built; only Linear's Save and Test fail then.
+    linear: Result<linear::Client, String>,
 }
 
 impl AppState {
@@ -259,6 +266,54 @@ fn set_project_archived(
         .lock_store()
         .set_project_archived(project_id, archived)
         .map_err(err)
+}
+
+#[tauri::command]
+fn set_project_linear_enabled(
+    state: State<AppState>,
+    project_id: i64,
+    enabled: bool,
+) -> Result<(), String> {
+    state
+        .lock_store()
+        .set_project_linear_enabled(project_id, enabled)
+        .map_err(err)
+}
+
+#[tauri::command]
+fn set_project_linear_team(
+    state: State<AppState>,
+    project_id: i64,
+    team_key: Option<String>,
+) -> Result<(), String> {
+    state
+        .lock_store()
+        .set_project_linear_team(project_id, team_key.as_deref())
+        .map_err(err)
+}
+
+/// The saved key's last four characters, or `None`; never the key itself.
+#[tauri::command]
+fn linear_key_status(state: State<AppState>) -> Result<Option<linear::KeyStatus>, String> {
+    linear::key_status(&state.secrets)
+}
+
+#[tauri::command]
+async fn save_linear_key(
+    state: State<'_, AppState>,
+    key: String,
+) -> Result<linear::Connected, String> {
+    linear::save_key(&state.secrets, &state.linear, &key).await
+}
+
+#[tauri::command]
+async fn test_linear_connection(state: State<'_, AppState>) -> Result<String, String> {
+    linear::test_connection(&state.secrets, &state.linear).await
+}
+
+#[tauri::command]
+fn remove_linear_key(state: State<AppState>) -> Result<(), String> {
+    state.secrets.delete()
 }
 
 #[tauri::command]
@@ -660,6 +715,14 @@ pub fn run() {
                 data_dir,
                 v1_db,
                 login: login_item(app),
+                secrets: keychain::Keychain::new(
+                    &app.config().identifier,
+                    keychain::linear_key_user(),
+                ),
+                linear: linear::Client::new().map_err(|e| {
+                    eprintln!("building the Linear client failed: {e}");
+                    e.to_string()
+                }),
             };
             if let Err(e) = sync_login_item(&state) {
                 eprintln!("syncing the login entry failed: {e}");
@@ -700,7 +763,13 @@ pub fn run() {
             import_v1_again,
             backup_now,
             start_at_login,
-            set_start_at_login
+            set_start_at_login,
+            set_project_linear_enabled,
+            set_project_linear_team,
+            linear_key_status,
+            save_linear_key,
+            test_linear_connection,
+            remove_linear_key
         ])
         .run(tauri::generate_context!())
         .expect("error while running TimeKeeper");

@@ -13,8 +13,22 @@ vi.mock("../api", () => ({
   },
 }));
 
-const acme: Project = { id: 1, name: "Acme", color: null, archived: false };
-const beta: Project = { id: 2, name: "Beta", color: null, archived: false };
+const acme: Project = {
+  id: 1,
+  name: "Acme",
+  color: null,
+  archived: false,
+  linearEnabled: false,
+  linearTeamKey: null,
+};
+const beta: Project = {
+  id: 2,
+  name: "Beta",
+  color: null,
+  archived: false,
+  linearEnabled: false,
+  linearTeamKey: null,
+};
 const lateEntry: Entry = {
   id: 7,
   projectId: 1,
@@ -97,7 +111,14 @@ describe("TimerPanel", () => {
   });
 
   it("falls back to the resume project when an archived timer stops", () => {
-    const gamma: Project = { id: 3, name: "Gamma", color: null, archived: false };
+    const gamma: Project = {
+      id: 3,
+      name: "Gamma",
+      color: null,
+      archived: false,
+      linearEnabled: false,
+      linearTeamKey: null,
+    };
     // Gamma, not the first active project, so the test pins the resume project.
     const props = {
       ...defaults,
@@ -127,7 +148,14 @@ describe("TimerPanel", () => {
   });
 
   it("keeps a just-added project and the draft notes while the list refreshes", async () => {
-    const gamma: Project = { id: 3, name: "Gamma", color: null, archived: false };
+    const gamma: Project = {
+      id: 3,
+      name: "Gamma",
+      color: null,
+      archived: false,
+      linearEnabled: false,
+      linearTeamKey: null,
+    };
     vi.mocked(api.createProject).mockResolvedValueOnce(gamma);
     const acmeToday: Entry = { ...betaToday, id: 9, projectId: 1, projectName: "Acme" };
     // Acme, the resume project, has an entry today; switching to it would replace the draft.
