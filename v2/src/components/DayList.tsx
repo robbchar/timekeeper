@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { api, Entry } from "../api";
+import { api, Entry, Project } from "../api";
 import {
   dayHeading,
   DateFormat,
@@ -11,10 +11,13 @@ import {
   parseDuration,
 } from "../format";
 import { projectColor } from "../palette";
+import { appendLines, SuggestButton } from "./SuggestButton";
 import { useInlineEdit } from "./useInlineEdit";
 
 interface Props {
   entries: Entry[];
+  /** For which entries offer Linear suggestions. */
+  projects: Project[];
   today: string;
   durationFormat: DurationFormat;
   dateFormat: DateFormat;
@@ -22,7 +25,15 @@ interface Props {
   onError: (err: unknown) => void;
 }
 
-export function DayList({ entries, today, durationFormat, dateFormat, onChanged, onError }: Props) {
+export function DayList({
+  entries,
+  projects,
+  today,
+  durationFormat,
+  dateFormat,
+  onChanged,
+  onError,
+}: Props) {
   const days: [string, Entry[]][] = [];
   for (const e of entries) {
     const last = days[days.length - 1];
@@ -48,6 +59,7 @@ export function DayList({ entries, today, durationFormat, dateFormat, onChanged,
             <EntryRow
               key={e.id}
               entry={e}
+              linearEnabled={projects.some((p) => p.id === e.projectId && p.linearEnabled)}
               durationFormat={durationFormat}
               dateFormat={dateFormat}
               onChanged={onChanged}
@@ -62,12 +74,14 @@ export function DayList({ entries, today, durationFormat, dateFormat, onChanged,
 
 function EntryRow({
   entry,
+  linearEnabled,
   durationFormat,
   dateFormat,
   onChanged,
   onError,
 }: {
   entry: Entry;
+  linearEnabled: boolean;
   durationFormat: DurationFormat;
   dateFormat: DateFormat;
   onChanged: () => Promise<void>;
@@ -83,6 +97,11 @@ function EntryRow({
     },
     onError,
   );
+  // Lands in the open draft (or opens one), so it's reviewed before blur saves it.
+  const addSuggestion = (text: string) => {
+    if (!notes.editing) notes.open();
+    notes.setDraft((draft) => appendLines(draft, text));
+  };
   // A duration being saved, keyed to the seconds it was edited from; dropped once they change.
   const [pending, setPending] = useState<Pending | null>(null);
   if (pending && pending.base !== entry.seconds) setPending(null);
@@ -160,6 +179,14 @@ function EntryRow({
           >
             {notes.unsaved ? notes.draft : entry.notes || "Add notes"}
           </button>
+        )}
+        {linearEnabled && (
+          <SuggestButton
+            projectId={entry.projectId}
+            day={entry.day}
+            onSuggested={addSuggestion}
+            onError={onError}
+          />
         )}
       </div>
       <DurationCell

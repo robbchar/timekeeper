@@ -24,6 +24,12 @@ export interface LinearConnection {
   viewer: string;
 }
 
+/** Lines for a day's notes from one source; the shell gathers one per source a project uses. */
+export interface Suggestion {
+  source: "linear";
+  lines: string[];
+}
+
 export interface Entry {
   id: number;
   projectId: number;
@@ -131,6 +137,9 @@ export const api = {
   /** Resolves to the name of the Linear user the saved key belongs to. */
   testLinearConnection: () => call<string>("test_linear_connection"),
   removeLinearKey: () => call<void>("remove_linear_key"),
+  /** What was done on local `day` for the project, per source; nothing leaves Linear but reads. */
+  suggestNotes: (projectId: number, day: string) =>
+    call<Suggestion[]>("suggest_notes", { projectId, day }),
 
   copy: (text: string) => (inTauri ? writeText(text) : navigator.clipboard.writeText(text)),
 

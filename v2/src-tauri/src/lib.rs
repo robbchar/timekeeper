@@ -5,8 +5,9 @@ mod keychain;
 mod linear;
 mod login;
 mod overrides;
+mod suggest;
 
-use chrono::{DateTime, Duration, Local, NaiveDate, Utc};
+use chrono::{DateTime, Duration, Local, NaiveDate, TimeZone, Utc};
 use keychain::SecretStore;
 use overrides::Overrides;
 use serde::Serialize;
@@ -102,6 +103,24 @@ fn local_noon(d: NaiveDate) -> DateTime<Utc> {
         .into_iter()
         .find_map(|t| t.and_local_timezone(Local).earliest())
         .map_or_else(|| noon.and_utc(), |t| t.with_timezone(&Utc))
+}
+/// Local day `d` as UTC instants: its first moment (inclusive) to the next day's (exclusive).
+fn local_day_range(d: NaiveDate) -> (DateTime<Utc>, DateTime<Utc>) {
+    day_range_in(&Local, d)
+}
+fn day_range_in<Tz: TimeZone>(tz: &Tz, d: NaiveDate) -> (DateTime<Utc>, DateTime<Utc>) {
+    (
+        start_of_day_in(tz, d),
+        start_of_day_in(tz, d + Duration::days(1)),
+    )
+}
+/// Midnight, or the first hour that exists if the zone skips midnight.
+fn start_of_day_in<Tz: TimeZone>(tz: &Tz, d: NaiveDate) -> DateTime<Utc> {
+    let midnight = d.and_hms_opt(0, 0, 0).expect("00:00:00 is a valid time");
+    (0..=2)
+        .map(|h| midnight + Duration::hours(h))
+        .find_map(|t| t.and_local_timezone(tz.clone()).earliest())
+        .map_or_else(|| midnight.and_utc(), |t| t.with_timezone(&Utc))
 }
 fn err(e: impl std::fmt::Display) -> String {
     e.to_string()
@@ -309,6 +328,25 @@ async fn save_linear_key(
 #[tauri::command]
 async fn test_linear_connection(state: State<'_, AppState>) -> Result<String, String> {
     linear::test_connection(&state.secrets, &state.linear).await
+}
+
+/// Lines for the notes of `project_id`'s entry on local `day`, from each source it has turned on.
+#[tauri::command]
+async fn suggest_notes(
+    state: State<'_, AppState>,
+    project_id: i64,
+    day: String,
+) -> Result<Vec<suggest::Suggestion>, String> {
+    let day = NaiveDate::parse_from_str(&day, "%Y-%m-%d").map_err(err)?;
+    let project = state
+        .lock_store()
+        .projects()
+        .map_err(err)?
+        .into_iter()
+        .find(|p| p.id == project_id)
+        .ok_or_else(|| format!("no project with id {project_id}"))?;
+    let (start, end) = local_day_range(day);
+    suggest::suggest(&project, start, end, &state.secrets, &state.linear).await
 }
 
 #[tauri::command]
@@ -769,7 +807,8 @@ pub fn run() {
             linear_key_status,
             save_linear_key,
             test_linear_connection,
-            remove_linear_key
+            remove_linear_key,
+            suggest_notes
         ])
         .run(tauri::generate_context!())
         .expect("error while running TimeKeeper");
@@ -799,6 +838,27 @@ mod tests {
             let day = NaiveDate::parse_from_str(d, "%Y-%m-%d").unwrap();
             let local = local_noon(day).with_timezone(&Local).naive_local();
             assert_eq!(local, day.and_hms_opt(12, 0, 0).unwrap(), "{d}");
+        }
+    }
+
+    #[test]
+    fn day_range_is_local_midnight_to_midnight() {
+        let tz = chrono::FixedOffset::west_opt(4 * 3600).unwrap();
+        let day = NaiveDate::from_ymd_opt(2026, 10, 16).unwrap();
+        let (start, end) = day_range_in(&tz, day);
+        assert_eq!(start.to_rfc3339(), "2026-10-16T04:00:00+00:00");
+        assert_eq!(end.to_rfc3339(), "2026-10-17T04:00:00+00:00");
+    }
+
+    #[test]
+    fn local_day_range_starts_at_local_midnight() {
+        for d in ["2026-03-08", "2026-03-29", "2026-07-15", "2026-11-01"] {
+            let day = NaiveDate::parse_from_str(d, "%Y-%m-%d").unwrap();
+            let (start, end) = local_day_range(day);
+            let local = start.with_timezone(&Local).naive_local();
+            assert_eq!(local, day.and_hms_opt(0, 0, 0).unwrap(), "{d}");
+            let hours = (end - start).num_hours();
+            assert!((23..=25).contains(&hours), "{d}: {hours}h");
         }
     }
 }

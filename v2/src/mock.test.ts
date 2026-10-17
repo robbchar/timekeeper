@@ -39,4 +39,21 @@ describe("mock invoke", () => {
       invoke("set_project_linear_team", { projectId: 1, teamKey: "LA-BS" }),
     ).rejects.toBe('a Linear team key is letters and digits, like LABS (got "LA-BS")');
   });
+
+  it("suggests only for Linear projects, and needs a key", async () => {
+    await invoke("set_project_linear_enabled", { projectId: 2, enabled: false });
+    await expect(invoke("suggest_notes", { projectId: 2, day: "2026-10-16" })).resolves.toEqual([]);
+    await invoke("set_project_linear_enabled", { projectId: 2, enabled: true });
+    await expect(invoke("suggest_notes", { projectId: 2, day: "2026-10-16" })).rejects.toBe(
+      "No Linear API key is saved.",
+    );
+    await invoke("save_linear_key", { key: "lin_api_abcd1234" });
+    await expect(invoke("suggest_notes", { projectId: 2, day: "2026-10-16" })).resolves.toEqual([
+      {
+        source: "linear",
+        lines: ["MOCK-1 Mock issue for 2026-10-16 — moved to In Review; commented"],
+      },
+    ]);
+    await invoke("remove_linear_key");
+  });
 });

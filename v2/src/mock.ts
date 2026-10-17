@@ -1,7 +1,7 @@
 // In-memory stand-in for the Rust backend, used only when the UI is opened in
 // a plain browser. Synthetic data; no real records.
 
-import type { Entry, ImportReport, Project, Snapshot, Status, Totals } from "./api";
+import type { Entry, ImportReport, Project, Snapshot, Status, Suggestion, Totals } from "./api";
 import { addDays, localDay } from "./format";
 
 const projects: Project[] = [
@@ -341,6 +341,15 @@ function handle<T>(cmd: string, a: Record<string, unknown>): T {
     case "remove_linear_key":
       linearKey = null;
       return undefined as T;
+    case "suggest_notes": {
+      const p = project(a.projectId);
+      if (!p.linearEnabled) return [] as T;
+      if (!linearKey) throw new Refused("No Linear API key is saved.");
+      const issue = `${p.linearTeamKey ?? "MOCK"}-1 Mock issue for ${a.day as string}`;
+      return [
+        { source: "linear", lines: [`${issue} — moved to In Review; commented`] },
+      ] satisfies Suggestion[] as T;
+    }
   }
   throw new Error(`mock: unknown command ${cmd}`);
 }

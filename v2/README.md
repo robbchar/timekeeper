@@ -81,7 +81,7 @@ and open <http://localhost:1420>.
   in the import notice rather than failing the import.
 - A Linear API key, if you add one, lives in Windows Credential Manager, not in `timekeeper.db` or
   backups. **Remove** in Settings deletes it. The app talks to `api.linear.app` only when you save
-  or test the key, and to nothing else.
+  or test the key or press **Suggest from Linear**, and to nothing else. It only reads from Linear.
 - While v2 is in progress, keep tracking real time in v1. Running both means two separate timers.
 
 ## Behaviour worth knowing
@@ -99,6 +99,10 @@ and open <http://localhost:1420>.
   timer's list but keeps its history and stays in the totals filter.
 - Linear is opt-in per project on the Settings page, with an optional team key (e.g. `LABS`). Saving
   a key checks it with Linear first; a key Linear refuses is never stored.
+- For those projects, **Suggest from Linear** under the timer's notes and under each day's entry
+  appends one line per issue you worked on that day (created, assigned, moved, commented, linked PR).
+  It never replaces what you wrote; in the day list it opens the notes so you can trim the lines
+  before they save.
 
 ## Tests
 
