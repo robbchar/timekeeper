@@ -53,7 +53,8 @@ and open <http://localhost:1420>.
 - **Start at login**: Settings → Startup → "Start TimeKeeper when I log in" (off by default). It
   starts in the tray with no window. Either choice survives upgrades, including turning it off in
   Task Manager's Startup apps, which turns the toggle off too. Release builds only: debug builds
-  hide the toggle.
+  hide the toggle. On Linux the same toggle writes `~/.config/autostart/dev.cathedraltree.timekeeper.desktop`;
+  deleting that file, or turning it off in your desktop's startup settings, turns the toggle off.
 - **Version**: set it in `[workspace.package]` in `Cargo.toml`. The crates inherit it, and
   `tauri.conf.json` has no `version`, so the installer uses it too.
 - **Don't change** `identifier`, `productName` or `bundle.publisher` in `tauri.conf.json` lightly.
@@ -79,8 +80,8 @@ and open <http://localhost:1420>.
   delete in v2 comes back, with v1's current values, the next time you import.
 - v1 sessions whose project was deleted, or whose start time can't be read, are skipped and counted
   in the import notice rather than failing the import.
-- A Linear API key, if you add one, lives in Windows Credential Manager, not in `timekeeper.db` or
-  backups. **Remove** in Settings deletes it. The app talks to `api.linear.app` only when you save
+- A Linear API key, if you add one, lives in Windows Credential Manager, or on Linux in the Secret
+  Service (GNOME Keyring or KWallet, which must be running), not in `timekeeper.db` or backups. **Remove** in Settings deletes it. The app talks to `api.linear.app` only when you save
   or test the key or press **Suggest from Linear**, and to nothing else. It only reads from Linear.
 - While v2 is in progress, keep tracking real time in v1. Running both means two separate timers.
 

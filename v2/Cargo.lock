@@ -4359,6 +4359,7 @@ version = "0.2.0"
 dependencies = [
  "chrono",
  "keyring",
+ "keyring-core",
  "reqwest",
  "serde",
  "serde_json",
@@ -4369,6 +4370,7 @@ dependencies = [
  "timekeeper-core",
  "windows-registry 0.100.0",
  "windows-result 0.100.0",
+ "zbus-secret-service-keyring-store",
 ]
 
 [[package]]

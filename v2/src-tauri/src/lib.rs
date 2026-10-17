@@ -692,7 +692,7 @@ fn login_item(app: &tauri::App) -> Option<login::LoginItem> {
     if cfg!(debug_assertions) {
         return None;
     }
-    login::LoginItem::for_current_exe(&app.package_info().name)
+    login::LoginItem::for_current_exe(&app.package_info().name, &app.config().identifier)
 }
 
 /// v1 (Electron) kept its database in the per-user config dir under "timekeeper".

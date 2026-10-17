@@ -38,7 +38,7 @@ jobs:
       - name: Install Tauri system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libssl-dev pkg-config
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libssl-dev pkg-config dbus gnome-keyring
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -79,6 +79,12 @@ jobs:
 
       - name: Shell tests
         run: cargo test -p timekeeper
+
+      # A private session bus and a throwaway keyring, so the real Secret Service is never used.
+      - name: Secret Service tests
+        run: |
+          export XDG_DATA_HOME="$(mktemp -d)"
+          dbus-run-session -- sh -c 'echo -n test | gnome-keyring-daemon --unlock --components=secrets >/dev/null && cargo test -p timekeeper keychain -- --ignored'
 
   windows:
     runs-on: windows-latest
