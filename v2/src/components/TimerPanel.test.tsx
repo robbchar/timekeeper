@@ -1,7 +1,7 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ComponentProps } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api, Entry, Project, Status } from "../api";
+import { api, Entry, Project, Status, Suggestion } from "../api";
 import { TimerPanel } from "./TimerPanel";
 
 vi.mock("../api", () => ({
@@ -10,6 +10,9 @@ vi.mock("../api", () => ({
     start: vi.fn(() => Promise.resolve()),
     stop: vi.fn(),
     createProject: vi.fn(),
+    suggestNotes: vi.fn(() =>
+      Promise.resolve([{ source: "linear", lines: ["LABS-1 T — commented"], notice: null }]),
+    ),
   },
 }));
 
@@ -246,5 +249,70 @@ describe("TimerPanel", () => {
     expect(api.stop).not.toHaveBeenCalled();
     expect(onChanged).not.toHaveBeenCalled();
     expect(screen.getByRole("textbox")).toHaveValue("edited");
+  });
+});
+
+describe("TimerPanel Linear suggestions", () => {
+  beforeEach(() => {
+    vi.mocked(api.setNotes).mockClear();
+    vi.mocked(api.suggestNotes).mockClear();
+  });
+
+  const linearAcme = { ...acme, linearEnabled: true };
+
+  it("is only offered for projects with Linear turned on", () => {
+    const { rerender } = render(<TimerPanel {...defaults} />);
+    expect(screen.queryByRole("button", { name: "Suggest from Linear" })).toBeNull();
+    rerender(<TimerPanel {...defaults} projects={[linearAcme, beta]} />);
+    expect(screen.getByRole("button", { name: "Suggest from Linear" })).toBeInTheDocument();
+  });
+
+  it("appends to the running entry's notes for its own day, and saves", async () => {
+    render(
+      <TimerPanel
+        {...defaults}
+        projects={[linearAcme, beta]}
+        status={runningAcme}
+        entries={[lateEntry]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Suggest from Linear" }));
+    await waitFor(() =>
+      expect(screen.getByRole("textbox")).toHaveValue("late fix\nLABS-1 T — commented"),
+    );
+    expect(api.suggestNotes).toHaveBeenCalledWith(1, "2026-10-09");
+    await waitFor(() =>
+      expect(api.setNotes).toHaveBeenCalledWith(7, "late fix\nLABS-1 T — commented"),
+    );
+  });
+
+  it("adds to a draft for today before the timer starts", async () => {
+    render(<TimerPanel {...defaults} projects={[linearAcme, beta]} />);
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "planning" } });
+    fireEvent.click(screen.getByRole("button", { name: "Suggest from Linear" }));
+    await waitFor(() =>
+      expect(screen.getByRole("textbox")).toHaveValue("planning\nLABS-1 T — commented"),
+    );
+    expect(api.suggestNotes).toHaveBeenCalledWith(1, "2026-10-10");
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    expect(api.start).toHaveBeenCalledWith(1, "planning\nLABS-1 T — commented");
+  });
+  it("drops a suggestion that arrives after switching to another entry", async () => {
+    let resolve: (v: Suggestion[]) => void = () => {};
+    vi.mocked(api.suggestNotes).mockReturnValueOnce(new Promise((r) => (resolve = r)));
+    const acmeToday = { ...betaToday, id: 9, projectId: 1, notes: "acme notes" };
+    render(
+      <TimerPanel
+        {...defaults}
+        projects={[linearAcme, { ...beta, linearEnabled: true }]}
+        entries={[acmeToday, betaToday]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Suggest from Linear" }));
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "2" } });
+    await act(async () =>
+      resolve([{ source: "linear", lines: ["LABS-1 T — commented"], notice: null }]),
+    );
+    expect(screen.getByRole("textbox")).toHaveValue("beta notes");
   });
 });

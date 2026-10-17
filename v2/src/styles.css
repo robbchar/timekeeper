@@ -230,6 +230,11 @@ button:focus-visible {
   resize: vertical;
   min-height: 44px;
 }
+.timer__suggest {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -6px;
+}
 
 /* --------------------------------------------------------------- add time */
 
@@ -446,6 +451,19 @@ button:focus-visible {
 .entry__confirm .copy--delete {
   color: var(--stop);
   border-color: var(--stop);
+}
+.entry__body .suggest {
+  display: block;
+  margin-top: 4px;
+}
+.suggest__notice {
+  font-size: 12px;
+  color: var(--muted);
+}
+.timer__suggest .suggest__notice {
+  align-self: center;
+  margin-right: 8px;
+  order: -1;
 }
 .copy:disabled {
   opacity: 0.4;

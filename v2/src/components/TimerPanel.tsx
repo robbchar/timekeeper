@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { api, Entry, Project, Status } from "../api";
 import { formatClock } from "../format";
+import { appendLines, SuggestButton } from "./SuggestButton";
 
 interface Props {
   projects: Project[];
@@ -64,6 +65,8 @@ export function TimerPanel({
     setSeenTargetId(targetId);
     setNotes(target?.notes ?? "");
   }
+
+  const notesProject = listed.find((p) => p.id === (target?.projectId ?? selected));
 
   const saveTimer = useRef<number | undefined>(undefined);
   const scheduleSave = (value: string) => {
@@ -185,6 +188,18 @@ export function TimerPanel({
         onChange={(e) => scheduleSave(e.target.value)}
         onBlur={() => void flushSave().then((saved) => (saved ? onChanged() : undefined), onError)}
       />
+      {notesProject?.linearEnabled && (
+        <div className="timer__suggest">
+          <SuggestButton
+            // A new target drops a reply that was meant for the old one.
+            key={`${notesProject.id}:${target?.day ?? today}:${targetId ?? "draft"}`}
+            projectId={notesProject.id}
+            day={target?.day ?? today}
+            onSuggested={(text) => scheduleSave(appendLines(notes, text))}
+            onError={onError}
+          />
+        </div>
+      )}
     </section>
   );
 }

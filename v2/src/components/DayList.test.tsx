@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api, Entry } from "../api";
+import { api, Entry, Project, Suggestion } from "../api";
 import { DayList } from "./DayList";
 
 vi.mock("../api", () => ({
@@ -9,6 +9,9 @@ vi.mock("../api", () => ({
     setEntrySeconds: vi.fn(() => Promise.resolve()),
     deleteEntry: vi.fn(() => Promise.resolve()),
     copy: vi.fn(),
+    suggestNotes: vi.fn(() =>
+      Promise.resolve([{ source: "linear", lines: ["LABS-1 T — commented"], notice: null }]),
+    ),
   },
 }));
 
@@ -23,9 +26,24 @@ const entry: Entry = {
   running: false,
 };
 
-const list = (e: Entry, onError: (err: unknown) => void, onChanged = () => Promise.resolve()) => (
+const acme: Project = {
+  id: 1,
+  name: "Acme",
+  color: null,
+  archived: false,
+  linearEnabled: false,
+  linearTeamKey: null,
+};
+
+const list = (
+  e: Entry,
+  onError: (err: unknown) => void,
+  onChanged = () => Promise.resolve(),
+  projects = [acme],
+) => (
   <DayList
     entries={[e]}
+    projects={projects}
     today="2026-10-10"
     durationFormat="hms"
     dateFormat="iso"
@@ -253,6 +271,7 @@ describe("DayList deleting", () => {
     render(
       <DayList
         entries={[entry, other]}
+        projects={[acme]}
         today="2026-10-10"
         durationFormat="hms"
         dateFormat="iso"
@@ -276,5 +295,54 @@ describe("DayList deleting", () => {
     );
     expect(onChanged).not.toHaveBeenCalled();
     expect(screen.getByTitle("Delete entry")).toHaveFocus();
+  });
+});
+
+describe("DayList Linear suggestions", () => {
+  beforeEach(() => {
+    vi.mocked(api.setNotes).mockClear();
+    vi.mocked(api.suggestNotes).mockClear();
+  });
+
+  const linear = [{ ...acme, linearEnabled: true }];
+
+  it("is only offered for entries of projects with Linear turned on", () => {
+    const { rerender } = render(list(entry, vi.fn()));
+    expect(screen.queryByRole("button", { name: "Suggest from Linear" })).toBeNull();
+    rerender(list(entry, vi.fn(), undefined, linear));
+    expect(screen.getByRole("button", { name: "Suggest from Linear" })).toBeInTheDocument();
+  });
+
+  it("opens the notes with the suggestion appended, saved on blur", async () => {
+    render(list(entry, vi.fn(), undefined, linear));
+    fireEvent.click(screen.getByRole("button", { name: "Suggest from Linear" }));
+    const box = await screen.findByRole("textbox");
+    expect(box).toHaveValue("original\nLABS-1 T — commented");
+    expect(api.suggestNotes).toHaveBeenCalledWith(1, "2026-10-10");
+    expect(api.setNotes).not.toHaveBeenCalled();
+    fireEvent.blur(box);
+    expect(api.setNotes).toHaveBeenCalledWith(3, "original\nLABS-1 T — commented");
+  });
+
+  it("appends to a draft that's already being edited", async () => {
+    render(list(entry, vi.fn(), undefined, linear));
+    fireEvent.click(screen.getByTitle("Edit notes"));
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "typed" } });
+    fireEvent.click(screen.getByRole("button", { name: "Suggest from Linear" }));
+    await waitFor(() =>
+      expect(screen.getByRole("textbox")).toHaveValue("typed\nLABS-1 T — commented"),
+    );
+  });
+  it("keeps what was typed while Linear was answering", async () => {
+    let resolve: (v: Suggestion[]) => void = () => {};
+    vi.mocked(api.suggestNotes).mockReturnValueOnce(new Promise((r) => (resolve = r)));
+    render(list(entry, vi.fn(), undefined, linear));
+    fireEvent.click(screen.getByRole("button", { name: "Suggest from Linear" }));
+    fireEvent.click(screen.getByTitle("Edit notes"));
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "typed meanwhile" } });
+    await act(async () =>
+      resolve([{ source: "linear", lines: ["LABS-1 T — commented"], notice: null }]),
+    );
+    expect(screen.getByRole("textbox")).toHaveValue("typed meanwhile\nLABS-1 T — commented");
   });
 });

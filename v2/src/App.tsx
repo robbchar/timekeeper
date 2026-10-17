@@ -206,6 +206,7 @@ export default function App() {
 
       <DayList
         entries={liveEntries}
+        projects={snap.projects}
         today={today}
         durationFormat={durationFormat}
         dateFormat={dateFormat}

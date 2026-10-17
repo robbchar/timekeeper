@@ -30,6 +30,8 @@ src/components/       React UI
   a single transaction.
 - **`src-tauri/src/linear.rs`** is the only code that makes network calls (see [Linear](#linear)),
   and **`src-tauri/src/keychain.rs`** keeps the Linear key in Windows Credential Manager.
+  **`src-tauri/src/suggest.rs`** gathers note suggestions, one group per source a project has
+  turned on (only Linear so far; merged GitHub PRs are #106).
 - **`src/api.ts`** is the single typed boundary. It is the only file under `src/` that imports
   `@tauri-apps/*`. Components and hooks import `api` and never call `invoke` themselves.
 - Outside Tauri (`"__TAURI_INTERNALS__"` absent, e.g. `npm run dev` in a browser), `api.ts` routes
@@ -92,7 +94,8 @@ old at the last heartbeat time, and the UI says so.
 - **Only the shell decides what "now" and "local" mean.** `core` never reads the clock or the local
   time zone for its rules. `Store` methods take `now: DateTime<Utc>` and `today: NaiveDate`, and the
   import and `set_entry_seconds` take `local_day` / `local_noon` closures. The shell supplies them from `today()`, `local_day()` and `local_noon()` in
-  `src-tauri/src/lib.rs`.
+  `src-tauri/src/lib.rs`. `local_day_range()` turns a local day into the UTC span from its first
+  moment to the next day's, for queries to other systems.
 - This keeps `core` deterministic in tests. The import is the one place `core` calls
   `Utc::now()`: for the `v1_imported_at` setting and as `created_at` for v1 projects whose
   `createdAt` can't be parsed. Both are UTC and don't affect any day boundary.
@@ -189,8 +192,8 @@ a Task Manager "off" through an upgrade.
 
 ## Linear
 
-Groundwork for suggesting notes from Linear. Opt-in per project, since Linear is one client's
-system.
+Suggests notes from what you did in Linear. Opt-in per project, since Linear is one client's
+system. Nothing is ever written to Linear.
 
 - **The key** is one Linear personal API key in Windows Credential Manager: service
   `dev.cathedraltree.timekeeper`, user `linear-api-key` (`linear-api-key-dev` in debug builds, so
@@ -200,6 +203,21 @@ system.
   only if Linear accepts it. `test_linear_connection` repeats the check with the stored key.
 - **One endpoint.** `linear.rs` POSTs to `https://api.linear.app/graphql` with
   `Authorization: <key>` (no `Bearer`) and a 15 s timeout. Nothing else in the app uses the network.
+- **Suggest from Linear** (`suggest_notes`, on demand only) takes a project and a local day and asks
+  for issues you commented on or created that day, plus issues assigned to you or that you're
+  subscribed to updated since the day began (filtered by team key, if set). `Issue.history` can't be
+  filtered server-side, so `parse_activity` keeps only what happened inside the day: states _you_
+  moved it to, being assigned (by anyone), creating it, commenting, and GitHub PRs attached to it
+  that were updated that day. A PR update alone only counts on an issue assigned to you, since
+  anyone could have made it. Issues with none of these are dropped. Each issue becomes one line,
+  e.g. `LABS-852 Product Isolation ADR — moved to In Review; commented`, which the UI appends to the
+  notes. It fetches 25 issues per page, at most 8 pages; past that the suggestion carries a
+  `notice` the UI shows beside the button, never in the notes. The further back the day, the more
+  issues have been updated since, so old days hit that cap sooner. A state change you make on an
+  issue you neither own nor follow isn't found.
+- **Late replies** go to the notes editor as it is when they arrive (`SuggestButton` calls the
+  latest callback). The timer panel keys the button to its target entry, so a reply for an entry
+  you've switched away from is dropped.
 - **Errors** map to plain messages: HTTP 401 or `AUTHENTICATION_ERROR` → the key was refused;
   HTTP 429 or `RATELIMITED` → rate limited; no reply at all (DNS, refused, TLS, timeout) → offline,
   with the underlying reason; any other GraphQL error → Linear's own message.
