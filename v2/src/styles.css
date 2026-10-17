@@ -456,6 +456,15 @@ button:focus-visible {
   display: block;
   margin-top: 4px;
 }
+.suggest__notice {
+  font-size: 12px;
+  color: var(--muted);
+}
+.timer__suggest .suggest__notice {
+  align-self: center;
+  margin-right: 8px;
+  order: -1;
+}
 .copy:disabled {
   opacity: 0.4;
   cursor: default;

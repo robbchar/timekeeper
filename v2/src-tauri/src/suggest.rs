@@ -12,6 +12,8 @@ use timekeeper_core::Project;
 pub struct Suggestion {
     pub source: Source,
     pub lines: Vec<String>,
+    /// Shown to the user, never added to the notes.
+    pub notice: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq)]
@@ -35,9 +37,11 @@ pub async fn suggest(
             end,
             team_key: project.linear_team_key.clone(),
         };
+        let found = linear::suggest(secrets, linear_api, &query).await?;
         suggestions.push(Suggestion {
             source: Source::Linear,
-            lines: linear::suggest(secrets, linear_api, &query).await?,
+            lines: found.lines,
+            notice: found.notice,
         });
     }
     Ok(suggestions)
@@ -124,6 +128,7 @@ mod tests {
             Ok(vec![Suggestion {
                 source: Source::Linear,
                 lines: vec!["LABS-1 T — commented".into()],
+                notice: None,
             }])
         );
         assert_eq!(
@@ -150,10 +155,11 @@ mod tests {
         let s = Suggestion {
             source: Source::Linear,
             lines: vec!["x".into()],
+            notice: Some("partial".into()),
         };
         assert_eq!(
             serde_json::to_value(&s).unwrap(),
-            serde_json::json!({ "source": "linear", "lines": ["x"] })
+            serde_json::json!({ "source": "linear", "lines": ["x"], "notice": "partial" })
         );
     }
 }

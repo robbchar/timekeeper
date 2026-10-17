@@ -14,8 +14,9 @@ const NO_KEY: &str = "No Linear API key is saved.";
 const EMPTY_KEY: &str = "Paste a Linear API key first.";
 /// Pages fetched before giving up, so a broad day can't run into Linear's rate limit.
 const MAX_PAGES: usize = 8;
-const TRUNCATED: &str =
-    "(Linear had more activity than this. Set a team key in Settings to narrow it.)";
+const TRUNCATED: &str = "Linear had more activity than this; some issues are missing.";
+const TRUNCATED_ANY_TEAM: &str =
+    "Linear had more activity than this. Set a team key in Settings to narrow it.";
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum LinearError {
@@ -82,6 +83,11 @@ pub struct IssueActivity {
 }
 
 impl IssueActivity {
+    /// Whether the viewer did anything themselves; a PR update alone could be anyone's.
+    fn acted(&self) -> bool {
+        self.created || self.assigned || !self.moved_to.is_empty() || self.commented
+    }
+
     /// `LABS-852 Product Isolation ADR — moved to In Review; commented`, or `None` if nothing happened.
     pub fn line(&self) -> Option<String> {
         let mut parts = Vec::new();
@@ -201,9 +207,8 @@ impl LinearApi for Client {
     }
 }
 
-// `Issue.history` can't be filtered, so the issue filter casts a wide net and `parse_activity`
-// keeps only what the viewer did inside the day. 25 issues × 100 history entries stays well
-// under Linear's query complexity limit.
+// `Issue.history` can't be filtered: cast a wide net, keep only the viewer's day in `parse_activity`.
+// 25 issues × 100 history entries stays well under Linear's query complexity limit.
 const ACTIVITY_QUERY: &str = "query Activity(
   $filter: IssueFilter!, $comments: CommentFilter!, $attachments: AttachmentFilter!, $after: String
 ) {
@@ -214,6 +219,7 @@ const ACTIVITY_QUERY: &str = "query Activity(
       title
       createdAt
       creator { isMe }
+      assignee { isMe }
       history(first: 100) { nodes { createdAt actor { isMe } toState { name } toAssignee { isMe } } }
       comments(first: 1, filter: $comments) { nodes { id } }
       attachments(first: 10, filter: $attachments) { nodes { url } }
@@ -345,7 +351,8 @@ fn parse_activity(
                 }
             }
         }
-        if issue.line().is_some() {
+        // A PR update counts on the viewer's own issue; elsewhere it only adds to their activity.
+        if issue.acted() || (is_me(&node["assignee"]) && !issue.prs.is_empty()) {
             found.push(issue);
         }
     }
@@ -412,23 +419,37 @@ pub async fn save_key(
     })
 }
 
+#[derive(Debug, PartialEq)]
+pub struct Lines {
+    pub lines: Vec<String>,
+    /// For the user, not the notes: why the lines may be incomplete.
+    pub notice: Option<String>,
+}
+
 /// One line per issue the saved key's user worked on in `query`'s span, for appending to notes.
 pub async fn suggest(
     secrets: &impl SecretStore,
     api: &impl LinearApi,
     query: &ActivityQuery,
-) -> Result<Vec<String>, String> {
+) -> Result<Lines, String> {
     let key = secrets.get()?.ok_or(NO_KEY)?;
     let activity = api.activity(&key, query).await.map_err(|e| e.to_string())?;
-    let mut lines: Vec<String> = activity
-        .issues
-        .iter()
-        .filter_map(IssueActivity::line)
-        .collect();
-    if activity.truncated {
-        lines.push(TRUNCATED.into());
-    }
-    Ok(lines)
+    let notice = activity.truncated.then(|| {
+        if query.team_key.is_some() {
+            TRUNCATED
+        } else {
+            TRUNCATED_ANY_TEAM
+        }
+        .to_owned()
+    });
+    Ok(Lines {
+        lines: activity
+            .issues
+            .iter()
+            .filter_map(IssueActivity::line)
+            .collect(),
+        notice,
+    })
 }
 
 /// The name of the user the saved key belongs to.
@@ -917,6 +938,21 @@ mod tests {
     }
 
     #[test]
+    fn parse_activity_counts_a_pr_alone_only_on_my_issues() {
+        let pr = json!({ "url": "https://github.com/o/app/pull/12" });
+        let followed = json!({ "attachments": { "nodes": [pr] }, "assignee": { "isMe": false } });
+        let mine = json!({
+            "identifier": "LABS-2",
+            "attachments": { "nodes": [pr] },
+            "assignee": { "isMe": true },
+        });
+        let issues = parse(vec![issue_node(followed), issue_node(mine)]);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].identifier, "LABS-2");
+        assert_eq!(issues[0].prs, ["app#12"]);
+    }
+
+    #[test]
     fn parse_activity_reads_the_next_cursor() {
         let body = page(vec![], Some("cursor-1"));
         let next = parse_activity(200, &body, &day()).unwrap().next;
@@ -1009,13 +1045,41 @@ mod tests {
         }));
         assert_eq!(
             block_on(suggest(&secrets, &api, &day())),
-            Ok(vec![
-                "LABS-1 T — commented".into(),
-                "(Linear had more activity than this. Set a team key in Settings to narrow it.)"
-                    .into()
-            ])
+            Ok(Lines {
+                lines: vec!["LABS-1 T — commented".into()],
+                notice: Some(
+                    "Linear had more activity than this. Set a team key in Settings to narrow it."
+                        .into()
+                ),
+            })
         );
         assert_eq!(*api.asked.lock().unwrap(), ["lin_api_saved"]);
+    }
+
+    #[test]
+    fn suggest_keeps_the_truncation_notice_out_of_the_lines() {
+        let secrets = FakeKeychain::default();
+        secrets.set("k").unwrap();
+        let api = FakeLinear::with_activity(Ok(Activity {
+            issues: vec![],
+            truncated: true,
+        }));
+        let query = ActivityQuery {
+            team_key: Some("LABS".into()),
+            ..day()
+        };
+        assert_eq!(
+            block_on(suggest(&secrets, &api, &query)),
+            Ok(Lines {
+                lines: vec![],
+                notice: Some("Linear had more activity than this; some issues are missing.".into()),
+            })
+        );
+        let complete = FakeLinear::with_activity(Ok(Activity::default()));
+        assert_eq!(
+            block_on(suggest(&secrets, &complete, &query)).map(|l| l.notice),
+            Ok(None)
+        );
     }
 
     #[test]

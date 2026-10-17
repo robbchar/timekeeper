@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api, Entry, Project } from "../api";
+import { api, Entry, Project, Suggestion } from "../api";
 import { DayList } from "./DayList";
 
 vi.mock("../api", () => ({
@@ -10,7 +10,7 @@ vi.mock("../api", () => ({
     deleteEntry: vi.fn(() => Promise.resolve()),
     copy: vi.fn(),
     suggestNotes: vi.fn(() =>
-      Promise.resolve([{ source: "linear", lines: ["LABS-1 T — commented"] }]),
+      Promise.resolve([{ source: "linear", lines: ["LABS-1 T — commented"], notice: null }]),
     ),
   },
 }));
@@ -332,5 +332,17 @@ describe("DayList Linear suggestions", () => {
     await waitFor(() =>
       expect(screen.getByRole("textbox")).toHaveValue("typed\nLABS-1 T — commented"),
     );
+  });
+  it("keeps what was typed while Linear was answering", async () => {
+    let resolve: (v: Suggestion[]) => void = () => {};
+    vi.mocked(api.suggestNotes).mockReturnValueOnce(new Promise((r) => (resolve = r)));
+    render(list(entry, vi.fn(), undefined, linear));
+    fireEvent.click(screen.getByRole("button", { name: "Suggest from Linear" }));
+    fireEvent.click(screen.getByTitle("Edit notes"));
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "typed meanwhile" } });
+    await act(async () =>
+      resolve([{ source: "linear", lines: ["LABS-1 T — commented"], notice: null }]),
+    );
+    expect(screen.getByRole("textbox")).toHaveValue("typed meanwhile\nLABS-1 T — commented");
   });
 });

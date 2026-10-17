@@ -347,7 +347,7 @@ function handle<T>(cmd: string, a: Record<string, unknown>): T {
       if (!linearKey) throw new Refused("No Linear API key is saved.");
       const issue = `${p.linearTeamKey ?? "MOCK"}-1 Mock issue for ${a.day as string}`;
       return [
-        { source: "linear", lines: [`${issue} — moved to In Review; commented`] },
+        { source: "linear", lines: [`${issue} — moved to In Review; commented`], notice: null },
       ] satisfies Suggestion[] as T;
     }
   }

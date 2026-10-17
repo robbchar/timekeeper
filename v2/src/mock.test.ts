@@ -52,6 +52,7 @@ describe("mock invoke", () => {
       {
         source: "linear",
         lines: ["MOCK-1 Mock issue for 2026-10-16 — moved to In Review; commented"],
+        notice: null,
       },
     ]);
     await invoke("remove_linear_key");

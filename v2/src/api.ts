@@ -28,6 +28,8 @@ export interface LinearConnection {
 export interface Suggestion {
   source: "linear";
   lines: string[];
+  /** Why the lines may be incomplete; shown, never added to the notes. */
+  notice: string | null;
 }
 
 export interface Entry {

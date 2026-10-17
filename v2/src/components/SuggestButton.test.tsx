@@ -1,6 +1,6 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { api } from "../api";
+import { api, Suggestion } from "../api";
 import { appendLines, SuggestButton } from "./SuggestButton";
 
 vi.mock("../api", () => ({
@@ -33,7 +33,7 @@ describe("SuggestButton", () => {
 
   it("asks for the entry's project and day and hands over every line", async () => {
     vi.mocked(api.suggestNotes).mockResolvedValue([
-      { source: "linear", lines: ["LABS-1 A — commented", "LABS-2 B — created"] },
+      { source: "linear", lines: ["LABS-1 A — commented", "LABS-2 B — created"], notice: null },
     ]);
     const { onSuggested, button } = renderButton();
     fireEvent.click(button);
@@ -57,7 +57,9 @@ describe("SuggestButton", () => {
   it("says when nothing was found and appends nothing", async () => {
     vi.useFakeTimers();
     try {
-      vi.mocked(api.suggestNotes).mockResolvedValue([{ source: "linear", lines: [] }]);
+      vi.mocked(api.suggestNotes).mockResolvedValue([
+        { source: "linear", lines: [], notice: null },
+      ]);
       const { onSuggested, button } = renderButton();
       await act(async () => fireEvent.click(button));
       expect(button).toHaveTextContent("Nothing found");
@@ -91,5 +93,63 @@ describe("SuggestButton", () => {
     const mouseDown = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
     button.dispatchEvent(mouseDown);
     expect(mouseDown.defaultPrevented).toBe(true);
+  });
+
+  it("shows a notice beside the button instead of adding it to the notes", async () => {
+    vi.mocked(api.suggestNotes).mockResolvedValue([
+      { source: "linear", lines: ["LABS-1 A — commented"], notice: "Some issues are missing." },
+    ]);
+    const { onSuggested, button } = renderButton();
+    fireEvent.click(button);
+    expect(await screen.findByRole("status")).toHaveTextContent("Some issues are missing.");
+    expect(onSuggested).toHaveBeenCalledWith("LABS-1 A — commented");
+  });
+
+  it("stays busy if asked again before the empty message clears", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(api.suggestNotes).mockResolvedValueOnce([
+        { source: "linear", lines: [], notice: null },
+      ]);
+      const { button } = renderButton();
+      await act(async () => fireEvent.click(button));
+      expect(button).toHaveTextContent("Nothing found");
+      vi.mocked(api.suggestNotes).mockReturnValueOnce(new Promise(() => {}));
+      fireEvent.click(button);
+      act(() => {
+        vi.advanceTimersByTime(1500);
+      });
+      expect(button).toHaveTextContent("Asking Linear…");
+      expect(button).toBeDisabled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("hands a late reply to the latest callback", async () => {
+    let resolve: (v: Suggestion[]) => void = () => {};
+    vi.mocked(api.suggestNotes).mockReturnValue(new Promise((r) => (resolve = r)));
+    const first = vi.fn();
+    const latest = vi.fn();
+    const { rerender } = render(
+      <SuggestButton projectId={4} day="2026-10-16" onSuggested={first} onError={vi.fn()} />,
+    );
+    fireEvent.click(screen.getByRole("button"));
+    rerender(
+      <SuggestButton projectId={4} day="2026-10-16" onSuggested={latest} onError={vi.fn()} />,
+    );
+    await act(async () => resolve([{ source: "linear", lines: ["x"], notice: null }]));
+    expect(first).not.toHaveBeenCalled();
+    expect(latest).toHaveBeenCalledWith("x");
+  });
+
+  it("drops a reply that arrives after it's gone", async () => {
+    let resolve: (v: Suggestion[]) => void = () => {};
+    vi.mocked(api.suggestNotes).mockReturnValue(new Promise((r) => (resolve = r)));
+    const { onSuggested, button } = renderButton();
+    fireEvent.click(button);
+    cleanup();
+    await act(async () => resolve([{ source: "linear", lines: ["x"], notice: null }]));
+    expect(onSuggested).not.toHaveBeenCalled();
   });
 });

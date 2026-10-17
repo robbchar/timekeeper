@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { api, Entry, Project, Status } from "../api";
 import { formatClock } from "../format";
 import { appendLines, SuggestButton } from "./SuggestButton";
@@ -66,11 +66,6 @@ export function TimerPanel({
     setNotes(target?.notes ?? "");
   }
 
-  // The notes as last rendered, for a suggestion that arrives after more typing.
-  const latestNotes = useRef(notes);
-  useEffect(() => {
-    latestNotes.current = notes;
-  }, [notes]);
   const notesProject = listed.find((p) => p.id === (target?.projectId ?? selected));
 
   const saveTimer = useRef<number | undefined>(undefined);
@@ -196,9 +191,11 @@ export function TimerPanel({
       {notesProject?.linearEnabled && (
         <div className="timer__suggest">
           <SuggestButton
+            // A new target drops a reply that was meant for the old one.
+            key={`${notesProject.id}:${target?.day ?? today}:${targetId ?? "draft"}`}
             projectId={notesProject.id}
             day={target?.day ?? today}
-            onSuggested={(text) => scheduleSave(appendLines(latestNotes.current, text))}
+            onSuggested={(text) => scheduleSave(appendLines(notes, text))}
             onError={onError}
           />
         </div>
