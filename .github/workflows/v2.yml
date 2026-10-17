@@ -97,8 +97,9 @@ jobs:
       - name: Stub frontend dist
         run: mkdir dist
 
-      - name: cargo check
-        run: cargo check -p timekeeper
+      # Linux clippy skips cfg(windows) code, so lint the shell crate here too.
+      - name: cargo clippy
+        run: cargo clippy -p timekeeper --all-targets -- -D warnings
 
       - name: Core tests
         run: cargo test -p timekeeper-core
