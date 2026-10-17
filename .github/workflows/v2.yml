@@ -102,3 +102,16 @@ jobs:
 
       - name: Core tests
         run: cargo test -p timekeeper-core
+
+      # Writes HKCU scratch keys and Credential Manager entries, which the runner allows.
+      - name: Shell tests
+        run: cargo test -p timekeeper
+
+      # TEMP: confirms the runner can write Credential Manager before #77's keychain test lands.
+      - name: Probe Credential Manager
+        shell: pwsh
+        run: |
+          cmdkey /generic:TimeKeeperCiProbe /user:ci /pass:probe
+          cmdkey /list:TimeKeeperCiProbe | Select-String TimeKeeperCiProbe
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          cmdkey /delete:TimeKeeperCiProbe

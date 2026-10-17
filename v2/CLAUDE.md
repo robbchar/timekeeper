@@ -65,9 +65,10 @@ go to `App`'s error banner through the components' `onError` prop; so do uncaugh
 unhandled rejections, via window listeners in `App`. Render errors are caught by `ErrorBoundary` in
 `main.tsx`, which shows the error, its stacks and a Reload button.
 
-CI (`.github/workflows/v2.yml`) runs all of the above on PRs touching `v2/`, plus `cargo check` and
-core tests on Windows. Clippy warnings fail the build. Clippy needs `dist/` to exist, so run
-`npm run build` first. The Rust version is pinned in `rust-toolchain.toml`; bump it deliberately.
+CI (`.github/workflows/v2.yml`) runs all of the above on PRs touching `v2/`, plus `cargo check`,
+core tests and shell tests on Windows, where the registry and Credential Manager tests run for
+real. Clippy warnings fail the build. Clippy needs `dist/` to exist, so run `npm run build` first.
+The Rust version is pinned in `rust-toolchain.toml`; bump it deliberately.
 
 On Windows, `npm run smoke:windows` builds a debug exe and runs it against temp data dirs: first-run
 import (once, v1 untouched), single instance, and crash recovery with a hard kill. It takes about
