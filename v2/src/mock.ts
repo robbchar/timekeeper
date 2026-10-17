@@ -5,8 +5,22 @@ import type { Entry, ImportReport, Project, Snapshot, Status, Totals } from "./a
 import { addDays, localDay } from "./format";
 
 const projects: Project[] = [
-  { id: 1, name: "Acme Portal", color: "teal", archived: false },
-  { id: 2, name: "Side project", color: "gold", archived: false },
+  {
+    id: 1,
+    name: "Acme Portal",
+    color: "teal",
+    archived: false,
+    linearEnabled: false,
+    linearTeamKey: null,
+  },
+  {
+    id: 2,
+    name: "Side project",
+    color: "gold",
+    archived: false,
+    linearEnabled: false,
+    linearTeamKey: null,
+  },
 ];
 
 const palette = ["teal", "coral", "blue", "gold", "purple", "green"];
@@ -68,6 +82,10 @@ let lastProjectId: number | null = 1;
 const settings: Record<string, string> = {};
 let v1ImportedAt: string | null = null;
 let startAtLogin = false;
+// Held in memory only; a browser preview never talks to Linear.
+let linearKey: string | null = null;
+const LINEAR_UNAUTHORIZED =
+  "Linear didn't accept this key. Check that it's a personal API key that hasn't been revoked.";
 
 function secondsOf(e: MockEntry): number {
   const live = running?.entryId === e.id ? (Date.now() - running.startedAt) / 1000 : 0;
@@ -250,6 +268,8 @@ function handle<T>(cmd: string, a: Record<string, unknown>): T {
         name: (a.name as string).trim(),
         color: palette[projects.length % palette.length],
         archived: false,
+        linearEnabled: false,
+        linearTeamKey: null,
       };
       projects.push(p);
       return p as T;
@@ -294,6 +314,32 @@ function handle<T>(cmd: string, a: Record<string, unknown>): T {
       return startAtLogin as T;
     case "set_start_at_login":
       startAtLogin = a.enabled as boolean;
+      return undefined as T;
+    case "set_project_linear_enabled":
+      project(a.projectId).linearEnabled = a.enabled as boolean;
+      return undefined as T;
+    case "set_project_linear_team": {
+      const teamKey = ((a.teamKey as string | null) ?? "").trim();
+      if (teamKey && !/^[a-z0-9]+$/i.test(teamKey)) {
+        throw new Refused(`a Linear team key is letters and digits, like LABS (got "${teamKey}")`);
+      }
+      project(a.projectId).linearTeamKey = teamKey ? teamKey.toUpperCase() : null;
+      return undefined as T;
+    }
+    case "linear_key_status":
+      return (linearKey ? { hint: linearKey.slice(-4) } : null) as T;
+    case "save_linear_key": {
+      const key = (a.key as string).trim();
+      if (!key) throw new Refused("Paste a Linear API key first.");
+      if (!key.startsWith("lin_api_")) throw new Refused(LINEAR_UNAUTHORIZED);
+      linearKey = key;
+      return { hint: key.slice(-4), viewer: "Mock Viewer" } as T;
+    }
+    case "test_linear_connection":
+      if (!linearKey) throw new Refused("No Linear API key is saved.");
+      return "Mock Viewer" as T;
+    case "remove_linear_key":
+      linearKey = null;
       return undefined as T;
   }
   throw new Error(`mock: unknown command ${cmd}`);

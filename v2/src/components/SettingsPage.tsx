@@ -1,5 +1,6 @@
 import { api, ImportReport, Snapshot } from "../api";
 import { DATE_FORMATS, DateFormat, DURATION_FORMATS, DurationFormat, formatShort } from "../format";
+import { LinearSettings } from "./LinearSettings";
 import { ProjectSettings } from "./ProjectSettings";
 import { StartAtLogin } from "./StartAtLogin";
 import { useBusyAction } from "./useBusyAction";
@@ -98,6 +99,8 @@ export function SettingsPage({ snapshot, onSetting, onChanged, onError }: Props)
           </select>
         </div>
       </section>
+
+      <LinearSettings projects={snapshot.projects} onChanged={onChanged} onError={onError} />
 
       <StartAtLogin onError={onError} />
 

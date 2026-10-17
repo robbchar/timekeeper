@@ -1,7 +1,8 @@
-import { CSSProperties, useState } from "react";
+import { CSSProperties } from "react";
 import { api, Project } from "../api";
 import { projectColor } from "../palette";
 import { useInlineEdit } from "./useInlineEdit";
+import { Pending, usePending } from "./usePending";
 
 interface Props {
   projects: Project[];
@@ -36,23 +37,6 @@ export function ProjectSettings({ projects, palette, onChanged, onError }: Props
       )}
     </section>
   );
-}
-
-interface Pending<T> {
-  shown: T;
-  hold: (value: T) => void;
-  drop: () => void;
-}
-
-/** A value being saved, shown in place of `actual` until a refresh moves `actual` off its base. */
-function usePending<T>(actual: T): Pending<T> {
-  const [pending, setPending] = useState<{ base: T; value: T } | null>(null);
-  if (pending && pending.base !== actual) setPending(null);
-  return {
-    shown: pending ? pending.value : actual,
-    hold: (value) => setPending({ base: actual, value }),
-    drop: () => setPending(null),
-  };
 }
 
 function ProjectRow({

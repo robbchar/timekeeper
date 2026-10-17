@@ -8,9 +8,9 @@ vi.mock("../api", () => ({
 }));
 
 const projects: Project[] = [
-  { id: 1, name: "Acme", color: null, archived: false },
-  { id: 2, name: "Side", color: null, archived: false },
-  { id: 3, name: "Old", color: null, archived: true },
+  { id: 1, name: "Acme", color: null, archived: false, linearEnabled: false, linearTeamKey: null },
+  { id: 2, name: "Side", color: null, archived: false, linearEnabled: false, linearTeamKey: null },
+  { id: 3, name: "Old", color: null, archived: true, linearEnabled: false, linearTeamKey: null },
 ];
 
 function open(props: Partial<Parameters<typeof AddTimeForm>[0]> = {}) {
