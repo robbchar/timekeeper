@@ -106,4 +106,3 @@ jobs:
       # Writes HKCU scratch keys and Credential Manager entries, which the runner allows.
       - name: Shell tests
         run: cargo test -p timekeeper
-
