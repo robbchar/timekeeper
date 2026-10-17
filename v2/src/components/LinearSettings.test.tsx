@@ -9,7 +9,8 @@ vi.mock("../api", () => ({
     saveLinearKey: vi.fn(),
     testLinearConnection: vi.fn(),
     removeLinearKey: vi.fn(() => Promise.resolve()),
-    setProjectLinear: vi.fn(() => Promise.resolve()),
+    setProjectLinearEnabled: vi.fn(() => Promise.resolve()),
+    setProjectLinearTeam: vi.fn(() => Promise.resolve()),
   },
 }));
 
@@ -162,16 +163,17 @@ describe("LinearSettings", () => {
       expect(screen.getByText("••••1234")).toBeInTheDocument();
     });
 
-    it("turns Linear on for a project, keeping its team key", async () => {
+    it("turns Linear on for a project without touching its team key", async () => {
       const { onChanged } = setup("1234");
       fireEvent.click(await screen.findByRole("checkbox", { name: "Side" }));
-      expect(api.setProjectLinear).toHaveBeenCalledExactlyOnceWith(2, true, null);
+      expect(api.setProjectLinearEnabled).toHaveBeenCalledExactlyOnceWith(2, true);
+      expect(api.setProjectLinearTeam).not.toHaveBeenCalled();
       expect(screen.getByRole("checkbox", { name: "Side" })).toBeChecked();
       await waitFor(() => expect(onChanged).toHaveBeenCalled());
     });
 
     it("reverts the toggle when saving fails", async () => {
-      vi.mocked(api.setProjectLinear).mockRejectedValueOnce("database is locked");
+      vi.mocked(api.setProjectLinearEnabled).mockRejectedValueOnce("database is locked");
       const { onError } = setup("1234");
       fireEvent.click(await screen.findByRole("checkbox", { name: "Acme" }));
       await waitFor(() => expect(onError).toHaveBeenCalledWith("database is locked"));
@@ -185,7 +187,7 @@ describe("LinearSettings", () => {
       box.focus();
       fireEvent.change(box, { target: { value: " eng " } });
       fireEvent.keyDown(box, { key: "Enter" });
-      expect(api.setProjectLinear).toHaveBeenCalledExactlyOnceWith(1, true, "ENG");
+      expect(api.setProjectLinearTeam).toHaveBeenCalledExactlyOnceWith(1, "ENG");
       expect(box).toHaveValue("ENG");
     });
 
@@ -196,7 +198,7 @@ describe("LinearSettings", () => {
       box.focus();
       fireEvent.change(box, { target: { value: "" } });
       fireEvent.blur(box);
-      expect(api.setProjectLinear).toHaveBeenCalledExactlyOnceWith(1, true, null);
+      expect(api.setProjectLinearTeam).toHaveBeenCalledExactlyOnceWith(1, null);
     });
 
     it("cancels a team key edit on Escape", async () => {
@@ -206,12 +208,12 @@ describe("LinearSettings", () => {
       box.focus();
       fireEvent.change(box, { target: { value: "ENG" } });
       fireEvent.keyDown(box, { key: "Escape" });
-      expect(api.setProjectLinear).not.toHaveBeenCalled();
+      expect(api.setProjectLinearTeam).not.toHaveBeenCalled();
       expect(box).toHaveValue("LABS");
     });
 
     it("reports a refused team key and keeps the draft", async () => {
-      vi.mocked(api.setProjectLinear).mockRejectedValueOnce(REFUSED_TEAM);
+      vi.mocked(api.setProjectLinearTeam).mockRejectedValueOnce(REFUSED_TEAM);
       const { onError } = setup("1234");
       await screen.findByText("••••1234");
       const box = teamBox("Acme");
@@ -220,6 +222,21 @@ describe("LinearSettings", () => {
       fireEvent.keyDown(box, { key: "Enter" });
       await waitFor(() => expect(onError).toHaveBeenCalledWith(REFUSED_TEAM));
       expect(box).toHaveValue("la-bs");
+    });
+
+    it("toggles independently of a team key that is still being saved", async () => {
+      vi.mocked(api.setProjectLinearTeam).mockImplementationOnce(never);
+      const { onError } = setup("1234");
+      await screen.findByText("••••1234");
+      const box = teamBox("Acme");
+      box.focus();
+      fireEvent.change(box, { target: { value: "la-bs" } });
+      fireEvent.blur(box);
+      fireEvent.click(screen.getByRole("checkbox", { name: "Acme" }));
+
+      expect(api.setProjectLinearEnabled).toHaveBeenCalledExactlyOnceWith(1, false);
+      await waitFor(() => expect(screen.getByRole("checkbox", { name: "Acme" })).not.toBeChecked());
+      expect(onError).not.toHaveBeenCalled();
     });
   });
 

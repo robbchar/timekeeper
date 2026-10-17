@@ -464,40 +464,49 @@ fn new_projects_start_without_linear() {
 }
 
 #[test]
-fn set_project_linear_normalizes_the_team_key() {
+fn set_project_linear_team_normalizes_the_team_key() {
     let (s, id) = store_with_project();
-    s.set_project_linear(id, true, Some("  labs ")).unwrap();
-    let p = project(&s, id);
-    assert!(p.linear_enabled);
-    assert_eq!(p.linear_team_key.as_deref(), Some("LABS"));
+    s.set_project_linear_team(id, Some("  labs ")).unwrap();
+    assert_eq!(project(&s, id).linear_team_key.as_deref(), Some("LABS"));
 
-    s.set_project_linear(id, true, Some("   ")).unwrap();
+    s.set_project_linear_team(id, Some("   ")).unwrap();
     assert_eq!(
         project(&s, id).linear_team_key,
         None,
         "blank means no filter"
     );
-    s.set_project_linear(id, true, None).unwrap();
+    s.set_project_linear_team(id, Some("LABS")).unwrap();
+    s.set_project_linear_team(id, None).unwrap();
     assert_eq!(project(&s, id).linear_team_key, None);
 }
 
 #[test]
-fn set_project_linear_keeps_the_team_key_when_turned_off() {
+fn set_project_linear_enabled_keeps_the_team_key() {
     let (s, id) = store_with_project();
-    s.set_project_linear(id, true, Some("LABS")).unwrap();
-    s.set_project_linear(id, false, Some("LABS")).unwrap();
+    s.set_project_linear_team(id, Some("LABS")).unwrap();
+    s.set_project_linear_enabled(id, true).unwrap();
+    assert!(project(&s, id).linear_enabled);
+    s.set_project_linear_enabled(id, false).unwrap();
     let p = project(&s, id);
     assert!(!p.linear_enabled);
     assert_eq!(p.linear_team_key.as_deref(), Some("LABS"));
 }
 
 #[test]
-fn set_project_linear_refuses_a_team_key_that_isnt_letters_and_digits() {
+fn set_project_linear_team_leaves_enabled_alone() {
+    let (s, id) = store_with_project();
+    s.set_project_linear_enabled(id, true).unwrap();
+    s.set_project_linear_team(id, Some("LABS")).unwrap();
+    assert!(project(&s, id).linear_enabled);
+}
+
+#[test]
+fn set_project_linear_team_refuses_a_team_key_that_isnt_letters_and_digits() {
     let (s, id) = store_with_project();
     for bad in ["LA-BS", "labs!", "LA BS"] {
         assert!(
             matches!(
-                s.set_project_linear(id, true, Some(bad)),
+                s.set_project_linear_team(id, Some(bad)),
                 Err(Error::Invalid(_))
             ),
             "{bad:?} should be refused"
@@ -507,10 +516,10 @@ fn set_project_linear_refuses_a_team_key_that_isnt_letters_and_digits() {
 }
 
 #[test]
-fn set_project_linear_refuses_non_ascii() {
+fn set_project_linear_team_refuses_non_ascii() {
     let (s, id) = store_with_project();
     assert!(matches!(
-        s.set_project_linear(id, true, Some("ÄBC")),
+        s.set_project_linear_team(id, Some("ÄBC")),
         Err(Error::Invalid(_))
     ));
 }
@@ -519,7 +528,11 @@ fn set_project_linear_refuses_non_ascii() {
 fn set_project_linear_on_an_unknown_project_fails() {
     let (s, _) = store_with_project();
     assert!(matches!(
-        s.set_project_linear(99, true, None),
+        s.set_project_linear_enabled(99, true),
+        Err(Error::ProjectNotFound(99))
+    ));
+    assert!(matches!(
+        s.set_project_linear_team(99, None),
         Err(Error::ProjectNotFound(99))
     ));
 }

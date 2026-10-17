@@ -111,9 +111,11 @@ export const api = {
     call<void>("set_project_color", { projectId, color }),
   setProjectArchived: (projectId: number, archived: boolean) =>
     call<void>("set_project_archived", { projectId, archived }),
+  setProjectLinearEnabled: (projectId: number, enabled: boolean) =>
+    call<void>("set_project_linear_enabled", { projectId, enabled }),
   /** Normalized by the backend: trimmed, uppercased, blank → `null`; refused unless letters and digits. */
-  setProjectLinear: (projectId: number, enabled: boolean, teamKey: string | null) =>
-    call<void>("set_project_linear", { projectId, enabled, teamKey }),
+  setProjectLinearTeam: (projectId: number, teamKey: string | null) =>
+    call<void>("set_project_linear_team", { projectId, teamKey }),
   setSetting: (key: string, value: string) => call<void>("set_setting", { key, value }),
   /** Brings in v1 sessions recorded since the last import; still-open ones wait. */
   importV1Again: () => call<ImportReport>("import_v1_again"),

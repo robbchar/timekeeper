@@ -315,14 +315,15 @@ function handle<T>(cmd: string, a: Record<string, unknown>): T {
     case "set_start_at_login":
       startAtLogin = a.enabled as boolean;
       return undefined as T;
-    case "set_project_linear": {
+    case "set_project_linear_enabled":
+      project(a.projectId).linearEnabled = a.enabled as boolean;
+      return undefined as T;
+    case "set_project_linear_team": {
       const teamKey = ((a.teamKey as string | null) ?? "").trim();
       if (teamKey && !/^[a-z0-9]+$/i.test(teamKey)) {
         throw new Refused(`a Linear team key is letters and digits, like LABS (got "${teamKey}")`);
       }
-      const p = project(a.projectId);
-      p.linearEnabled = a.enabled as boolean;
-      p.linearTeamKey = teamKey ? teamKey.toUpperCase() : null;
+      project(a.projectId).linearTeamKey = teamKey ? teamKey.toUpperCase() : null;
       return undefined as T;
     }
     case "linear_key_status":

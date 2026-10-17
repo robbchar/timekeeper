@@ -13,7 +13,8 @@ const EMPTY_KEY: &str = "Paste a Linear API key first.";
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum LinearError {
-    Offline,
+    /// The request never got a reply; holds the underlying reason.
+    Offline(String),
     Unauthorized,
     RateLimited,
     Linear(String),
@@ -25,9 +26,10 @@ pub enum LinearError {
 impl std::fmt::Display for LinearError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Offline => {
-                f.write_str("Couldn't reach Linear. Check your internet connection and try again.")
-            }
+            Self::Offline(reason) => write!(
+                f,
+                "Couldn't reach Linear ({reason}). Check your internet connection and try again."
+            ),
             Self::Unauthorized => f.write_str(
                 "Linear didn't accept this key. Check that it's a personal API key that hasn't been revoked.",
             ),
@@ -65,13 +67,9 @@ pub struct Client {
 
 impl Client {
     pub fn new() -> reqwest::Result<Self> {
-        Self::with_endpoint(ENDPOINT)
-    }
-
-    fn with_endpoint(endpoint: &str) -> reqwest::Result<Self> {
         Ok(Self {
             http: reqwest::Client::builder().timeout(TIMEOUT).build()?,
-            endpoint: endpoint.into(),
+            endpoint: ENDPOINT.into(),
         })
     }
 
@@ -91,21 +89,28 @@ impl LinearApi for Client {
         let request = self
             .viewer_request(key)
             .map_err(|_| LinearError::Unauthorized)?;
-        let response = self
-            .http
-            .execute(request)
-            .await
-            .map_err(|_| LinearError::Offline)?;
+        let response = self.http.execute(request).await.map_err(offline)?;
         let status = response.status().as_u16();
-        let body = response.text().await.map_err(|_| LinearError::Offline)?;
+        let body = response.text().await.map_err(offline)?;
         parse_viewer(status, &body)
     }
 }
 
+/// Keeps the innermost cause (DNS, refused, TLS, timeout), which says more than reqwest's summary.
+fn offline(e: reqwest::Error) -> LinearError {
+    let mut cause: &dyn std::error::Error = &e;
+    while let Some(inner) = cause.source() {
+        cause = inner;
+    }
+    LinearError::Offline(cause.to_string())
+}
+
 /// Maps Linear's reply to `{ viewer { name } }` onto the viewer's name or a user-facing error.
 fn parse_viewer(status: u16, body: &str) -> Result<String, LinearError> {
-    if status == 401 {
-        return Err(LinearError::Unauthorized);
+    match status {
+        401 => return Err(LinearError::Unauthorized),
+        429 => return Err(LinearError::RateLimited),
+        _ => {}
     }
     let json: serde_json::Value =
         serde_json::from_str(body).map_err(|_| LinearError::Unexpected(status))?;
@@ -156,6 +161,8 @@ pub async fn save_key(
     if key.is_empty() {
         return Err(EMPTY_KEY.into());
     }
+    // Before Linear sees the key, so it never leaves the machine when it can't be kept.
+    secrets.writable()?;
     let viewer = api.viewer(key).await.map_err(|e| e.to_string())?;
     secrets.set(key)?;
     Ok(Connected {
@@ -251,6 +258,14 @@ mod tests {
     }
 
     #[test]
+    fn parse_viewer_http_429_is_rate_limited() {
+        assert_eq!(
+            parse_viewer(429, "Too Many Requests"),
+            Err(LinearError::RateLimited)
+        );
+    }
+
+    #[test]
     fn parse_viewer_other_graphql_error_keeps_the_message() {
         let body = r#"{"errors":[{"message":"Something broke","extensions":{"code":"INTERNAL"}}]}"#;
         assert_eq!(
@@ -282,8 +297,8 @@ mod tests {
     #[test]
     fn errors_read_as_the_spec_says() {
         assert_eq!(
-            LinearError::Offline.to_string(),
-            "Couldn't reach Linear. Check your internet connection and try again."
+            LinearError::Offline("dns error".into()).to_string(),
+            "Couldn't reach Linear (dns error). Check your internet connection and try again."
         );
         assert_eq!(
             LinearError::Unauthorized.to_string(),
@@ -334,8 +349,20 @@ mod tests {
             .local_addr()
             .unwrap()
             .port();
-        let client = Client::with_endpoint(&format!("http://127.0.0.1:{port}/graphql")).unwrap();
-        assert_eq!(block_on(client.viewer("k")), Err(LinearError::Offline));
+        // No proxy: a system or env proxy would answer for 127.0.0.1 instead.
+        let client = Client {
+            http: reqwest::Client::builder()
+                .no_proxy()
+                .timeout(TIMEOUT)
+                .build()
+                .unwrap(),
+            endpoint: format!("http://127.0.0.1:{port}/graphql"),
+        };
+        let err = block_on(client.viewer("k")).unwrap_err();
+        assert!(
+            matches!(&err, LinearError::Offline(reason) if !reason.is_empty()),
+            "{err:?}"
+        );
     }
 
     #[test]
@@ -391,12 +418,38 @@ mod tests {
     #[test]
     fn save_key_stores_nothing_when_linear_refuses() {
         let secrets = FakeKeychain::default();
-        for reply in [LinearError::Unauthorized, LinearError::Offline] {
+        for reply in [LinearError::Unauthorized, LinearError::Offline("x".into())] {
             let api = FakeLinear::replying(Err(reply.clone()));
             let err = block_on(save_key(&secrets, &api, "lin_api_typo")).unwrap_err();
             assert_eq!(err, reply.to_string());
             assert_eq!(secrets.get().unwrap(), None);
         }
+    }
+
+    /// A store that can't keep anything, like `Keychain` outside Windows.
+    struct ReadOnlyKeychain;
+
+    impl SecretStore for ReadOnlyKeychain {
+        fn get(&self) -> Result<Option<String>, String> {
+            Ok(None)
+        }
+        fn set(&self, _secret: &str) -> Result<(), String> {
+            unreachable!("save_key checks writable() first")
+        }
+        fn delete(&self) -> Result<(), String> {
+            Ok(())
+        }
+        fn writable(&self) -> Result<(), String> {
+            Err("read-only".into())
+        }
+    }
+
+    #[test]
+    fn save_key_never_sends_a_key_it_cant_keep() {
+        let api = FakeLinear::replying(Ok("Robb"));
+        let err = block_on(save_key(&ReadOnlyKeychain, &api, "lin_api_abcd1234")).unwrap_err();
+        assert_eq!(err, "read-only");
+        assert!(api.asked.lock().unwrap().is_empty());
     }
 
     #[test]

@@ -184,7 +184,7 @@ function LinearProjectRow({
       if (next === teamKey.shown) return;
       teamKey.hold(next);
       try {
-        await api.setProjectLinear(project.id, enabled.shown, next);
+        await api.setProjectLinearTeam(project.id, next);
       } catch (err) {
         teamKey.drop();
         throw err;
@@ -197,7 +197,7 @@ function LinearProjectRow({
   const toggle = async (on: boolean) => {
     enabled.hold(on);
     try {
-      await api.setProjectLinear(project.id, on, teamKey.shown);
+      await api.setProjectLinearEnabled(project.id, on);
     } catch (err) {
       enabled.drop();
       onError(err);

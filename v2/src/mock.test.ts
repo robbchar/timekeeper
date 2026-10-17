@@ -28,14 +28,15 @@ describe("mock invoke", () => {
   });
 
   it("normalizes and validates a project's team key", async () => {
-    await invoke("set_project_linear", { projectId: 1, enabled: true, teamKey: " labs " });
+    await invoke("set_project_linear_enabled", { projectId: 1, enabled: true });
+    await invoke("set_project_linear_team", { projectId: 1, teamKey: " labs " });
     const snap = await invoke<Snapshot>("snapshot");
     expect(snap.projects.find((p) => p.id === 1)).toMatchObject({
       linearEnabled: true,
       linearTeamKey: "LABS",
     });
     await expect(
-      invoke("set_project_linear", { projectId: 1, enabled: true, teamKey: "LA-BS" }),
+      invoke("set_project_linear_team", { projectId: 1, teamKey: "LA-BS" }),
     ).rejects.toBe('a Linear team key is letters and digits, like LABS (got "LA-BS")');
   });
 });

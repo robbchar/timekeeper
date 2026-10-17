@@ -313,16 +313,23 @@ impl Store {
         )
     }
 
-    /// Turns Linear on or off for a project, with an optional team key to filter by.
-    pub fn set_project_linear(&self, id: i64, enabled: bool, team_key: Option<&str>) -> Result<()> {
+    /// Turns Linear on or off for a project; its team key is kept either way.
+    pub fn set_project_linear_enabled(&self, id: i64, enabled: bool) -> Result<()> {
+        self.update_project(
+            id,
+            "UPDATE projects SET linear_enabled = ?2 WHERE id = ?1",
+            enabled,
+        )
+    }
+
+    /// Limits a project's Linear suggestions to one team; blank or `None` means any team.
+    pub fn set_project_linear_team(&self, id: i64, team_key: Option<&str>) -> Result<()> {
         let team_key = linear_team_key(team_key)?;
-        match self.conn.execute(
-            "UPDATE projects SET linear_enabled = ?2, linear_team_key = ?3 WHERE id = ?1",
-            params![id, enabled, team_key],
-        )? {
-            0 => Err(Error::ProjectNotFound(id)),
-            _ => Ok(()),
-        }
+        self.update_project(
+            id,
+            "UPDATE projects SET linear_team_key = ?2 WHERE id = ?1",
+            team_key,
+        )
     }
 
     fn update_project(&self, id: i64, sql: &str, value: impl rusqlite::ToSql) -> Result<()> {

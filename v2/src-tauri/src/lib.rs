@@ -269,15 +269,26 @@ fn set_project_archived(
 }
 
 #[tauri::command]
-fn set_project_linear(
+fn set_project_linear_enabled(
     state: State<AppState>,
     project_id: i64,
     enabled: bool,
+) -> Result<(), String> {
+    state
+        .lock_store()
+        .set_project_linear_enabled(project_id, enabled)
+        .map_err(err)
+}
+
+#[tauri::command]
+fn set_project_linear_team(
+    state: State<AppState>,
+    project_id: i64,
     team_key: Option<String>,
 ) -> Result<(), String> {
     state
         .lock_store()
-        .set_project_linear(project_id, enabled, team_key.as_deref())
+        .set_project_linear_team(project_id, team_key.as_deref())
         .map_err(err)
 }
 
@@ -753,7 +764,8 @@ pub fn run() {
             backup_now,
             start_at_login,
             set_start_at_login,
-            set_project_linear,
+            set_project_linear_enabled,
+            set_project_linear_team,
             linear_key_status,
             save_linear_key,
             test_linear_connection,

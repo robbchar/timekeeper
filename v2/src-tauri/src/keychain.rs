@@ -6,6 +6,10 @@ pub trait SecretStore {
     fn set(&self, secret: &str) -> Result<(), String>;
     /// Removing a secret that isn't there succeeds.
     fn delete(&self) -> Result<(), String>;
+    /// `Err` with the reason when `set` can never succeed here.
+    fn writable(&self) -> Result<(), String> {
+        Ok(())
+    }
 }
 
 /// Debug builds use their own entry, so `tauri dev` never touches the installed app's key.
@@ -93,6 +97,9 @@ mod other {
         }
         fn delete(&self) -> Result<(), String> {
             Ok(())
+        }
+        fn writable(&self) -> Result<(), String> {
+            Err(UNSUPPORTED.into())
         }
     }
 }

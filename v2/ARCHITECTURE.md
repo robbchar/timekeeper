@@ -201,11 +201,14 @@ system.
 - **One endpoint.** `linear.rs` POSTs to `https://api.linear.app/graphql` with
   `Authorization: <key>` (no `Bearer`) and a 15 s timeout. Nothing else in the app uses the network.
 - **Errors** map to plain messages: HTTP 401 or `AUTHENTICATION_ERROR` → the key was refused;
-  `RATELIMITED` → rate limited; connect failure or timeout → offline; any other GraphQL error →
-  Linear's own message.
+  HTTP 429 or `RATELIMITED` → rate limited; no reply at all (DNS, refused, TLS, timeout) → offline,
+  with the underlying reason; any other GraphQL error → Linear's own message.
+- **Nothing leaves the machine that can't be kept:** where no credential store exists, Save fails
+  before Linear is asked.
 - **Per project:** `linear_enabled` (0/1) and `linear_team_key` (uppercase letters and digits, NULL
-  = any team). A project uses Linear only if it's switched on and a key is saved. Removing the key
-  keeps each project's settings.
+  = any team), each saved by its own command so a toggle never races a team-key edit. A project
+  uses Linear only if it's switched on and a key is saved. Removing the key keeps each project's
+  settings.
 
 ## Shell behavior
 
