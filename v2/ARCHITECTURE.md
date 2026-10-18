@@ -29,7 +29,8 @@ src/components/       React UI
   to `<app data dir>/panic.log`. This is safe because every `Store` write is a single statement or
   a single transaction.
 - **`src-tauri/src/linear.rs`** is the only code that makes network calls (see [Linear](#linear)),
-  and **`src-tauri/src/keychain.rs`** keeps the Linear key in Windows Credential Manager.
+  and **`src-tauri/src/keychain.rs`** keeps the Linear key in the OS credential store (Windows
+  Credential Manager, or the Secret Service on Linux).
   **`src-tauri/src/suggest.rs`** gathers note suggestions, one group per source a project has
   turned on (only Linear so far; merged GitHub PRs are #106).
 - **`src/api.ts`** is the single typed boundary. It is the only file under `src/` that imports
@@ -166,9 +167,9 @@ table but are not UI-writable.
 
 ### Start at login
 
-Windows release builds only (`src-tauri/src/login.rs`); elsewhere, and in debug builds so dev and
-smoke runs never point the entry at a debug exe, `start_at_login` returns `null` and the UI hides
-the toggle. It is a per-user value named after `productName` under
+Windows and Linux release builds only (`src-tauri/src/login.rs`); elsewhere, and in debug builds so
+dev and smoke runs never point the entry at a debug exe, `start_at_login` returns `null` and the UI
+hides the toggle. On Windows it is a per-user value named after `productName` under
 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, holding `"<exe>" --hidden`. Task Manager's
 Startup apps on/off switch is a flag under `Explorer\StartupApproved\Run` with the same name.
 
@@ -190,15 +191,30 @@ Uninstalling (not upgrading) deletes the Run value (Tauri's NSIS template). The 
 left on purpose: the uninstaller can't tell an upgrade from an uninstall, and the flag is what keeps
 a Task Manager "off" through an upgrade.
 
+On Linux it is an XDG autostart file, `$XDG_CONFIG_HOME/autostart/<identifier>.desktop` (usually
+`~/.config/autostart/dev.cathedraltree.timekeeper.desktop`), whose `Exec` is `"<path>" --hidden`.
+The path is `$APPIMAGE` when the exe runs inside that AppImage's mount (`$APPDIR`), since the mount
+changes on every launch; the variable alone isn't trusted, as anything an AppImage starts inherits
+it. The same reconcile runs, with two differences: `Hidden=true` or `X-GNOME-Autostart-enabled=false`
+(what desktop startup settings write) is the "off" flag, and a missing file means off, since nothing
+but the user deletes it. Turning the toggle on rewrites the whole file, through a temp file and a
+rename.
+
 ## Linear
 
 Suggests notes from what you did in Linear. Opt-in per project, since Linear is one client's
 system. Nothing is ever written to Linear.
 
-- **The key** is one Linear personal API key in Windows Credential Manager: service
+- **The key** is one Linear personal API key in Windows Credential Manager, or the Secret Service
+  (GNOME Keyring, KWallet) on Linux: service
   `dev.cathedraltree.timekeeper`, user `linear-api-key` (`linear-api-key-dev` in debug builds, so
   `tauri dev` never touches the installed app's key). It is never in SQLite, settings or backups.
-  The UI only ever gets its last four characters; elsewhere than Windows nothing can be saved.
+  The UI only ever gets its last four characters; on other platforms nothing can be saved.
+- **Linux connects per call.** `keychain.rs` uses `keyring-core` with the zbus Secret Service store
+  directly rather than `keyring::v1`, which connects once per process and keeps a failure, so a
+  keyring that starts after the app (a login launch) still works. With no Secret Service, Save
+  fails before the key is sent to Linear, with a message naming GNOME Keyring and KWallet. There is
+  no plain-file fallback.
 - **Save checks first.** `save_linear_key` asks Linear for `{ viewer { name } }` and stores the key
   only if Linear accepts it. `test_linear_connection` repeats the check with the stored key.
 - **One endpoint.** `linear.rs` POSTs to `https://api.linear.app/graphql` with

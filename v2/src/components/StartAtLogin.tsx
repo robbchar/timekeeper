@@ -37,7 +37,7 @@ export function StartAtLogin({ onError }: Props) {
       setEnabled(on);
     } catch (err) {
       onError(err);
-      // A failure may have landed halfway, so show what Windows has now.
+      // A failure may have landed halfway, so show what the OS has now.
       setEnabled(await api.startAtLogin().catch(() => null));
     } finally {
       setSaving(false);

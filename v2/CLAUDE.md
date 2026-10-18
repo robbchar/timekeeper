@@ -61,8 +61,17 @@ cargo clippy --workspace --all-targets -- -D warnings
 mode. UI tests run in `America/New_York`, so date tests cross a DST change on every machine.
 
 Tests never touch the real keychain or Linear: `linear.rs` and `suggest.rs` tests use fakes. The one
-exception is `keychain::tests::round_trips_through_credential_manager`, which runs on Windows only
-and uses a scratch entry it deletes.
+exception is `keychain::tests::round_trips_through_the_os_store`, which uses a scratch entry it
+deletes. On Windows it runs normally; on Linux it's ignored unless run under a throwaway Secret
+Service, as CI does:
+
+```bash
+XDG_DATA_HOME=$(mktemp -d) dbus-run-session -- sh -c \
+  'echo -n test | gnome-keyring-daemon --unlock --components=secrets >/dev/null &&
+   cargo test -p timekeeper keychain -- --ignored'
+```
+
+Login-entry tests use scratch registry keys or a scratch autostart dir, never the real ones.
 
 Promise-returning calls must be awaited, `.catch`-ed or `void`-ed (lint enforces it). UI failures
 go to `App`'s error banner through the components' `onError` prop; so do uncaught errors and
