@@ -32,4 +32,5 @@ keyring = "4"
 # Linux talks to the Secret Service directly, so each call makes its own D-Bus connection.
 [target.'cfg(target_os = "linux")'.dependencies]
 keyring-core = "1"
+secret-service = "5"
 zbus-secret-service-keyring-store = { version = "1", features = ["crypto-rust"] }

@@ -4361,6 +4361,7 @@ dependencies = [
  "keyring",
  "keyring-core",
  "reqwest",
+ "secret-service",
  "serde",
  "serde_json",
  "tauri",

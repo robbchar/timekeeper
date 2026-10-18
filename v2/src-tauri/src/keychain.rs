@@ -81,6 +81,7 @@ mod windows {
 mod linux {
     use keyring_core::api::CredentialStoreApi;
     use keyring_core::{Entry, Error};
+    use secret_service::Error as ServiceError;
     use zbus_secret_service_keyring_store::Store;
 
     pub(super) const UNAVAILABLE: &str =
@@ -110,10 +111,19 @@ mod linux {
         }
     }
 
-    fn describe(e: Error) -> String {
-        match e {
-            Error::NoStorageAccess(_) => "The keyring is locked. Unlock it, then try again.".into(),
-            e => format!("Couldn't access the keyring: {e}"),
+    /// `NoStorageAccess` also covers a missing default collection, so check what's underneath.
+    pub(super) fn describe(e: Error) -> String {
+        let locked = match &e {
+            Error::NoStorageAccess(b) => matches!(
+                b.downcast_ref(),
+                Some(ServiceError::Locked | ServiceError::Prompt)
+            ),
+            _ => false,
+        };
+        if locked {
+            "The keyring is locked. Unlock it, then try again.".into()
+        } else {
+            format!("Couldn't access the keyring: {e}")
         }
     }
 
@@ -224,5 +234,19 @@ mod tests {
         assert_eq!(k.set("lin_api_secret"), unavailable);
         assert_eq!(k.get(), Err(linux::UNAVAILABLE.to_string()));
         assert_eq!(k.delete(), unavailable);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn describes_only_a_real_lock_as_locked() {
+        use keyring_core::Error;
+        use secret_service::Error as ServiceError;
+        let locked = "The keyring is locked. Unlock it, then try again.";
+
+        let no_access = |e| linux::describe(Error::NoStorageAccess(Box::new(e)));
+        assert_eq!(no_access(ServiceError::Locked), locked);
+        assert_eq!(no_access(ServiceError::Prompt), locked);
+        // No default collection: not a lock, so the real cause is shown.
+        assert!(no_access(ServiceError::NoResult).starts_with("Couldn't access the keyring: "));
     }
 }

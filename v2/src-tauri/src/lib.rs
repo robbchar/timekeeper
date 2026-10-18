@@ -312,7 +312,8 @@ fn set_project_linear_team(
 }
 
 /// The saved key's last four characters, or `None`; never the key itself.
-#[tauri::command]
+// Off the main thread: on Linux a locked keyring prompts, and the window must stay live.
+#[tauri::command(async)]
 fn linear_key_status(state: State<AppState>) -> Result<Option<linear::KeyStatus>, String> {
     linear::key_status(&state.secrets)
 }
@@ -349,7 +350,8 @@ async fn suggest_notes(
     suggest::suggest(&project, start, end, &state.secrets, &state.linear).await
 }
 
-#[tauri::command]
+// Off the main thread, like `linear_key_status`.
+#[tauri::command(async)]
 fn remove_linear_key(state: State<AppState>) -> Result<(), String> {
     state.secrets.delete()
 }

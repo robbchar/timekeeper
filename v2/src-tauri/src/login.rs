@@ -1,6 +1,5 @@
-//! Start at login: a per-user Windows Run entry, or an XDG autostart file on Linux, that
-//! launches the app hidden in the tray. The choice is also saved, so an upgrade's uninstall
-//! step can't silently turn it off.
+//! Start at login: a Windows Run entry or an XDG autostart file that launches the app hidden.
+//! The choice is also saved, so an upgrade's uninstall step can't silently turn it off.
 
 use std::ffi::OsStr;
 
@@ -17,9 +16,8 @@ pub const SETTING: &str = "start_at_login";
 pub enum LoginEntry {
     Missing,
     Enabled,
-    /// Switched off outside the app: Task Manager's Startup apps on Windows, whose flag
-    /// outlives the Run value so an upgrade doesn't turn it back on; `Hidden=true` or
-    /// `X-GNOME-Autostart-enabled=false` on Linux.
+    /// Switched off outside the app: Task Manager's flag (outlives the Run value) on Windows,
+    /// `Hidden=true` or `X-GNOME-Autostart-enabled=false` on Linux.
     DisabledByOs,
 }
 
@@ -158,6 +156,7 @@ pub use linux::LoginItem;
 #[cfg(target_os = "linux")]
 mod linux {
     use super::{LoginEntry, HIDDEN_ARG};
+    use std::ffi::OsString;
     use std::io::ErrorKind;
     use std::path::{Path, PathBuf};
 
@@ -197,6 +196,19 @@ mod linux {
         out
     }
 
+    /// The AppImage when this exe runs inside its mount, which changes every launch.
+    /// `$APPIMAGE` alone isn't enough: it's inherited by anything an AppImage starts.
+    pub(crate) fn launch_path(
+        exe: PathBuf,
+        appimage: Option<OsString>,
+        appdir: Option<OsString>,
+    ) -> PathBuf {
+        match (appimage, appdir) {
+            (Some(image), Some(dir)) if exe.starts_with(&dir) => PathBuf::from(image),
+            _ => exe,
+        }
+    }
+
     /// The trimmed values of `key` in the `[Desktop Entry]` group.
     fn values<'a>(contents: &'a str, key: &'a str) -> impl Iterator<Item = &'a str> + 'a {
         let mut in_group = false;
@@ -214,11 +226,11 @@ mod linux {
     impl LoginItem {
         /// `None` if the app's path or the config dir can't be found.
         pub fn for_current_exe(name: &str, id: &str) -> Option<Self> {
-            // Inside an AppImage the exe is in a mount that changes on every launch.
-            let exe = match std::env::var_os("APPIMAGE") {
-                Some(image) => PathBuf::from(image),
-                None => std::env::current_exe().ok()?,
-            };
+            let exe = launch_path(
+                std::env::current_exe().ok()?,
+                std::env::var_os("APPIMAGE"),
+                std::env::var_os("APPDIR"),
+            );
             Some(Self::at(&config_dir()?.join("autostart"), id, name, &exe))
         }
 
@@ -574,6 +586,25 @@ mod tests {
                 item.command().unwrap().as_deref(),
                 Some(r#""/opt/a\\"b\\`c\\$d\\\\e%%f/tk" --hidden"#)
             );
+        }
+
+        #[test]
+        fn uses_the_appimage_only_when_running_inside_it() {
+            use super::super::linux::launch_path;
+            let image = || Some("/home/me/Apps/TimeKeeper.AppImage".into());
+            let mount = || Some("/tmp/.mount_TimeKeXYZ".into());
+
+            let inside = PathBuf::from("/tmp/.mount_TimeKeXYZ/usr/bin/timekeeper");
+            assert_eq!(
+                launch_path(inside.clone(), image(), mount()),
+                PathBuf::from("/home/me/Apps/TimeKeeper.AppImage")
+            );
+            assert_eq!(launch_path(inside.clone(), image(), None), inside);
+
+            // Started from a terminal inside some other AppImage, which leaks its env vars.
+            let installed = PathBuf::from("/usr/bin/timekeeper");
+            assert_eq!(launch_path(installed.clone(), image(), mount()), installed);
+            assert_eq!(launch_path(installed.clone(), None, None), installed);
         }
     }
 }

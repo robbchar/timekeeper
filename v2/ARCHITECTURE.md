@@ -29,8 +29,8 @@ src/components/       React UI
   to `<app data dir>/panic.log`. This is safe because every `Store` write is a single statement or
   a single transaction.
 - **`src-tauri/src/linear.rs`** is the only code that makes network calls (see [Linear](#linear)),
-  and **`src-tauri/src/keychain.rs`** keeps the Linear key in the OS credential store (Windows Credential Manager, or the Secret
-  Service on Linux).
+  and **`src-tauri/src/keychain.rs`** keeps the Linear key in the OS credential store (Windows
+  Credential Manager, or the Secret Service on Linux).
   **`src-tauri/src/suggest.rs`** gathers note suggestions, one group per source a project has
   turned on (only Linear so far; merged GitHub PRs are #106).
 - **`src/api.ts`** is the single typed boundary. It is the only file under `src/` that imports
@@ -193,11 +193,12 @@ a Task Manager "off" through an upgrade.
 
 On Linux it is an XDG autostart file, `$XDG_CONFIG_HOME/autostart/<identifier>.desktop` (usually
 `~/.config/autostart/dev.cathedraltree.timekeeper.desktop`), whose `Exec` is `"<path>" --hidden`.
-The path is `$APPIMAGE` when set, since inside an AppImage the exe sits in a mount that changes on
-every launch. The same reconcile runs, with two differences: `Hidden=true` or
-`X-GNOME-Autostart-enabled=false` (what desktop startup settings write) is the "off" flag, and a
-missing file means off, since nothing but the user deletes it. Turning the toggle on rewrites the
-whole file, through a temp file and a rename.
+The path is `$APPIMAGE` when the exe runs inside that AppImage's mount (`$APPDIR`), since the mount
+changes on every launch; the variable alone isn't trusted, as anything an AppImage starts inherits
+it. The same reconcile runs, with two differences: `Hidden=true` or `X-GNOME-Autostart-enabled=false`
+(what desktop startup settings write) is the "off" flag, and a missing file means off, since nothing
+but the user deletes it. Turning the toggle on rewrites the whole file, through a temp file and a
+rename.
 
 ## Linear
 
