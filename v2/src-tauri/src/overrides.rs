@@ -22,6 +22,8 @@ pub struct Overrides {
     pub heartbeat_every_secs: u64,
     /// `TK_STALE_AFTER_SECS`: heartbeat age at which startup closes a running timer.
     pub stale_after: Duration,
+    /// `TK_IDLE_SECS`: replaces the idle setting, so the idle prompt can be tried in seconds.
+    pub idle_after: Option<Duration>,
 }
 
 impl Default for Overrides {
@@ -31,6 +33,7 @@ impl Default for Overrides {
             v1_import_db: None,
             heartbeat_every_secs: HEARTBEAT_EVERY_SECS,
             stale_after: Duration::seconds(STALE_AFTER_SECS as i64),
+            idle_after: None,
         }
     }
 }
@@ -46,20 +49,22 @@ impl Overrides {
 
     fn parse(var: impl Fn(&str) -> Option<String>) -> Result<Self, String> {
         let set = |key: &str| var(key).filter(|v| !v.is_empty());
-        let secs = |key: &str, default: u64| match set(key) {
-            None => Ok(default),
+        let secs_if_set = |key: &str| match set(key) {
+            None => Ok(None),
             Some(v) => match v.parse::<u64>() {
-                Ok(n) if n > 0 && n <= MAX_SECS => Ok(n),
+                Ok(n) if n > 0 && n <= MAX_SECS => Ok(Some(n)),
                 _ => Err(format!(
                     "{key} must be a positive whole number of seconds, got {v:?}"
                 )),
             },
         };
+        let secs = |key: &str, default: u64| secs_if_set(key).map(|n| n.unwrap_or(default));
         Ok(Self {
             data_dir: set("TK_DATA_DIR").map(PathBuf::from),
             v1_import_db: set("TK_V1_IMPORT_DB").map(PathBuf::from),
             heartbeat_every_secs: secs("TK_HEARTBEAT_SECS", HEARTBEAT_EVERY_SECS)?,
             stale_after: Duration::seconds(secs("TK_STALE_AFTER_SECS", STALE_AFTER_SECS)? as i64),
+            idle_after: secs_if_set("TK_IDLE_SECS")?.map(|n| Duration::seconds(n as i64)),
         })
     }
 }
@@ -89,6 +94,7 @@ mod tests {
             ("TK_V1_IMPORT_DB", "C:\\tmp\\v1.db"),
             ("TK_HEARTBEAT_SECS", "1"),
             ("TK_STALE_AFTER_SECS", "5"),
+            ("TK_IDLE_SECS", "10"),
         ])
         .unwrap();
         assert_eq!(
@@ -98,6 +104,7 @@ mod tests {
                 v1_import_db: Some(PathBuf::from("C:\\tmp\\v1.db")),
                 heartbeat_every_secs: 1,
                 stale_after: Duration::seconds(5),
+                idle_after: Some(Duration::seconds(10)),
             }
         );
     }
@@ -117,6 +124,7 @@ mod tests {
             assert!(err.contains("TK_HEARTBEAT_SECS"), "{err}");
         }
         assert!(parse(&[("TK_STALE_AFTER_SECS", "0")]).is_err());
+        assert!(parse(&[("TK_IDLE_SECS", "0")]).is_err());
         let max = MAX_SECS.to_string();
         assert!(parse(&[("TK_STALE_AFTER_SECS", &max)]).is_ok());
         let over = (MAX_SECS + 1).to_string();

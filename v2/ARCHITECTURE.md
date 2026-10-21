@@ -85,7 +85,26 @@ Defined in `core/src/schema.rs`.
 Because the running timer is a row, a crash loses nothing. While timing, the shell writes a
 heartbeat every 30 seconds (and `start` writes one at once); `heartbeat_at` is not updated while
 idle. At startup, `recover_stale` closes any interval whose heartbeat is more than two minutes
-old at the last heartbeat time, and the UI says so.
+old at the last heartbeat time, and the UI says so. If an idle start is saved (below), it closes
+there instead, as quitting with the idle prompt up does.
+
+### Idle time
+
+Windows only for now. Each second the ticker reads the last input time (`src-tauri/src/idle.rs`,
+`GetLastInputInfo`), and `core::idle::idle_action` decides what to do with it:
+
+1. While timing, once there has been no input for the threshold (`idle_minutes`, default 20),
+   `mark_idle` saves the last input time as `idle_since`. Only the first mark counts.
+2. When input arrives after `idle_since`, the shell holds an `IdlePrompt` in memory, shows the
+   window and emits `timer-changed`. `snapshot` carries the prompt, and the UI shows `IdleDialog`
+   over an inert page.
+3. `answer_idle_prompt` keeps the time (`keep_idle` clears the mark) or discards it
+   (`discard_idle`: in one transaction, end the open interval at `idle_since` and open a new one
+   at now on today's entry).
+
+The timer keeps running while the prompt waits. `start` and `stop` clear `idle_since`, which
+drops any open prompt. Quit calls `discard_idle` without reopening the timer. Elsewhere,
+`idle_for` returns `None`, `snapshot.idleSupported` is false and the UI hides the setting.
 
 ## Times and days
 
@@ -159,9 +178,10 @@ in `src-tauri/src/lib.rs`:
 | `duration_format` | default `hms` (frontend)          |
 | `date_format`     | default `iso` (frontend)          |
 | `week_start`      | `sunday`; anything else is Monday |
+| `idle_minutes`    | minutes, `0` = off; default 20    |
 
 `set_setting` rejects any other key but does not validate values, and `snapshot` returns only these.
-Internal keys (`v1_imported_at`, `heartbeat_at`, `last_project_id`, `start_at_login`) share the
+Internal keys (`v1_imported_at`, `heartbeat_at`, `last_project_id`, `start_at_login`, `idle_since`) share the
 table but are not UI-writable.
 
 ### Start at login
@@ -232,12 +252,14 @@ system. Nothing is ever written to Linear.
 
 - **Tray-first.** Closing the window hides it. The app quits only from the tray menu.
 - **Quitting stops the timer** at that moment, so the timer never runs while the app is closed.
+  If the user had gone idle, it stops at `idle_since`.
 - **Single instance.** Launching again shows the existing window, unless that launch passed
   `--hidden`.
 - **Hidden start.** The window is created hidden (`visible: false`) and shown during setup, unless
   the app was launched with `--hidden`, as the login entry does.
 - **Indicators.** While timing, the tray icon gets a red dot. On Windows the taskbar button gets an
-  overlay badge.
+  overlay badge. While the idle prompt waits, both show an amber "!" badge instead (`with_bang`,
+  `bang_badge`), and the tray's start/stop item opens the window.
 - **Tray changes reach the UI** through the `timer-changed` event, which `api.onTimerChanged`
   subscribes to.
 - The database lives at `<app data dir>/timekeeper.db` (identifier `dev.cathedraltree.timekeeper`).
@@ -253,7 +275,9 @@ them. An invalid value fails startup instead of being ignored.
 | `TK_V1_IMPORT_DB`     | the v1 database both imports read                |
 | `TK_HEARTBEAT_SECS`   | the 30-second heartbeat interval                 |
 | `TK_STALE_AFTER_SECS` | the two-minute stale window `recover_stale` uses |
+| `TK_IDLE_SECS`        | the `idle_minutes` setting, in seconds           |
 
-They exist for `scripts/smoke-windows.ts`. `TK_DATA_DIR` doesn't move WebView2's profile; the
+They exist for `scripts/smoke-windows.ts`, apart from `TK_IDLE_SECS`, which is for trying the idle
+prompt by hand. `TK_DATA_DIR` doesn't move WebView2's profile; the
 script sets `WEBVIEW2_USER_DATA_FOLDER` for that. Single instance is keyed by the app identifier, not the
 data dir, so an overridden run still hands off to any other running v2.

@@ -9,6 +9,7 @@
 //! An interval with no `end_at` is the running timer, so the timer survives a
 //! crash by construction. At most one interval is open at a time.
 
+pub mod idle;
 mod import;
 mod schema;
 
@@ -178,6 +179,27 @@ pub const MAX_ENTRY_SECONDS: i64 = 24 * 3600;
 /// Ends every open interval at `?1`, never before its own start.
 const CLOSE_OPEN_INTERVALS: &str =
     "UPDATE intervals SET end_at = MAX(start_at, ?1) WHERE end_at IS NULL";
+
+/// Setting key for when the user went idle while timing; cleared when the timer stops or the
+/// idle prompt is answered.
+const IDLE_SINCE: &str = "idle_since";
+const CLEAR_IDLE_SINCE: &str = "DELETE FROM settings WHERE key = 'idle_since'";
+
+/// Opens a timer interval at `now` on `project_id`'s entry for `today`.
+fn open_interval(
+    tx: &rusqlite::Transaction,
+    project_id: i64,
+    notes: Option<&str>,
+    now: DateTime<Utc>,
+    today: NaiveDate,
+) -> Result<()> {
+    let (entry_id, _) = entry_for(tx, project_id, today, notes, now)?;
+    tx.execute(
+        "INSERT INTO intervals (entry_id, start_at, source) VALUES (?1, ?2, 'timer')",
+        params![entry_id, ts(now)],
+    )?;
+    Ok(())
+}
 
 /// The entry for `project_id` on `day`, created with `notes` if there isn't one.
 /// Returns its id and whether it was just created.
@@ -412,11 +434,8 @@ impl Store {
         // Closing the previous interval shares the transaction, so a switch is all-or-nothing.
         let tx = self.conn.transaction()?;
         tx.execute(CLOSE_OPEN_INTERVALS, [ts(now)])?;
-        let (entry_id, _) = entry_for(&tx, project_id, today, notes, now)?;
-        tx.execute(
-            "INSERT INTO intervals (entry_id, start_at, source) VALUES (?1, ?2, 'timer')",
-            params![entry_id, ts(now)],
-        )?;
+        tx.execute(CLEAR_IDLE_SINCE, [])?;
+        open_interval(&tx, project_id, notes, now, today)?;
         tx.execute(
             "INSERT INTO settings (key, value) VALUES ('last_project_id', ?1)
              ON CONFLICT(key) DO UPDATE SET value = excluded.value",
@@ -428,7 +447,57 @@ impl Store {
     }
 
     pub fn stop(&mut self, now: DateTime<Utc>) -> Result<Status> {
-        self.conn.execute(CLOSE_OPEN_INTERVALS, [ts(now)])?;
+        let tx = self.conn.transaction()?;
+        tx.execute(CLOSE_OPEN_INTERVALS, [ts(now)])?;
+        tx.execute(CLEAR_IDLE_SINCE, [])?;
+        tx.commit()?;
+        self.status(now)
+    }
+
+    /// Records that the user went idle at `since` while timing. An earlier mark is kept, so a
+    /// discard always trims back to the first idle start. Does nothing when no timer is running.
+    pub fn mark_idle(&self, since: DateTime<Utc>, now: DateTime<Utc>) -> Result<()> {
+        if self.status(now)?.running.is_none() || self.idle_since()?.is_some() {
+            return Ok(());
+        }
+        self.set_setting(IDLE_SINCE, &ts(since))
+    }
+
+    /// When the user went idle while timing, if the idle prompt is still unanswered.
+    pub fn idle_since(&self) -> Result<Option<DateTime<Utc>>> {
+        self.setting(IDLE_SINCE)?
+            .as_deref()
+            .map(parse_ts)
+            .transpose()
+    }
+
+    /// Answers the idle prompt with Keep: the idle time stays on the entry.
+    pub fn keep_idle(&self) -> Result<()> {
+        self.conn.execute(CLEAR_IDLE_SINCE, [])?;
+        Ok(())
+    }
+
+    /// Answers the idle prompt with Discard: the open interval ends where idling began (never
+    /// before its own start). With `keep_timing`, timing resumes at `now` on `today`'s entry.
+    pub fn discard_idle(
+        &mut self,
+        now: DateTime<Utc>,
+        today: NaiveDate,
+        keep_timing: bool,
+    ) -> Result<Status> {
+        let Some(since) = self.idle_since()? else {
+            return self.status(now);
+        };
+        let running = self.status(now)?.running;
+        let tx = self.conn.transaction()?;
+        tx.execute(CLEAR_IDLE_SINCE, [])?;
+        if let Some(r) = running {
+            tx.execute(CLOSE_OPEN_INTERVALS, [ts(since.min(now))])?;
+            if keep_timing {
+                open_interval(&tx, r.project_id, None, now, today)?;
+            }
+        }
+        tx.commit()?;
         self.status(now)
     }
 
@@ -439,7 +508,8 @@ impl Store {
 
     /// Called at startup. If a timer is open and the last heartbeat is older
     /// than `stale_after`, the previous run ended without stopping it: close
-    /// the interval at the last heartbeat so the dead time isn't counted.
+    /// the interval at the last heartbeat so the dead time isn't counted. If the user had
+    /// gone idle before that, it closes where idling began, as quitting with the prompt up does.
     pub fn recover_stale(
         &mut self,
         now: DateTime<Utc>,
@@ -456,10 +526,14 @@ impl Store {
         if now - last_seen < stale_after {
             return Ok(None);
         }
-        self.stop(last_seen)?;
+        let stopped_at = match self.idle_since()? {
+            Some(idle) => idle.clamp(started, last_seen),
+            None => last_seen,
+        };
+        self.stop(stopped_at)?;
         Ok(Some(Recovered {
             project_name: running.project_name,
-            stopped_at: ts(last_seen),
+            stopped_at: ts(stopped_at),
         }))
     }
 

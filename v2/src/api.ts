@@ -75,6 +75,12 @@ export interface ImportReport {
   stillOpen: number;
 }
 
+/** The user came back after going idle while timing (UTC, RFC 3339). */
+export interface IdlePrompt {
+  since: string;
+  returnedAt: string;
+}
+
 export interface Snapshot {
   status: Status;
   projects: Project[];
@@ -90,6 +96,10 @@ export interface Snapshot {
   };
   dataDir: string;
   v1ImportedAt: string | null;
+  /** Whether idle time can be detected here; the idle setting is hidden when it can't. */
+  idleSupported: boolean;
+  /** Waiting for Keep or Discard; nothing else can be done until it's answered. */
+  idlePrompt: IdlePrompt | null;
 }
 
 const inTauri = "__TAURI_INTERNALS__" in window;
@@ -102,6 +112,8 @@ export const api = {
   snapshot: () => call<Snapshot>("snapshot"),
   start: (projectId: number, notes?: string) => call<Status>("start", { projectId, notes }),
   stop: () => call<Status>("stop"),
+  /** Keep leaves the idle time on the entry; discard trims it and keeps timing from now. */
+  answerIdlePrompt: (keep: boolean) => call<Status>("answer_idle_prompt", { keep }),
   entries: (from: string, to: string, projectId: number | null) =>
     call<Entry[]>("entries", { from, to, projectId }),
   totals: (projectId: number | null) => call<Totals>("totals", { projectId }),

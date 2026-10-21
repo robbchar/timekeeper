@@ -21,6 +21,8 @@ const snapshot: Snapshot = {
   startup: { recovered: null, imported: null, importError: null },
   dataDir: "C:\\data",
   v1ImportedAt: "2026-10-01T12:00:00Z",
+  idleSupported: true,
+  idlePrompt: null,
 };
 
 const report = (r: Partial<ImportReport>): ImportReport => ({
@@ -36,18 +38,14 @@ const report = (r: Partial<ImportReport>): ImportReport => ({
   ...r,
 });
 
-function renderPage() {
+function renderPage(snap: Snapshot = snapshot) {
   const onChanged = vi.fn(() => Promise.resolve());
   const onError = vi.fn();
+  const onSetting = vi.fn();
   render(
-    <SettingsPage
-      snapshot={snapshot}
-      onSetting={vi.fn()}
-      onChanged={onChanged}
-      onError={onError}
-    />,
+    <SettingsPage snapshot={snap} onSetting={onSetting} onChanged={onChanged} onError={onError} />,
   );
-  return { onChanged, onError };
+  return { onChanged, onError, onSetting };
 }
 
 const importButton = () => screen.getByRole("button", { name: "Import new sessions from v1" });
@@ -170,5 +168,27 @@ describe("SettingsPage: back up now", () => {
     finish("backup.db");
     expect(await screen.findByRole("status")).toBeInTheDocument();
     expect(backupButton()).toBeEnabled();
+  });
+});
+
+describe("SettingsPage: idle time", () => {
+  const select = () => screen.getByRole("combobox", { name: "Ask after" });
+
+  it("defaults to 20 minutes and saves a change", () => {
+    const { onSetting } = renderPage();
+    expect(select()).toHaveValue("20");
+    fireEvent.change(select(), { target: { value: "0" } });
+    expect(onSetting).toHaveBeenCalledWith("idle_minutes", "0");
+  });
+
+  it("shows the saved value", () => {
+    renderPage({ ...snapshot, settings: { idle_minutes: "45" } });
+    expect(select()).toHaveValue("45");
+  });
+
+  it("is hidden where idle time can't be detected", () => {
+    renderPage({ ...snapshot, idleSupported: false });
+    expect(screen.queryByText("Idle time")).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Ask after" })).toBeNull();
   });
 });

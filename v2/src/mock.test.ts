@@ -3,6 +3,12 @@ import type { Snapshot } from "./api";
 import { invoke } from "./mock";
 
 describe("mock invoke", () => {
+  it("answers the idle prompt even when none is waiting", async () => {
+    const snap = await invoke<Snapshot>("snapshot");
+    expect(snap).toMatchObject({ idleSupported: true, idlePrompt: null });
+    await expect(invoke("answer_idle_prompt", { keep: false })).resolves.toEqual(snap.status);
+  });
+
   it("rejects with the message string, like Tauri", async () => {
     await expect(invoke("delete_entry", { entryId: 999999 })).rejects.toBe(
       "entry 999999 not found",

@@ -13,6 +13,10 @@ interface Props {
   onError: (err: unknown) => void;
 }
 
+// Matches core's DEFAULT_IDLE_MINUTES; 0 turns the prompt off.
+const DEFAULT_IDLE_MINUTES = 20;
+const IDLE_MINUTES = [0, 5, 10, 15, 20, 30, 45, 60];
+
 const count = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
 
 function describeImport(r: ImportReport): string {
@@ -33,6 +37,7 @@ export function SettingsPage({ snapshot, onSetting, onChanged, onError }: Props)
   const durationFormat = (s.duration_format as DurationFormat) ?? "hms";
   const dateFormat = (s.date_format as DateFormat) ?? "iso";
   const weekStart = s.week_start === "sunday" ? "sunday" : "monday";
+  const idleMinutes = Number(s.idle_minutes ?? DEFAULT_IDLE_MINUTES);
 
   const [importAgain, importing, imported] = useBusyAction(async () => {
     const report = await api.importV1Again();
@@ -99,6 +104,30 @@ export function SettingsPage({ snapshot, onSetting, onChanged, onError }: Props)
           </select>
         </div>
       </section>
+
+      {snapshot.idleSupported && (
+        <section className="panel">
+          <h2>Idle time</h2>
+          <div className="field">
+            <label htmlFor="idle-minutes">Ask after</label>
+            <select
+              id="idle-minutes"
+              value={idleMinutes}
+              onChange={(e) => onSetting("idle_minutes", e.target.value)}
+            >
+              {IDLE_MINUTES.map((m) => (
+                <option key={m} value={m}>
+                  {m === 0 ? "Never" : `${m} minutes idle`}
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className="panel__hint">
+            If you come back to a running timer after this long without using the keyboard or mouse,
+            TimeKeeper asks whether to keep or discard the time you were away.
+          </p>
+        </section>
+      )}
 
       <LinearSettings projects={snapshot.projects} onChanged={onChanged} onError={onError} />
 
