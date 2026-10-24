@@ -28,3 +28,4 @@ chrono = { version = "0.4", default-features = false, features = ["std", "clock"
 windows-registry = "0.100"
 windows-result = "0.100"
 keyring = "4"
+windows-sys = { version = "0.61", features = ["Win32_System_SystemInformation", "Win32_UI_Input_KeyboardAndMouse"] }

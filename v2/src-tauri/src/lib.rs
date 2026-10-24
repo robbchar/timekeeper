@@ -1,6 +1,7 @@
 //! Tauri shell: wires `timekeeper-core` to a tray icon and the web UI.
 //! Everything about the data lives in the core crate; this file only adapts it.
 
+mod idle;
 mod keychain;
 mod linear;
 mod login;
@@ -12,7 +13,6 @@ use keychain::SecretStore;
 use overrides::Overrides;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard};
 use tauri::{
     image::Image,
@@ -20,13 +20,21 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, State, WindowEvent, Wry,
 };
+use timekeeper_core::idle::{
+    idle_action, idle_threshold, last_input_across_suspend, IdleAction, IDLE_MINUTES_SETTING,
+};
 use timekeeper_core::{
     Entry, ImportReport, ManualTime, Project, Recovered, RoundingMode, Status, Store, Totals,
     V1Data, WeekStart, PALETTE, ROUNDING_STEPS,
 };
 
 /// Settings the UI is allowed to write.
-const UI_SETTINGS: &[&str] = &["duration_format", "date_format", "week_start"];
+const UI_SETTINGS: &[&str] = &[
+    "duration_format",
+    "date_format",
+    "week_start",
+    IDLE_MINUTES_SETTING,
+];
 
 /// The v2 database's file name in the data dir.
 const DB_FILE: &str = "timekeeper.db";
@@ -44,6 +52,8 @@ struct AppState {
     secrets: keychain::Keychain,
     /// `Err` if the HTTP client couldn't be built; only Linear's Save and Test fail then.
     linear: Result<linear::Client, String>,
+    /// The unanswered idle prompt, once the user is back; the idle start itself is in the store.
+    idle_prompt: Mutex<Option<PendingIdle>>,
 }
 
 impl AppState {
@@ -75,6 +85,22 @@ struct Startup {
     import_error: Option<String>,
 }
 
+/// Asks whether to keep the time between `since` and `returned_at` (UTC, RFC 3339).
+#[derive(Clone, Serialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct IdlePrompt {
+    since: String,
+    returned_at: String,
+}
+
+/// The prompt the UI shows, plus what answering it needs.
+struct PendingIdle {
+    prompt: IdlePrompt,
+    returned_at: DateTime<Utc>,
+    /// Where the user went idle again while the prompt waited; asked about once it's answered.
+    idle_again: Option<DateTime<Utc>>,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Snapshot {
@@ -90,6 +116,9 @@ struct Snapshot {
     startup: Startup,
     data_dir: String,
     v1_imported_at: Option<String>,
+    /// Whether idle time can be detected here; the idle setting is hidden when it can't.
+    idle_supported: bool,
+    idle_prompt: Option<IdlePrompt>,
 }
 
 fn today() -> NaiveDate {
@@ -149,6 +178,10 @@ fn snapshot(state: State<AppState>) -> Result<Snapshot, String> {
         startup: state.startup.clone(),
         data_dir: state.data_dir.display().to_string(),
         v1_imported_at: store.setting("v1_imported_at").map_err(err)?,
+        idle_supported: idle::SUPPORTED,
+        idle_prompt: lock_recovering(&state.idle_prompt)
+            .as_ref()
+            .map(|p| p.prompt.clone()),
     })
 }
 
@@ -170,6 +203,33 @@ fn start(
 #[tauri::command]
 fn stop(app: AppHandle, state: State<AppState>) -> Result<Status, String> {
     let status = state.lock_store().stop(Utc::now()).map_err(err)?;
+    refresh_tray(&app, &status);
+    Ok(status)
+}
+
+/// Keep leaves the idle time on the entry; discard trims it and keeps timing from the return.
+/// A second idle stretch while the prompt waited is marked, so the next tick asks about it.
+#[tauri::command]
+fn answer_idle_prompt(
+    app: AppHandle,
+    state: State<AppState>,
+    keep: bool,
+) -> Result<Status, String> {
+    let status = {
+        let mut store = state.lock_store();
+        let mut pending = lock_recovering(&state.idle_prompt);
+        let now = Utc::now();
+        let status = match (keep, pending.as_ref()) {
+            (true, _) => store.keep_idle().and_then(|()| store.status(now)),
+            (false, Some(p)) => store.discard_idle(p.returned_at, local_day(p.returned_at), now),
+            (false, None) => store.status(now),
+        }
+        .map_err(err)?;
+        if let Some(again) = pending.take().and_then(|p| p.idle_again) {
+            store.mark_idle(again, now).map_err(err)?;
+        }
+        status
+    };
     refresh_tray(&app, &status);
     Ok(status)
 }
@@ -448,21 +508,39 @@ struct TrayHandles {
     toggle_item: MenuItem<Wry>,
     idle_icon: Image<'static>,
     timing_icon: Image<'static>,
+    asking_icon: Image<'static>,
     /// Small red dot laid over the window's taskbar button while timing (Windows).
     #[cfg_attr(not(windows), allow(dead_code))]
     overlay_dot: Image<'static>,
-    /// Whether the icons currently show "timing", so they're only swapped on change.
-    showing_timing: AtomicBool,
+    /// Amber "!" laid over the taskbar button while the idle prompt waits (Windows).
+    #[cfg_attr(not(windows), allow(dead_code))]
+    overlay_bang: Image<'static>,
+    /// What the icons currently show, so they're only swapped on change.
+    showing: Mutex<TrayMark>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TrayMark {
+    None,
+    Timing,
+    /// The idle prompt is waiting; it replaces the timing dot.
+    Asking,
 }
 
 fn format_elapsed(secs: i64) -> String {
     format!("{}:{:02}:{:02}", secs / 3600, secs / 60 % 60, secs % 60)
 }
 
+fn idle_prompt_pending(app: &AppHandle) -> bool {
+    app.try_state::<AppState>()
+        .is_some_and(|s| lock_recovering(&s.idle_prompt).is_some())
+}
+
 fn refresh_tray(app: &AppHandle, status: &Status) {
     let Some(h) = app.try_state::<TrayHandles>() else {
         return;
     };
+    let asking = status.running.is_some() && idle_prompt_pending(app);
     let (label, toggle) = match &status.running {
         Some(r) => (
             format!(
@@ -474,18 +552,33 @@ fn refresh_tray(app: &AppHandle, status: &Status) {
         ),
         None => ("Not timing".to_string(), "Start timing"),
     };
+    let toggle = if asking {
+        "Answer idle prompt…"
+    } else {
+        toggle
+    };
     let _ = h.status_item.set_text(&label);
     let _ = h.toggle_item.set_text(toggle);
     let _ = h.tray.set_tooltip(Some(format!("TimeKeeper — {label}")));
 
-    let timing = status.running.is_some();
-    if h.showing_timing.swap(timing, Ordering::SeqCst) != timing {
-        let icon = if timing { &h.timing_icon } else { &h.idle_icon };
+    let mark = match (&status.running, asking) {
+        (None, _) => TrayMark::None,
+        (Some(_), false) => TrayMark::Timing,
+        (Some(_), true) => TrayMark::Asking,
+    };
+    let mut showing = lock_recovering(&h.showing);
+    if *showing != mark {
+        *showing = mark;
+        let (icon, _overlay) = match mark {
+            TrayMark::None => (&h.idle_icon, None),
+            TrayMark::Timing => (&h.timing_icon, Some(&h.overlay_dot)),
+            TrayMark::Asking => (&h.asking_icon, Some(&h.overlay_bang)),
+        };
         let _ = h.tray.set_icon(Some(icon.clone()));
         if let Some(win) = app.get_webview_window("main") {
             // Windows shows a badge on the taskbar button; elsewhere, swap the window icon.
             #[cfg(windows)]
-            let _ = win.set_overlay_icon(timing.then(|| h.overlay_dot.clone()));
+            let _ = win.set_overlay_icon(_overlay.cloned());
             #[cfg(not(windows))]
             let _ = win.set_icon(icon.clone());
         }
@@ -531,6 +624,80 @@ fn with_red_dot(base: &Image<'_>) -> Image<'static> {
     Image::new_owned(rgba, w, h)
 }
 
+const AMBER: [u8; 3] = [0xF5, 0xA5, 0x24];
+const INK: [u8; 3] = [0x20, 0x20, 0x20];
+
+/// An amber disc with a white rim and a dark "!", centered at (`cx`, `cy`) with radius `r`.
+/// Drawn with 4×4 samples per pixel so it stays legible when Windows scales it to 16px.
+fn draw_bang(rgba: &mut [u8], w: u32, h: u32, cx: f32, cy: f32, r: f32) {
+    let rim = r * 0.12;
+    let bar = r * 0.36;
+    let (bar_top, bar_bottom) = (cy - r * 0.68 + bar / 2.0, cy + r * 0.18 - bar / 2.0);
+    let dot_cy = cy + r * 0.36 + bar / 2.0;
+    let color_at = |x: f32, y: f32| -> Option<[u8; 3]> {
+        let d = ((x - cx).powi(2) + (y - cy).powi(2)).sqrt();
+        let bar_d = ((x - cx).powi(2) + (y - y.clamp(bar_top, bar_bottom)).powi(2)).sqrt();
+        let dot_d = ((x - cx).powi(2) + (y - dot_cy).powi(2)).sqrt();
+        if bar_d <= bar / 2.0 || dot_d <= bar / 2.0 {
+            Some(INK)
+        } else if d <= r {
+            Some(AMBER)
+        } else if d <= r + rim {
+            Some([0xFF; 3])
+        } else {
+            None
+        }
+    };
+    const N: u32 = 4;
+    for y in 0..h {
+        for x in 0..w {
+            let (mut sum, mut hits) = ([0f32; 3], 0u32);
+            for sy in 0..N {
+                for sx in 0..N {
+                    let px = x as f32 + (sx as f32 + 0.5) / N as f32;
+                    let py = y as f32 + (sy as f32 + 0.5) / N as f32;
+                    if let Some(c) = color_at(px, py) {
+                        sum.iter_mut().zip(c).for_each(|(s, c)| *s += c as f32);
+                        hits += 1;
+                    }
+                }
+            }
+            if hits == 0 {
+                continue;
+            }
+            // Composite the covered fraction over what's already there.
+            let a = hits as f32 / (N * N) as f32;
+            let i = ((y * w + x) * 4) as usize;
+            let dst_a = rgba[i + 3] as f32 / 255.0;
+            let out_a = a + dst_a * (1.0 - a);
+            for k in 0..3 {
+                let src = sum[k] / hits as f32;
+                let dst = rgba[i + k] as f32;
+                rgba[i + k] = ((src * a + dst * dst_a * (1.0 - a)) / out_a).round() as u8;
+            }
+            rgba[i + 3] = (out_a * 255.0).round() as u8;
+        }
+    }
+}
+
+/// The "!" badge alone, for the taskbar overlay.
+fn bang_badge(size: u32) -> Image<'static> {
+    let mut rgba = vec![0u8; (size * size * 4) as usize];
+    let c = size as f32 / 2.0;
+    draw_bang(&mut rgba, size, size, c, c, (c - 0.5) / 1.12);
+    Image::new_owned(rgba, size, size)
+}
+
+/// The app icon with the "!" badge in the corner, shown while the idle prompt waits.
+fn with_bang(base: &Image<'_>) -> Image<'static> {
+    let (w, h) = (base.width(), base.height());
+    let mut rgba = base.rgba().to_vec();
+    let r = w.min(h) as f32 * 0.28;
+    let edge = r * 1.12 + 0.5;
+    draw_bang(&mut rgba, w, h, w as f32 - edge, h as f32 - edge, r);
+    Image::new_owned(rgba, w, h)
+}
+
 fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.unminimize();
@@ -540,6 +707,11 @@ fn show_main(app: &AppHandle) {
 }
 
 fn toggle_from_tray(app: &AppHandle) {
+    // The prompt has to be answered first, so the interval can't change under it.
+    if idle_prompt_pending(app) {
+        show_main(app);
+        return;
+    }
     let state = app.state::<AppState>();
     let result = {
         let mut store = state.lock_store();
@@ -565,6 +737,7 @@ fn toggle_from_tray(app: &AppHandle) {
 }
 
 /// A deliberate quit stops the timer now, so the next launch has nothing to recover.
+/// Idle time is kept: quitting doesn't answer the prompt with Discard.
 fn quit(app: &AppHandle) {
     if let Err(e) = app.state::<AppState>().lock_store().stop(Utc::now()) {
         eprintln!("stopping the timer on quit failed: {e}");
@@ -594,6 +767,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<TrayHandles> {
         .clone()
         .to_owned();
     let timing_icon = with_red_dot(&idle_icon);
+    let asking_icon = with_bang(&idle_icon);
 
     let tray = TrayIconBuilder::with_id("main")
         .icon(idle_icon.clone())
@@ -624,29 +798,47 @@ fn build_tray(app: &AppHandle) -> tauri::Result<TrayHandles> {
         toggle_item,
         idle_icon,
         timing_icon,
+        asking_icon,
         overlay_dot: red_dot(32),
-        showing_timing: AtomicBool::new(false),
+        overlay_bang: bang_badge(32),
+        showing: Mutex::new(TrayMark::None),
     })
 }
 
-/// Keeps the tray's elapsed time current and writes the heartbeat.
-fn spawn_ticker(app: AppHandle, heartbeat_every_secs: u64) {
+/// Keeps the tray's elapsed time current, writes the heartbeat and watches for idle time.
+fn spawn_ticker(app: AppHandle, heartbeat_every_secs: u64, idle_after: Option<Duration>) {
     std::thread::spawn(move || {
         let mut ticks: u64 = 0;
+        let mut prev_input = None;
         loop {
             std::thread::sleep(std::time::Duration::from_secs(1));
             ticks += 1;
             // A panic in one tick is logged by the hook; the ticker keeps going.
             let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                tick(&app, ticks, heartbeat_every_secs)
+                tick(
+                    &app,
+                    ticks,
+                    heartbeat_every_secs,
+                    idle_after,
+                    &mut prev_input,
+                )
             }));
         }
     });
 }
 
-fn tick(app: &AppHandle, ticks: u64, heartbeat_every_secs: u64) {
+/// When the previous tick ran and the last input it saw, to notice a sleep in between.
+type PrevInput = Option<(DateTime<Utc>, DateTime<Utc>)>;
+
+fn tick(
+    app: &AppHandle,
+    ticks: u64,
+    heartbeat_every_secs: u64,
+    idle_after: Option<Duration>,
+    prev_input: &mut PrevInput,
+) {
     let state = app.state::<AppState>();
-    let status = {
+    let (status, asked) = {
         let store = state.lock_store();
         let now = Utc::now();
         let status = store.status(now);
@@ -658,10 +850,78 @@ fn tick(app: &AppHandle, ticks: u64, heartbeat_every_secs: u64) {
                 let _ = store.heartbeat(now);
             }
         }
-        status
+        let asked = match &status {
+            Ok(s) => check_idle(&state, &store, s, now, idle_after, prev_input),
+            Err(_) => false,
+        };
+        (status, asked)
     };
+    if asked {
+        show_main(app);
+        let _ = app.emit("timer-changed", ());
+    }
     if let Ok(status) = status {
         refresh_tray(app, &status);
+    }
+}
+
+/// Marks the idle start once the threshold passes, and raises the prompt when the user is back.
+/// Returns whether a prompt was just raised.
+fn check_idle(
+    state: &AppState,
+    store: &Store,
+    status: &Status,
+    now: DateTime<Utc>,
+    idle_after: Option<Duration>,
+    prev_input: &mut PrevInput,
+) -> bool {
+    let Some(last_input) = idle::idle_for()
+        .and_then(|idle| Duration::from_std(idle).ok())
+        .map(|idle| now - idle)
+    else {
+        return false;
+    };
+    let seen = last_input_across_suspend(prev_input.replace((now, last_input)), last_input, now);
+    let mut pending = lock_recovering(&state.idle_prompt);
+    if status.running.is_none() {
+        *pending = None;
+        return false;
+    }
+    let threshold = idle_after.or_else(|| {
+        let setting = store.setting(IDLE_MINUTES_SETTING).ok().flatten();
+        idle_threshold(setting.as_deref())
+    });
+    let Ok(since) = store.idle_since() else {
+        return false;
+    };
+    // Starting another project clears the mark; an open prompt goes with it.
+    if since.is_none() {
+        *pending = None;
+    }
+    if let Some(p) = pending.as_mut() {
+        // Gone idle again before answering: remember it for after the answer.
+        if let IdleAction::MarkIdle(at) = idle_action(threshold, true, None, seen, now) {
+            p.idle_again.get_or_insert(at);
+        }
+        return false;
+    }
+    match idle_action(threshold, true, since, seen, now) {
+        IdleAction::MarkIdle(at) => {
+            let _ = store.mark_idle(at, now);
+            false
+        }
+        IdleAction::Ask { since, returned_at } => {
+            *pending = Some(PendingIdle {
+                prompt: IdlePrompt {
+                    since: timekeeper_core::ts(since),
+                    returned_at: timekeeper_core::ts(returned_at),
+                },
+                returned_at,
+                idle_again: None,
+            });
+            true
+        }
+        IdleAction::Nothing => false,
     }
 }
 
@@ -777,6 +1037,7 @@ pub fn run() {
                     eprintln!("building the Linear client failed: {e}");
                     e.to_string()
                 }),
+                idle_prompt: Mutex::new(None),
             };
             if let Err(e) = sync_login_item(&state) {
                 eprintln!("syncing the login entry failed: {e}");
@@ -789,7 +1050,7 @@ pub fn run() {
             if !login::launched_hidden(std::env::args_os()) {
                 show_main(&handle);
             }
-            spawn_ticker(handle, overrides.heartbeat_every_secs);
+            spawn_ticker(handle, overrides.heartbeat_every_secs, overrides.idle_after);
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -803,6 +1064,7 @@ pub fn run() {
             snapshot,
             start,
             stop,
+            answer_idle_prompt,
             entries,
             totals,
             set_notes,
@@ -847,6 +1109,27 @@ mod tests {
         *lock_recovering(&m) += 1;
         assert_eq!(*lock_recovering(&m), 2);
         assert!(!m.is_poisoned());
+    }
+
+    fn pixel(img: &Image<'_>, x: u32, y: u32) -> [u8; 4] {
+        let i = ((y * img.width() + x) * 4) as usize;
+        img.rgba()[i..i + 4].try_into().unwrap()
+    }
+
+    #[test]
+    fn the_bang_badge_is_amber_with_a_dark_mark() {
+        let b = bang_badge(32);
+        assert_eq!(pixel(&b, 0, 0)[3], 0, "corners stay clear");
+        assert_eq!(pixel(&b, 8, 16), [AMBER[0], AMBER[1], AMBER[2], 0xFF]);
+        assert_eq!(pixel(&b, 16, 10), [INK[0], INK[1], INK[2], 0xFF]);
+    }
+
+    #[test]
+    fn with_bang_marks_only_the_corner() {
+        let base = Image::new_owned(vec![0x1F; 64 * 64 * 4], 64, 64);
+        let marked = with_bang(&base);
+        assert_eq!(pixel(&marked, 4, 4), pixel(&base, 4, 4));
+        assert_ne!(pixel(&marked, 52, 52), pixel(&base, 52, 52));
     }
 
     #[test]
