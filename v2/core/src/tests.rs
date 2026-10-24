@@ -273,44 +273,44 @@ fn keeping_idle_time_leaves_the_interval_open() {
 }
 
 #[test]
-fn discarding_idle_time_trims_and_keeps_timing() {
+fn discarding_idle_time_trims_and_times_from_the_return() {
     let (mut s, p) = store_with_project();
     s.start(p, None, at("2026-10-05T15:00:00Z"), day("2026-10-05"))
         .unwrap();
     s.mark_idle(at("2026-10-05T15:30:00Z"), at("2026-10-05T15:50:00Z"))
         .unwrap();
     let st = s
-        .discard_idle(at("2026-10-05T16:00:00Z"), day("2026-10-05"), true)
-        .unwrap();
-    let r = st.running.unwrap();
-    assert_eq!(r.project_id, p);
-    assert_eq!(r.interval_started_at, "2026-10-05T16:00:00.000Z");
-    assert_eq!(r.prior_seconds, 1800);
-    assert_eq!(s.idle_since().unwrap(), None);
-    let st = s.status(at("2026-10-05T16:10:00Z")).unwrap();
-    assert_eq!(st.elapsed_seconds, 2400);
-}
-
-#[test]
-fn discarding_idle_time_on_quit_stops_where_idling_began() {
-    let (mut s, p) = store_with_project();
-    s.start(p, None, at("2026-10-05T15:00:00Z"), day("2026-10-05"))
-        .unwrap();
-    s.mark_idle(at("2026-10-05T15:30:00Z"), at("2026-10-05T15:50:00Z"))
-        .unwrap();
-    let st = s
-        .discard_idle(at("2026-10-05T16:00:00Z"), day("2026-10-05"), false)
-        .unwrap();
-    assert!(st.running.is_none());
-    let e = s
-        .entries(
+        .discard_idle(
+            at("2026-10-05T15:55:00Z"),
             day("2026-10-05"),
-            day("2026-10-05"),
-            None,
             at("2026-10-05T16:00:00Z"),
         )
         .unwrap();
-    assert_eq!(e[0].seconds, 1800);
+    let r = st.running.unwrap();
+    assert_eq!(r.project_id, p);
+    assert_eq!(r.interval_started_at, "2026-10-05T15:55:00.000Z");
+    assert_eq!(r.prior_seconds, 1800);
+    assert_eq!(s.idle_since().unwrap(), None);
+    let st = s.status(at("2026-10-05T16:10:00Z")).unwrap();
+    assert_eq!(st.elapsed_seconds, 2700);
+}
+
+#[test]
+fn discarding_never_resumes_after_now() {
+    let (mut s, p) = store_with_project();
+    s.start(p, None, at("2026-10-05T15:00:00Z"), day("2026-10-05"))
+        .unwrap();
+    s.mark_idle(at("2026-10-05T15:30:00Z"), at("2026-10-05T15:50:00Z"))
+        .unwrap();
+    let st = s
+        .discard_idle(
+            at("2026-10-05T17:00:00Z"),
+            day("2026-10-05"),
+            at("2026-10-05T16:00:00Z"),
+        )
+        .unwrap();
+    let r = st.running.unwrap();
+    assert_eq!(r.interval_started_at, "2026-10-05T16:00:00.000Z");
 }
 
 #[test]
@@ -320,8 +320,12 @@ fn discarding_never_trims_before_the_interval_started() {
         .unwrap();
     s.mark_idle(at("2026-10-05T14:00:00Z"), at("2026-10-05T15:20:00Z"))
         .unwrap();
-    s.discard_idle(at("2026-10-05T16:00:00Z"), day("2026-10-05"), false)
-        .unwrap();
+    s.discard_idle(
+        at("2026-10-05T16:00:00Z"),
+        day("2026-10-05"),
+        at("2026-10-05T16:00:00Z"),
+    )
+    .unwrap();
     let e = s
         .entries(
             day("2026-10-05"),
@@ -340,8 +344,12 @@ fn discarding_across_midnight_resumes_on_todays_entry() {
         .unwrap();
     s.mark_idle(at("2026-10-05T23:00:00Z"), at("2026-10-05T23:20:00Z"))
         .unwrap();
-    s.discard_idle(at("2026-10-06T08:00:00Z"), day("2026-10-06"), true)
-        .unwrap();
+    s.discard_idle(
+        at("2026-10-06T08:00:00Z"),
+        day("2026-10-06"),
+        at("2026-10-06T08:00:00Z"),
+    )
+    .unwrap();
     let e = s
         .entries(
             day("2026-10-05"),
@@ -361,7 +369,11 @@ fn discarding_without_an_idle_mark_changes_nothing() {
     s.start(p, None, at("2026-10-05T15:00:00Z"), day("2026-10-05"))
         .unwrap();
     let st = s
-        .discard_idle(at("2026-10-05T16:00:00Z"), day("2026-10-05"), false)
+        .discard_idle(
+            at("2026-10-05T16:00:00Z"),
+            day("2026-10-05"),
+            at("2026-10-05T16:00:00Z"),
+        )
         .unwrap();
     assert_eq!(st.elapsed_seconds, 3600);
     assert!(st.running.is_some());

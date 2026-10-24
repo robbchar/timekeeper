@@ -199,11 +199,11 @@ function handle<T>(cmd: string, a: Record<string, unknown>): T {
       return status() as T;
     case "answer_idle_prompt": {
       if (idlePrompt && running && !(a.keep as boolean)) {
-        // Keep what was timed before going idle; time again from now.
+        // Keep what was timed before going idle; time again from the return.
         const e = entries.find((x) => x.id === running!.entryId)!;
         const kept = (Date.parse(idlePrompt.since) - running.startedAt) / 1000;
         e.closedSeconds += Math.max(0, kept);
-        running.startedAt = Date.now();
+        running.startedAt = Date.parse(idlePrompt.returnedAt);
       }
       idlePrompt = null;
       return status() as T;

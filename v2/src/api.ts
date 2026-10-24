@@ -112,7 +112,7 @@ export const api = {
   snapshot: () => call<Snapshot>("snapshot"),
   start: (projectId: number, notes?: string) => call<Status>("start", { projectId, notes }),
   stop: () => call<Status>("stop"),
-  /** Keep leaves the idle time on the entry; discard trims it and keeps timing from now. */
+  /** Keep leaves the idle time on the entry; discard trims it and keeps timing from the return. */
   answerIdlePrompt: (keep: boolean) => call<Status>("answer_idle_prompt", { keep }),
   entries: (from: string, to: string, projectId: number | null) =>
     call<Entry[]>("entries", { from, to, projectId }),

@@ -87,14 +87,15 @@ and open <http://localhost:1420>.
 ## Behaviour worth knowing
 
 - Closing the window hides it; the app lives in the tray. Quit from the tray menu. Quitting stops a
-  running timer at that moment, or where you went idle if the idle prompt is waiting.
+  running timer at that moment, keeping any idle time.
 - Left-click the tray icon to open the window. The tray menu shows the running time and can
   start/stop the last-used project (or the first active one, if that project is archived). While timing, the tray icon gets a red dot, and on Windows the
   taskbar button gets a red-dot badge too. Windows 11 hides new tray icons in the "^" overflow;
   drag it onto the taskbar to keep it visible.
 - Idle time (Windows only): if you come back to a running timer after 20 minutes without touching
   the keyboard or mouse, the window comes up and asks whether to **Keep** that time or **Discard**
-  it. Discard trims the time back to when you went idle, and timing carries on from now. The prompt
+  it. Discard drops only the time away: timing carries on from when you came back. Sleep counts as
+  idle too. If you go idle again before answering, you're asked about that stretch next. The prompt
   can't be closed without answering. While it waits, the tray icon and taskbar badge show an amber
   "!" instead of the red dot, and the tray's start/stop item opens the prompt. The 20 minutes, or
   turning it off, is on the Settings page. Idle time while the timer is stopped is ignored.

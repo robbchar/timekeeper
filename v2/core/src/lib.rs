@@ -183,7 +183,7 @@ const CLOSE_OPEN_INTERVALS: &str =
 /// Setting key for when the user went idle while timing; cleared when the timer stops or the
 /// idle prompt is answered.
 const IDLE_SINCE: &str = "idle_since";
-const CLEAR_IDLE_SINCE: &str = "DELETE FROM settings WHERE key = 'idle_since'";
+const CLEAR_SETTING: &str = "DELETE FROM settings WHERE key = ?1";
 
 /// Opens a timer interval at `now` on `project_id`'s entry for `today`.
 fn open_interval(
@@ -434,7 +434,7 @@ impl Store {
         // Closing the previous interval shares the transaction, so a switch is all-or-nothing.
         let tx = self.conn.transaction()?;
         tx.execute(CLOSE_OPEN_INTERVALS, [ts(now)])?;
-        tx.execute(CLEAR_IDLE_SINCE, [])?;
+        tx.execute(CLEAR_SETTING, [IDLE_SINCE])?;
         open_interval(&tx, project_id, notes, now, today)?;
         tx.execute(
             "INSERT INTO settings (key, value) VALUES ('last_project_id', ?1)
@@ -449,7 +449,7 @@ impl Store {
     pub fn stop(&mut self, now: DateTime<Utc>) -> Result<Status> {
         let tx = self.conn.transaction()?;
         tx.execute(CLOSE_OPEN_INTERVALS, [ts(now)])?;
-        tx.execute(CLEAR_IDLE_SINCE, [])?;
+        tx.execute(CLEAR_SETTING, [IDLE_SINCE])?;
         tx.commit()?;
         self.status(now)
     }
@@ -473,29 +473,30 @@ impl Store {
 
     /// Answers the idle prompt with Keep: the idle time stays on the entry.
     pub fn keep_idle(&self) -> Result<()> {
-        self.conn.execute(CLEAR_IDLE_SINCE, [])?;
+        self.conn.execute(CLEAR_SETTING, [IDLE_SINCE])?;
         Ok(())
     }
 
     /// Answers the idle prompt with Discard: the open interval ends where idling began (never
-    /// before its own start). With `keep_timing`, timing resumes at `now` on `today`'s entry.
+    /// before its own start), and timing resumes at `returned_at` on `return_day`'s entry, so
+    /// time spent back before answering is kept.
     pub fn discard_idle(
         &mut self,
+        returned_at: DateTime<Utc>,
+        return_day: NaiveDate,
         now: DateTime<Utc>,
-        today: NaiveDate,
-        keep_timing: bool,
     ) -> Result<Status> {
         let Some(since) = self.idle_since()? else {
             return self.status(now);
         };
         let running = self.status(now)?.running;
         let tx = self.conn.transaction()?;
-        tx.execute(CLEAR_IDLE_SINCE, [])?;
+        tx.execute(CLEAR_SETTING, [IDLE_SINCE])?;
         if let Some(r) = running {
-            tx.execute(CLOSE_OPEN_INTERVALS, [ts(since.min(now))])?;
-            if keep_timing {
-                open_interval(&tx, r.project_id, None, now, today)?;
-            }
+            let ended = since.min(now).max(parse_ts(&r.interval_started_at)?);
+            tx.execute(CLOSE_OPEN_INTERVALS, [ts(ended)])?;
+            let resume = returned_at.max(ended).min(now);
+            open_interval(&tx, r.project_id, None, resume, return_day)?;
         }
         tx.commit()?;
         self.status(now)
@@ -509,7 +510,8 @@ impl Store {
     /// Called at startup. If a timer is open and the last heartbeat is older
     /// than `stale_after`, the previous run ended without stopping it: close
     /// the interval at the last heartbeat so the dead time isn't counted. If the user had
-    /// gone idle before that, it closes where idling began, as quitting with the prompt up does.
+    /// gone idle before that, it closes where idling began: nobody was asked, so the time
+    /// away isn't counted.
     pub fn recover_stale(
         &mut self,
         now: DateTime<Utc>,

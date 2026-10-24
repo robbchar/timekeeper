@@ -20,7 +20,9 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
     AppHandle, Emitter, Manager, State, WindowEvent, Wry,
 };
-use timekeeper_core::idle::{idle_action, idle_threshold, IdleAction, IDLE_MINUTES_SETTING};
+use timekeeper_core::idle::{
+    idle_action, idle_threshold, last_input_across_suspend, IdleAction, IDLE_MINUTES_SETTING,
+};
 use timekeeper_core::{
     Entry, ImportReport, ManualTime, Project, Recovered, Status, Store, Totals, V1Data, WeekStart,
     PALETTE,
@@ -51,7 +53,7 @@ struct AppState {
     /// `Err` if the HTTP client couldn't be built; only Linear's Save and Test fail then.
     linear: Result<linear::Client, String>,
     /// The unanswered idle prompt, once the user is back; the idle start itself is in the store.
-    idle_prompt: Mutex<Option<IdlePrompt>>,
+    idle_prompt: Mutex<Option<PendingIdle>>,
 }
 
 impl AppState {
@@ -89,6 +91,14 @@ struct Startup {
 struct IdlePrompt {
     since: String,
     returned_at: String,
+}
+
+/// The prompt the UI shows, plus what answering it needs.
+struct PendingIdle {
+    prompt: IdlePrompt,
+    returned_at: DateTime<Utc>,
+    /// Where the user went idle again while the prompt waited; asked about once it's answered.
+    idle_again: Option<DateTime<Utc>>,
 }
 
 #[derive(Serialize)]
@@ -166,7 +176,9 @@ fn snapshot(state: State<AppState>) -> Result<Snapshot, String> {
         data_dir: state.data_dir.display().to_string(),
         v1_imported_at: store.setting("v1_imported_at").map_err(err)?,
         idle_supported: idle::SUPPORTED,
-        idle_prompt: lock_recovering(&state.idle_prompt).clone(),
+        idle_prompt: lock_recovering(&state.idle_prompt)
+            .as_ref()
+            .map(|p| p.prompt.clone()),
     })
 }
 
@@ -192,7 +204,8 @@ fn stop(app: AppHandle, state: State<AppState>) -> Result<Status, String> {
     Ok(status)
 }
 
-/// Keep leaves the idle time on the entry; discard trims it and keeps timing from now.
+/// Keep leaves the idle time on the entry; discard trims it and keeps timing from the return.
+/// A second idle stretch while the prompt waited is marked, so the next tick asks about it.
 #[tauri::command]
 fn answer_idle_prompt(
     app: AppHandle,
@@ -201,16 +214,19 @@ fn answer_idle_prompt(
 ) -> Result<Status, String> {
     let status = {
         let mut store = state.lock_store();
+        let mut pending = lock_recovering(&state.idle_prompt);
         let now = Utc::now();
-        if keep {
-            store.keep_idle().map_err(err)?;
-            store.status(now)
-        } else {
-            store.discard_idle(now, today(), true)
+        let status = match (keep, pending.as_ref()) {
+            (true, _) => store.keep_idle().and_then(|()| store.status(now)),
+            (false, Some(p)) => store.discard_idle(p.returned_at, local_day(p.returned_at), now),
+            (false, None) => store.status(now),
         }
-        .map_err(err)?
+        .map_err(err)?;
+        if let Some(again) = pending.take().and_then(|p| p.idle_again) {
+            store.mark_idle(again, now).map_err(err)?;
+        }
+        status
     };
-    *lock_recovering(&state.idle_prompt) = None;
     refresh_tray(&app, &status);
     Ok(status)
 }
@@ -705,19 +721,11 @@ fn toggle_from_tray(app: &AppHandle) {
 }
 
 /// A deliberate quit stops the timer now, so the next launch has nothing to recover.
-/// If the user had gone idle, it stops where idling began, as answering Discard would.
+/// Idle time is kept: quitting doesn't answer the prompt with Discard.
 fn quit(app: &AppHandle) {
-    let state = app.state::<AppState>();
-    let mut store = state.lock_store();
-    let now = Utc::now();
-    let stopped = match store.discard_idle(now, today(), false) {
-        Ok(_) => store.stop(now),
-        Err(e) => Err(e),
-    };
-    if let Err(e) = stopped {
+    if let Err(e) = app.state::<AppState>().lock_store().stop(Utc::now()) {
         eprintln!("stopping the timer on quit failed: {e}");
     }
-    drop(store);
     app.exit(0);
 }
 
@@ -785,18 +793,34 @@ fn build_tray(app: &AppHandle) -> tauri::Result<TrayHandles> {
 fn spawn_ticker(app: AppHandle, heartbeat_every_secs: u64, idle_after: Option<Duration>) {
     std::thread::spawn(move || {
         let mut ticks: u64 = 0;
+        let mut prev_input = None;
         loop {
             std::thread::sleep(std::time::Duration::from_secs(1));
             ticks += 1;
             // A panic in one tick is logged by the hook; the ticker keeps going.
             let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                tick(&app, ticks, heartbeat_every_secs, idle_after)
+                tick(
+                    &app,
+                    ticks,
+                    heartbeat_every_secs,
+                    idle_after,
+                    &mut prev_input,
+                )
             }));
         }
     });
 }
 
-fn tick(app: &AppHandle, ticks: u64, heartbeat_every_secs: u64, idle_after: Option<Duration>) {
+/// When the previous tick ran and the last input it saw, to notice a sleep in between.
+type PrevInput = Option<(DateTime<Utc>, DateTime<Utc>)>;
+
+fn tick(
+    app: &AppHandle,
+    ticks: u64,
+    heartbeat_every_secs: u64,
+    idle_after: Option<Duration>,
+    prev_input: &mut PrevInput,
+) {
     let state = app.state::<AppState>();
     let (status, asked) = {
         let store = state.lock_store();
@@ -811,7 +835,7 @@ fn tick(app: &AppHandle, ticks: u64, heartbeat_every_secs: u64, idle_after: Opti
             }
         }
         let asked = match &status {
-            Ok(s) => check_idle(&state, &store, s, now, idle_after),
+            Ok(s) => check_idle(&state, &store, s, now, idle_after, prev_input),
             Err(_) => false,
         };
         (status, asked)
@@ -833,11 +857,20 @@ fn check_idle(
     status: &Status,
     now: DateTime<Utc>,
     idle_after: Option<Duration>,
+    prev_input: &mut PrevInput,
 ) -> bool {
-    let Some(idle) = idle::idle_for() else {
+    let Some(last_input) = idle::idle_for()
+        .and_then(|idle| Duration::from_std(idle).ok())
+        .map(|idle| now - idle)
+    else {
         return false;
     };
-    let last_input = now - Duration::from_std(idle).unwrap_or(Duration::MAX);
+    let seen = last_input_across_suspend(prev_input.replace((now, last_input)), last_input, now);
+    let mut pending = lock_recovering(&state.idle_prompt);
+    if status.running.is_none() {
+        *pending = None;
+        return false;
+    }
     let threshold = idle_after.or_else(|| {
         let setting = store.setting(IDLE_MINUTES_SETTING).ok().flatten();
         idle_threshold(setting.as_deref())
@@ -845,24 +878,34 @@ fn check_idle(
     let Ok(since) = store.idle_since() else {
         return false;
     };
-    let mut prompt = lock_recovering(&state.idle_prompt);
-    // Stopping or starting the timer clears the mark; an open prompt goes with it.
+    // Starting another project clears the mark; an open prompt goes with it.
     if since.is_none() {
-        *prompt = None;
+        *pending = None;
     }
-    match idle_action(threshold, status.running.is_some(), since, last_input, now) {
+    if let Some(p) = pending.as_mut() {
+        // Gone idle again before answering: remember it for after the answer.
+        if let IdleAction::MarkIdle(at) = idle_action(threshold, true, None, seen, now) {
+            p.idle_again.get_or_insert(at);
+        }
+        return false;
+    }
+    match idle_action(threshold, true, since, seen, now) {
         IdleAction::MarkIdle(at) => {
             let _ = store.mark_idle(at, now);
             false
         }
-        IdleAction::Ask { since, returned_at } if prompt.is_none() => {
-            *prompt = Some(IdlePrompt {
-                since: timekeeper_core::ts(since),
-                returned_at: timekeeper_core::ts(returned_at),
+        IdleAction::Ask { since, returned_at } => {
+            *pending = Some(PendingIdle {
+                prompt: IdlePrompt {
+                    since: timekeeper_core::ts(since),
+                    returned_at: timekeeper_core::ts(returned_at),
+                },
+                returned_at,
+                idle_again: None,
             });
             true
         }
-        _ => false,
+        IdleAction::Nothing => false,
     }
 }
 

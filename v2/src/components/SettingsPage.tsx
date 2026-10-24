@@ -17,6 +17,13 @@ interface Props {
 const DEFAULT_IDLE_MINUTES = 20;
 const IDLE_MINUTES = [0, 5, 10, 15, 20, 30, 45, 60];
 
+/// Reads the setting as core's `idle_threshold` does: whole minutes up to a day, else the default.
+function parseIdleMinutes(value: string | undefined): number {
+  const v = value?.trim() ?? "";
+  const m = /^[+-]?\d+$/.test(v) ? Number(v) : NaN;
+  return m >= 0 && m <= 24 * 60 ? m : DEFAULT_IDLE_MINUTES;
+}
+
 const count = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
 
 function describeImport(r: ImportReport): string {
@@ -37,7 +44,11 @@ export function SettingsPage({ snapshot, onSetting, onChanged, onError }: Props)
   const durationFormat = (s.duration_format as DurationFormat) ?? "hms";
   const dateFormat = (s.date_format as DateFormat) ?? "iso";
   const weekStart = s.week_start === "sunday" ? "sunday" : "monday";
-  const idleMinutes = Number(s.idle_minutes ?? DEFAULT_IDLE_MINUTES);
+  const idleMinutes = parseIdleMinutes(s.idle_minutes);
+  // A saved value that isn't a preset still shows as itself.
+  const idleOptions = IDLE_MINUTES.includes(idleMinutes)
+    ? IDLE_MINUTES
+    : [...IDLE_MINUTES, idleMinutes].sort((a, b) => a - b);
 
   const [importAgain, importing, imported] = useBusyAction(async () => {
     const report = await api.importV1Again();
@@ -115,7 +126,7 @@ export function SettingsPage({ snapshot, onSetting, onChanged, onError }: Props)
               value={idleMinutes}
               onChange={(e) => onSetting("idle_minutes", e.target.value)}
             >
-              {IDLE_MINUTES.map((m) => (
+              {idleOptions.map((m) => (
                 <option key={m} value={m}>
                   {m === 0 ? "Never" : `${m} minutes idle`}
                 </option>

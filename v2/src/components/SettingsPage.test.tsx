@@ -186,6 +186,17 @@ describe("SettingsPage: idle time", () => {
     expect(select()).toHaveValue("45");
   });
 
+  it("shows a saved value that isn't a preset", () => {
+    renderPage({ ...snapshot, settings: { idle_minutes: "25" } });
+    expect(select()).toHaveValue("25");
+    expect(screen.getByRole("option", { name: "25 minutes idle" })).toBeInTheDocument();
+  });
+
+  it("shows the default for a value core would ignore", () => {
+    renderPage({ ...snapshot, settings: { idle_minutes: "1.5" } });
+    expect(select()).toHaveValue("20");
+  });
+
   it("is hidden where idle time can't be detected", () => {
     renderPage({ ...snapshot, idleSupported: false });
     expect(screen.queryByText("Idle time")).toBeNull();

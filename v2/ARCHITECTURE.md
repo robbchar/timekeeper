@@ -86,7 +86,7 @@ Because the running timer is a row, a crash loses nothing. While timing, the she
 heartbeat every 30 seconds (and `start` writes one at once); `heartbeat_at` is not updated while
 idle. At startup, `recover_stale` closes any interval whose heartbeat is more than two minutes
 old at the last heartbeat time, and the UI says so. If an idle start is saved (below), it closes
-there instead, as quitting with the idle prompt up does.
+there instead, since nobody was asked about that time.
 
 ### Idle time
 
@@ -94,17 +94,21 @@ Windows only for now. Each second the ticker reads the last input time (`src-tau
 `GetLastInputInfo`), and `core::idle::idle_action` decides what to do with it:
 
 1. While timing, once there has been no input for the threshold (`idle_minutes`, default 20),
-   `mark_idle` saves the last input time as `idle_since`. Only the first mark counts.
+   `mark_idle` saves the last input time as `idle_since`. Only the first mark counts. If more
+   than 30 seconds pass between ticks, the PC slept: the last input seen before the gap counts,
+   not the input that woke it (`last_input_across_suspend`).
 2. When input arrives after `idle_since`, the shell holds an `IdlePrompt` in memory, shows the
    window and emits `timer-changed`. `snapshot` carries the prompt, and the UI shows `IdleDialog`
    over an inert page.
 3. `answer_idle_prompt` keeps the time (`keep_idle` clears the mark) or discards it
    (`discard_idle`: in one transaction, end the open interval at `idle_since` and open a new one
-   at now on today's entry).
+   at the prompt's return time on that day's entry, so time back before answering counts).
 
-The timer keeps running while the prompt waits. `start` and `stop` clear `idle_since`, which
-drops any open prompt. Quit calls `discard_idle` without reopening the timer. Elsewhere,
-`idle_for` returns `None`, `snapshot.idleSupported` is false and the UI hides the setting.
+The timer keeps running while the prompt waits. If the user goes idle again before answering, the
+shell remembers that start and marks it once the prompt is answered, so the next tick asks about
+the second stretch. `start` and `stop` clear `idle_since`, which drops any open prompt. Quit just
+stops the timer, so idle time is kept. Elsewhere, `idle_for` returns `None`,
+`snapshot.idleSupported` is false and the UI hides the setting.
 
 ## Times and days
 
@@ -252,7 +256,7 @@ system. Nothing is ever written to Linear.
 
 - **Tray-first.** Closing the window hides it. The app quits only from the tray menu.
 - **Quitting stops the timer** at that moment, so the timer never runs while the app is closed.
-  If the user had gone idle, it stops at `idle_since`.
+  Idle time is kept, as if the prompt were answered Keep.
 - **Single instance.** Launching again shows the existing window, unless that launch passed
   `--hidden`.
 - **Hidden start.** The window is created hidden (`visible: false`) and shown during setup, unless

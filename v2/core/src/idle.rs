@@ -11,6 +11,24 @@ pub const DEFAULT_IDLE_MINUTES: i64 = 20;
 /// tick, not the user coming back.
 const SAME_INPUT: Duration = Duration::seconds(2);
 
+/// A gap this long between ticks means the PC was asleep.
+const SUSPEND_GAP: Duration = Duration::seconds(30);
+
+/// The last input to judge idleness by. After a sleep, the input that woke the PC hides the time
+/// away, so the last input seen before the gap (`prev`, read at the previous tick) counts instead.
+pub fn last_input_across_suspend(
+    prev: Option<(DateTime<Utc>, DateTime<Utc>)>,
+    last_input: DateTime<Utc>,
+    now: DateTime<Utc>,
+) -> DateTime<Utc> {
+    match prev {
+        Some((ticked_at, prev_input)) if now - ticked_at > SUSPEND_GAP => {
+            prev_input.min(last_input)
+        }
+        _ => last_input,
+    }
+}
+
 /// How long without input counts as idle, from the setting; `None` when it is turned off.
 /// A missing or unreadable value means the default.
 pub fn idle_threshold(setting: Option<&str>) -> Option<Duration> {
@@ -108,6 +126,24 @@ mod tests {
             },
             "a saved mark is still asked about after turning it off"
         );
+    }
+
+    #[test]
+    fn input_that_wakes_the_pc_does_not_hide_the_sleep() {
+        let before = at("2026-10-05T12:00:00Z");
+        let woke = at("2026-10-05T13:30:00Z");
+        let now = at("2026-10-05T13:30:01Z");
+        let slept = Some((at("2026-10-05T12:00:05Z"), before));
+        let seen = last_input_across_suspend(slept, woke, now);
+        assert_eq!(seen, before);
+        assert_eq!(
+            idle_action(TWENTY, true, None, seen, now),
+            IdleAction::MarkIdle(before)
+        );
+
+        let ticking = Some((at("2026-10-05T13:30:00Z"), before));
+        assert_eq!(last_input_across_suspend(ticking, woke, now), woke);
+        assert_eq!(last_input_across_suspend(None, woke, now), woke);
     }
 
     #[test]
