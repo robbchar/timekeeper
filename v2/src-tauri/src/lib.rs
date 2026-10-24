@@ -38,12 +38,22 @@ const UI_SETTINGS: &[&str] = &[
 
 /// The v2 database's file name in the data dir.
 const DB_FILE: &str = "timekeeper.db";
+/// Release builds have no console, so panics and background failures go here, in the data dir.
+const LOG_FILE: &str = "panic.log";
+/// The local time in backup file names; milliseconds, so a quick second backup gets its own file.
+const BACKUP_TIME: &str = "%Y-%m-%d_%H%M%S%.3f";
+/// Daily automatic backups kept; older ones are deleted.
+const AUTO_BACKUPS_KEPT: usize = 30;
+/// How often the ticker checks for today's automatic backup.
+const BACKUP_CHECK_EVERY_SECS: u64 = 60 * 60;
 
 struct AppState {
     store: Mutex<Store>,
     startup: Startup,
     /// Where the v2 database lives, shown on the Settings page.
     data_dir: PathBuf,
+    /// Where backups go; `Err` if Documents can't be found.
+    backups_dir: Result<PathBuf, String>,
     /// The v1 database the import reads, at first run and from Settings.
     v1_db: PathBuf,
     /// The login entry; `None` in debug builds and where start at login isn't supported.
@@ -481,23 +491,39 @@ fn import_v1_again(state: State<AppState>) -> Result<ImportReport, String> {
         .map_err(err)
 }
 
-/// Copies the database to a timestamped file under Documents, outside the app data
-/// dir so uninstalling with "delete app data" doesn't take the backups too.
+/// Copies the database to a timestamped file in the backups folder.
 #[tauri::command(async)]
-fn backup_now(app: AppHandle, state: State<AppState>) -> Result<String, String> {
-    // Milliseconds, so a quick second click gets its own file.
-    let name = format!(
-        "timekeeper-{}.db",
-        Local::now().format("%Y-%m-%d_%H%M%S%.3f")
-    );
-    let path = app
-        .path()
-        .document_dir()
-        .map_err(err)?
-        .join("TimeKeeper backups")
-        .join(name);
+fn backup_now(state: State<AppState>) -> Result<String, String> {
+    let name = format!("timekeeper-{}.db", Local::now().format(BACKUP_TIME));
+    let path = state.backups_dir.clone()?.join(name);
     Store::backup_to(&state.data_dir.join(DB_FILE), &path).map_err(err)?;
     Ok(path.display().to_string())
+}
+
+/// Under Documents, outside the app data dir, so uninstalling with "delete app data" doesn't take
+/// the backups too. Beside an overridden data dir instead, so smoke runs never touch the real ones.
+fn backups_dir(
+    data_dir_override: Option<&Path>,
+    documents: Result<PathBuf, String>,
+) -> Result<PathBuf, String> {
+    match data_dir_override {
+        Some(dir) => Ok(dir.join("backups")),
+        None => documents.map(|d| d.join("TimeKeeper backups")),
+    }
+}
+
+/// Writes today's automatic backup if it's missing. A failure is logged and retried next check.
+fn daily_backup(state: &AppState) {
+    let written = state.backups_dir.clone().and_then(|dir| {
+        let db = state.data_dir.join(DB_FILE);
+        Store::daily_backup(&db, &dir, local_day(Utc::now()), AUTO_BACKUPS_KEPT).map_err(err)
+    });
+    if let Err(e) = written {
+        append_log(
+            &state.data_dir.join(LOG_FILE),
+            &format!("automatic backup failed: {e}"),
+        );
+    }
 }
 
 // ---------------------------------------------------------------------- tray
@@ -863,6 +889,10 @@ fn tick(
     if let Ok(status) = status {
         refresh_tray(app, &status);
     }
+    // Hourly, not just at launch, so a PC that stays on still gets one a day.
+    if ticks == 1 || ticks.is_multiple_of(BACKUP_CHECK_EVERY_SECS) {
+        daily_backup(&state);
+    }
 }
 
 /// Marks the idle start once the threshold passes, and raises the prompt when the user is back.
@@ -925,18 +955,22 @@ fn check_idle(
     }
 }
 
-/// Release builds have no console, so panics are also appended to `panic.log` in the data dir.
+/// Release builds have no console, so panics are also appended to the log in the data dir.
 fn log_panics_to(path: std::path::PathBuf) {
     let default = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         default(info);
-        let line = format!("{} {info}\n", Utc::now().to_rfc3339());
-        let _ = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&path)
-            .and_then(|mut f| std::io::Write::write_all(&mut f, line.as_bytes()));
+        append_log(&path, &info.to_string());
     }));
+}
+
+fn append_log(path: &Path, message: &str) {
+    let line = format!("{} {message}\n", Utc::now().to_rfc3339());
+    let _ = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .and_then(|mut f| std::io::Write::write_all(&mut f, line.as_bytes()));
 }
 
 // ----------------------------------------------------------------------- run
@@ -984,14 +1018,24 @@ fn open_store(
     app: &AppHandle,
     overrides: &Overrides,
     v1_db: &Path,
+    backups: &Result<PathBuf, String>,
 ) -> Result<(Store, Startup, PathBuf), Box<dyn std::error::Error>> {
     let dir = match &overrides.data_dir {
         Some(dir) => dir.clone(),
         None => app.path().app_data_dir()?,
     };
     std::fs::create_dir_all(&dir)?;
-    log_panics_to(dir.join("panic.log"));
-    let mut store = Store::open(dir.join(DB_FILE))?;
+    log_panics_to(dir.join(LOG_FILE));
+    let mut store = Store::open_with_backup(&dir.join(DB_FILE), || {
+        let name = format!(
+            "timekeeper-before-update-{}.db",
+            Local::now().format(BACKUP_TIME)
+        );
+        backups
+            .clone()
+            .map(|dir| dir.join(name))
+            .map_err(timekeeper_core::Error::Invalid)
+    })?;
     let mut startup = Startup::default();
 
     // First run: bring in v1's data, opened read-only. No v1 database is fine.
@@ -1007,6 +1051,97 @@ fn open_store(
     Ok((store, startup, dir))
 }
 
+fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    let handle = app.handle().clone();
+    let overrides = Overrides::from_env()?;
+    let v1_db = v1_db_path(&handle, &overrides)?;
+    let backups = backups_dir(
+        overrides.data_dir.as_deref(),
+        handle.path().document_dir().map_err(err),
+    );
+    let (store, startup, data_dir) = open_store(&handle, &overrides, &v1_db, &backups)?;
+    let status = store.status(Utc::now())?;
+    let state = AppState {
+        store: Mutex::new(store),
+        startup,
+        data_dir,
+        backups_dir: backups,
+        v1_db,
+        login: login_item(app),
+        secrets: keychain::Keychain::new(&app.config().identifier, keychain::linear_key_user()),
+        linear: linear::Client::new().map_err(|e| {
+            eprintln!("building the Linear client failed: {e}");
+            e.to_string()
+        }),
+        idle_prompt: Mutex::new(None),
+    };
+    if let Err(e) = sync_login_item(&state) {
+        eprintln!("syncing the login entry failed: {e}");
+    }
+    app.manage(state);
+    let tray = build_tray(&handle)?;
+    app.manage(tray);
+    refresh_tray(&handle, &status);
+    // The window starts hidden (tauri.conf.json) so a login launch never flashes it.
+    if !login::launched_hidden(std::env::args_os()) {
+        show_main(&handle);
+    }
+    spawn_ticker(handle, overrides.heartbeat_every_secs, overrides.idle_after);
+    Ok(())
+}
+
+/// The window starts hidden, so a failed setup would otherwise exit without a sign. Says why, and
+/// where the data and backups are, before Tauri ends the app.
+fn startup_failed(app: &AppHandle, error: &dyn std::error::Error) {
+    let data_dir_override = Overrides::from_env().ok().and_then(|o| o.data_dir);
+    let data = match &data_dir_override {
+        Some(dir) => Ok(dir.clone()),
+        None => app.path().app_data_dir().map_err(err),
+    };
+    let backups = backups_dir(
+        data_dir_override.as_deref(),
+        app.path().document_dir().map_err(err),
+    );
+    let shown = |p: &Result<PathBuf, String>| match p {
+        Ok(p) => p.display().to_string(),
+        Err(e) => format!("unknown ({e})"),
+    };
+    if let Ok(dir) = &data {
+        append_log(&dir.join(LOG_FILE), &format!("startup failed: {error}"));
+    }
+    show_error(
+        "TimeKeeper couldn't start",
+        &format!(
+            "{error}\n\nYour data: {}\nBackups: {}",
+            shown(&data),
+            shown(&backups)
+        ),
+    );
+}
+
+#[cfg(windows)]
+fn show_error(title: &str, message: &str) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        MessageBoxW, MB_ICONERROR, MB_OK, MB_SETFOREGROUND,
+    };
+    let wide = |s: &str| s.encode_utf16().chain([0]).collect::<Vec<u16>>();
+    let (text, caption) = (wide(message), wide(title));
+    // SAFETY: both strings are NUL-terminated and outlive the call; there is no owner window.
+    unsafe {
+        MessageBoxW(
+            std::ptr::null_mut(),
+            text.as_ptr(),
+            caption.as_ptr(),
+            MB_OK | MB_ICONERROR | MB_SETFOREGROUND,
+        )
+    };
+}
+
+#[cfg(not(windows))]
+fn show_error(title: &str, message: &str) {
+    eprintln!("{title}: {message}");
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1017,42 +1152,7 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_clipboard_manager::init())
-        .setup(|app| {
-            let handle = app.handle().clone();
-            let overrides = Overrides::from_env()?;
-            let v1_db = v1_db_path(&handle, &overrides)?;
-            let (store, startup, data_dir) = open_store(&handle, &overrides, &v1_db)?;
-            let status = store.status(Utc::now())?;
-            let state = AppState {
-                store: Mutex::new(store),
-                startup,
-                data_dir,
-                v1_db,
-                login: login_item(app),
-                secrets: keychain::Keychain::new(
-                    &app.config().identifier,
-                    keychain::linear_key_user(),
-                ),
-                linear: linear::Client::new().map_err(|e| {
-                    eprintln!("building the Linear client failed: {e}");
-                    e.to_string()
-                }),
-                idle_prompt: Mutex::new(None),
-            };
-            if let Err(e) = sync_login_item(&state) {
-                eprintln!("syncing the login entry failed: {e}");
-            }
-            app.manage(state);
-            let tray = build_tray(&handle)?;
-            app.manage(tray);
-            refresh_tray(&handle, &status);
-            // The window starts hidden (tauri.conf.json) so a login launch never flashes it.
-            if !login::launched_hidden(std::env::args_os()) {
-                show_main(&handle);
-            }
-            spawn_ticker(handle, overrides.heartbeat_every_secs, overrides.idle_after);
-            Ok(())
-        })
+        .setup(|app| setup(app).inspect_err(|e| startup_failed(app.handle(), e.as_ref())))
         .on_window_event(|window, event| {
             // The tray is the app; closing the window just hides it.
             if let WindowEvent::CloseRequested { api, .. } = event {
@@ -1109,6 +1209,21 @@ mod tests {
         *lock_recovering(&m) += 1;
         assert_eq!(*lock_recovering(&m), 2);
         assert!(!m.is_poisoned());
+    }
+
+    #[test]
+    fn backups_go_to_documents_unless_the_data_dir_is_overridden() {
+        let docs = PathBuf::from("C:/Users/me/Documents");
+        assert_eq!(
+            backups_dir(None, Ok(docs.clone())),
+            Ok(docs.join("TimeKeeper backups"))
+        );
+        let temp = PathBuf::from("C:/Temp/tk-smoke");
+        assert_eq!(backups_dir(Some(&temp), Ok(docs)), Ok(temp.join("backups")));
+        assert_eq!(
+            backups_dir(Some(&temp), Err("no Documents".into())),
+            Ok(temp.join("backups"))
+        );
     }
 
     fn pixel(img: &Image<'_>, x: u32, y: u32) -> [u8; 4] {

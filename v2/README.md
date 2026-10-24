@@ -46,7 +46,10 @@ and open <http://localhost:1420>.
 - **Install**: run the setup exe. It installs for the current user only (no admin prompt) into
   `%LOCALAPPDATA%\TimeKeeper v2`, with a Start menu shortcut. It installs alongside v1, which uses
   different folders and shortcuts.
-- **Upgrade**: run a newer setup exe. Either answer to "uninstall before installing" keeps your data.
+- **Upgrade**: run a newer setup exe. When its version is higher, it offers to uninstall the old
+  build first, which opens the old uninstaller. Either answer keeps your data as long as you leave
+  "Delete the application data" unticked there. A build that changes the database's schema copies
+  the database to `Documents\TimeKeeper backups` before it updates it.
 - **Uninstall**: Settings → Apps → TimeKeeper v2. Your data is kept unless you tick "Delete the
   application data", which removes `%APPDATA%\dev.cathedraltree.timekeeper`. Backups in Documents
   are never touched. It also removes the start-at-login entry.
@@ -55,20 +58,32 @@ and open <http://localhost:1420>.
   Task Manager's Startup apps, which turns the toggle off too. Release builds only: debug builds
   hide the toggle.
 - **Version**: set it in `[workspace.package]` in `Cargo.toml`. The crates inherit it, and
-  `tauri.conf.json` has no `version`, so the installer uses it too.
+  `tauri.conf.json` has no `version`, so the installer uses it too. A PR that adds a migration
+  bumps the minor version, so the installer can tell builds on either side of a schema change apart.
 - **Don't change** `identifier`, `productName` or `bundle.publisher` in `tauri.conf.json` lightly.
-  The identifier names the data folder. The installer finds the previous install under
-  `HKCU\Software\<publisher>\<productName>`, so changing either breaks "uninstall before installing"
-  for existing installs ("Unable to uninstall!"); choosing "Do not uninstall" gets past it once.
+  - The identifier names the data folder.
+  - The installer finds an existing install by `productName`. A renamed build installs alongside
+    the old one, and both use the same data folder.
+  - The old install's folder is read from `HKCU\Software\<publisher>\<productName>`, so a new
+    publisher breaks "uninstall before installing" ("Unable to uninstall!"). Choosing "Do not
+    uninstall" gets past it once.
 
 ## Your data
 
 - v2 keeps its database at `%APPDATA%\dev.cathedraltree.timekeeper\timekeeper.db`
   (Linux: `~/.local/share/dev.cathedraltree.timekeeper/`).
 - **Settings → Back up now** writes a copy of the database to
-  `Documents\TimeKeeper backups\timekeeper-<date>_<time>.db`. It's safe while the timer runs. To
-  restore one, quit v2, delete `timekeeper.db-wal` and `timekeeper.db-shm` if present, and copy the
-  backup over `timekeeper.db`.
+  `Documents\TimeKeeper backups\timekeeper-<date>_<time>.db`. It's safe while the timer runs.
+- Backups are also automatic, in the same folder:
+  - `timekeeper-auto-<date>.db` once a day. Only the newest 30 of these are kept.
+  - `timekeeper-before-update-<date>_<time>.db` before a new build updates the database's schema.
+    These are kept forever. If this copy can't be written, the app doesn't start, rather than
+    update without one.
+- To restore a backup, quit v2, delete `timekeeper.db-wal` and `timekeeper.db-shm` if present, and
+  copy the backup over `timekeeper.db`.
+- If v2 can't open its database (for example, it was written by a newer build), it shows a message
+  with the reason and the folders instead of starting. Install the newer build, or restore a
+  backup.
 - On first launch it imports v1 from `%APPDATA%\timekeeper\timekeeper.db`. The v1 file is opened
   **read-only** and never changed.
 - To bring in time recorded in v1 since then, use **Settings → Import new sessions from v1**. It

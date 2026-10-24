@@ -897,6 +897,160 @@ fn failed_backup_leaves_no_file() {
     std::fs::remove_dir_all(dir).ok();
 }
 
+fn scratch(name: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("{name}-{}", std::process::id()));
+    std::fs::remove_dir_all(&dir).ok();
+    std::fs::create_dir_all(&dir).unwrap();
+    dir
+}
+
+/// A database migrated only as far as `version`, holding one project.
+fn database_at_version(path: &Path, version: usize) {
+    let c = Connection::open(path).unwrap();
+    for sql in &schema::MIGRATIONS[..version] {
+        c.execute_batch(sql).unwrap();
+    }
+    c.execute_batch(&format!("PRAGMA user_version = {version};"))
+        .unwrap();
+    c.execute(
+        "INSERT INTO projects (name, created_at) VALUES ('Elevate', '2026-10-01T00:00:00Z')",
+        [],
+    )
+    .unwrap();
+}
+
+fn user_version(path: &Path) -> i64 {
+    Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .unwrap()
+        .query_row("PRAGMA user_version", [], |r| r.get(0))
+        .unwrap()
+}
+
+fn names_in(dir: &Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().into_string().unwrap())
+        .collect();
+    names.sort();
+    names
+}
+
+#[test]
+fn opening_an_older_database_backs_it_up_before_migrating() {
+    let dir = scratch("tk-open-older");
+    let db = dir.join("live.db");
+    database_at_version(&db, 2);
+    let copy = dir.join("backups").join("before.db");
+
+    let s = Store::open_with_backup(&db, || Ok(copy.clone())).unwrap();
+
+    assert_eq!(user_version(&copy), 2);
+    let projects: i64 = Connection::open(&copy)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM projects", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(projects, 1);
+    drop(s);
+    assert_eq!(user_version(&db), schema::CURRENT_VERSION);
+    std::fs::remove_dir_all(dir).ok();
+}
+
+#[test]
+fn opening_a_new_or_current_database_makes_no_backup() {
+    let dir = scratch("tk-open-current");
+    let db = dir.join("live.db");
+
+    drop(Store::open_with_backup(&db, || panic!("backed up a new database")).unwrap());
+    drop(Store::open_with_backup(&db, || panic!("backed up a current database")).unwrap());
+    std::fs::remove_dir_all(dir).ok();
+}
+
+#[test]
+fn a_failed_backup_stops_the_migration() {
+    let dir = scratch("tk-open-backup-fails");
+    let db = dir.join("live.db");
+    database_at_version(&db, 2);
+    let copy = dir.join("before.db");
+    // backup_to never overwrites, so this copy fails.
+    std::fs::write(&copy, b"taken").unwrap();
+
+    assert!(Store::open_with_backup(&db, || Ok(copy.clone())).is_err());
+    assert_eq!(user_version(&db), 2);
+    std::fs::remove_dir_all(dir).ok();
+}
+
+#[test]
+fn a_database_from_a_newer_build_is_refused_untouched() {
+    let dir = scratch("tk-open-newer");
+    let db = dir.join("live.db");
+    drop(Store::open(&db).unwrap());
+    let newer = schema::CURRENT_VERSION + 1;
+    Connection::open(&db)
+        .unwrap()
+        .execute_batch(&format!("PRAGMA user_version = {newer};"))
+        .unwrap();
+    let before = std::fs::read(&db).unwrap();
+
+    let result = Store::open_with_backup(&db, || panic!("backed up a newer database"));
+
+    assert!(matches!(
+        result,
+        Err(Error::SchemaTooNew { found, supported })
+            if found == newer && supported == schema::CURRENT_VERSION
+    ));
+    assert_eq!(std::fs::read(&db).unwrap(), before);
+    std::fs::remove_dir_all(dir).ok();
+}
+
+#[test]
+fn daily_backup_writes_one_file_per_day() {
+    let dir = scratch("tk-daily-once");
+    let db = dir.join("live.db");
+    drop(Store::open(&db).unwrap());
+    let backups = dir.join("backups");
+
+    Store::daily_backup(&db, &backups, day("2026-10-24"), 30).unwrap();
+    Store::daily_backup(&db, &backups, day("2026-10-24"), 30).unwrap();
+
+    assert_eq!(names_in(&backups), ["timekeeper-auto-2026-10-24.db"]);
+    std::fs::remove_dir_all(dir).ok();
+}
+
+#[test]
+fn daily_backup_prunes_only_older_automatic_backups() {
+    let dir = scratch("tk-daily-prune");
+    let db = dir.join("live.db");
+    drop(Store::open(&db).unwrap());
+    let backups = dir.join("backups");
+    std::fs::create_dir_all(&backups).unwrap();
+    for name in [
+        "timekeeper-auto-2026-10-20.db",
+        "timekeeper-auto-2026-10-21.db",
+        "timekeeper-auto-2026-10-22.db",
+        "timekeeper-auto-2026-10-23.db.partial",
+        "timekeeper-auto-notes.txt",
+        "timekeeper-2026-10-01_090000.000.db",
+        "timekeeper-before-update-2026-10-02_090000.000.db",
+    ] {
+        std::fs::write(backups.join(name), b"x").unwrap();
+    }
+
+    Store::daily_backup(&db, &backups, day("2026-10-24"), 2).unwrap();
+
+    assert_eq!(
+        names_in(&backups),
+        [
+            "timekeeper-2026-10-01_090000.000.db",
+            "timekeeper-auto-2026-10-22.db",
+            "timekeeper-auto-2026-10-23.db.partial",
+            "timekeeper-auto-2026-10-24.db",
+            "timekeeper-auto-notes.txt",
+            "timekeeper-before-update-2026-10-02_090000.000.db",
+        ]
+    );
+    std::fs::remove_dir_all(dir).ok();
+}
+
 // ------------------------------------------------------------------ v1 import
 
 /// Builds a small v1 database with the v1 schema, covering the awkward cases

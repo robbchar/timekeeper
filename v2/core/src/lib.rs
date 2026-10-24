@@ -34,9 +34,17 @@ pub enum Error {
     Invalid(String),
     #[error("no v1 database at {}", .0.display())]
     NoV1Database(std::path::PathBuf),
+    #[error(
+        "the database is from a newer TimeKeeper (schema {found}; this build reads up to \
+         {supported}). Install the newer build again, or restore a backup."
+    )]
+    SchemaTooNew { found: i64, supported: i64 },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+/// File name prefix of the daily backups, the only backups ever pruned.
+const AUTO_BACKUP_PREFIX: &str = "timekeeper-auto-";
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -965,6 +973,49 @@ impl Store {
             std::fs::remove_file(&partial).ok();
         }
         written
+    }
+
+    /// Opens `db` like `open`, first copying it to `backup()` when it holds data from an older
+    /// schema. If the copy fails, nothing is migrated.
+    pub fn open_with_backup(db: &Path, backup: impl FnOnce() -> Result<PathBuf>) -> Result<Self> {
+        if let Some(version) = schema::version_of(db)? {
+            if version > 0 && version < schema::CURRENT_VERSION {
+                backup()
+                    .and_then(|path| Self::backup_to(db, &path))
+                    .map_err(|e| {
+                        Error::Invalid(format!(
+                            "couldn't back up the database before updating it: {e}"
+                        ))
+                    })?;
+            }
+        }
+        Self::open(db)
+    }
+
+    /// Writes today's `timekeeper-auto-<day>.db` to `dir` unless it's there, then deletes all but
+    /// the newest `keep` of those. Nothing else in `dir` is ever deleted.
+    pub fn daily_backup(db: &Path, dir: &Path, today: NaiveDate, keep: usize) -> Result<()> {
+        let io = |p: &Path, e: std::io::Error| Error::Invalid(format!("{}: {e}", p.display()));
+        let path = dir.join(format!("{AUTO_BACKUP_PREFIX}{today}.db"));
+        if !path.try_exists().map_err(|e| io(&path, e))? {
+            Self::backup_to(db, &path)?;
+        }
+        let mut autos = Vec::new();
+        for entry in std::fs::read_dir(dir).map_err(|e| io(dir, e))? {
+            let entry = entry.map_err(|e| io(dir, e))?;
+            let day = entry.file_name().to_str().and_then(|name| {
+                let day = name.strip_prefix(AUTO_BACKUP_PREFIX)?.strip_suffix(".db")?;
+                NaiveDate::parse_from_str(day, "%Y-%m-%d").ok()
+            });
+            if let Some(day) = day {
+                autos.push((day, entry.path()));
+            }
+        }
+        autos.sort_unstable_by_key(|(day, _)| std::cmp::Reverse(*day));
+        for (_, old) in autos.into_iter().skip(keep) {
+            std::fs::remove_file(&old).map_err(|e| io(&old, e))?;
+        }
+        Ok(())
     }
 
     pub fn is_empty(&self) -> Result<bool> {
