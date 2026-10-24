@@ -1,7 +1,16 @@
 // In-memory stand-in for the Rust backend, used only when the UI is opened in
 // a plain browser. Synthetic data; no real records.
 
-import type { Entry, ImportReport, Project, Snapshot, Status, Suggestion, Totals } from "./api";
+import type {
+  Entry,
+  IdlePrompt,
+  ImportReport,
+  Project,
+  Snapshot,
+  Status,
+  Suggestion,
+  Totals,
+} from "./api";
 import { addDays, localDay } from "./format";
 
 const projects: Project[] = [
@@ -82,6 +91,7 @@ let lastProjectId: number | null = 1;
 const settings: Record<string, string> = {};
 let v1ImportedAt: string | null = null;
 let startAtLogin = false;
+let idlePrompt: IdlePrompt | null = null;
 // Held in memory only; a browser preview never talks to Linear.
 let linearKey: string | null = null;
 const LINEAR_UNAUTHORIZED =
@@ -154,6 +164,8 @@ function handle<T>(cmd: string, a: Record<string, unknown>): T {
         startup: { recovered: null, imported: null, importError: null },
         dataDir: "(browser preview: in-memory sample data)",
         v1ImportedAt,
+        idleSupported: true,
+        idlePrompt,
       } satisfies Snapshot as T;
     }
     case "start": {
@@ -183,7 +195,19 @@ function handle<T>(cmd: string, a: Record<string, unknown>): T {
     }
     case "stop":
       stop();
+      idlePrompt = null;
       return status() as T;
+    case "answer_idle_prompt": {
+      if (idlePrompt && running && !(a.keep as boolean)) {
+        // Keep what was timed before going idle; time again from the return.
+        const e = entries.find((x) => x.id === running!.entryId)!;
+        const kept = (Date.parse(idlePrompt.since) - running.startedAt) / 1000;
+        e.closedSeconds += Math.max(0, kept);
+        running.startedAt = Date.parse(idlePrompt.returnedAt);
+      }
+      idlePrompt = null;
+      return status() as T;
+    }
     case "entries":
       return entries
         .filter(
@@ -352,4 +376,15 @@ function handle<T>(cmd: string, a: Record<string, unknown>): T {
     }
   }
   throw new Error(`mock: unknown command ${cmd}`);
+}
+
+// `?idle` previews the idle prompt: timing for 40 minutes, away for 30 of them.
+if (new URLSearchParams(window.location.search).has("idle")) {
+  const minutesAgo = (m: number) => Date.now() - m * 60_000;
+  const { entryId } = handle<Status>("start", { projectId: 1 }).running!;
+  running = { entryId, startedAt: minutesAgo(40) };
+  idlePrompt = {
+    since: new Date(minutesAgo(31)).toISOString(),
+    returnedAt: new Date(minutesAgo(1)).toISOString(),
+  };
 }

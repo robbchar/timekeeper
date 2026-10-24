@@ -11,6 +11,7 @@ vi.mock("./api", () => ({
     totals: vi.fn(),
     setSetting: vi.fn(() => Promise.resolve()),
     start: vi.fn(),
+    answerIdlePrompt: vi.fn(),
     onTimerChanged: vi.fn(() => Promise.resolve(() => {})),
     startAtLogin: vi.fn(() => Promise.resolve(null)),
     linearKeyStatus: vi.fn(() => Promise.resolve(null)),
@@ -55,6 +56,8 @@ const snapshot: Snapshot = {
   startup: { recovered: null, imported, importError: null },
   dataDir: "test",
   v1ImportedAt: null,
+  idleSupported: true,
+  idlePrompt: null,
 };
 
 const entryWithNotes = (id: number, notes: string): Entry => ({
@@ -77,6 +80,33 @@ beforeEach(() => {
 });
 
 describe("App", () => {
+  it("puts the idle prompt over an inert app until it's answered", async () => {
+    const running = {
+      entryId: 1,
+      projectId: 1,
+      projectName: "Acme",
+      intervalStartedAt: "2026-10-05T15:00:00Z",
+      priorSeconds: 0,
+    };
+    const status = { running, elapsedSeconds: 3600 };
+    vi.mocked(api.snapshot).mockResolvedValue({
+      ...snapshot,
+      status,
+      idlePrompt: { since: "2026-10-05T15:30:00Z", returnedAt: "2026-10-05T15:57:00Z" },
+    });
+    vi.mocked(api.answerIdlePrompt).mockResolvedValueOnce(status);
+    const { container } = render(<App />);
+    const dialog = await screen.findByRole("alertdialog", { name: "You were away" });
+    expect(dialog).toHaveTextContent("(27m) while timing Acme");
+    expect(container.querySelector(".app")).toHaveAttribute("inert");
+
+    vi.mocked(api.snapshot).mockResolvedValue({ ...snapshot, status });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Keep" }));
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(api.answerIdlePrompt).toHaveBeenCalledWith(true);
+    expect(container.querySelector(".app")).not.toHaveAttribute("inert");
+  });
+
   it("fetches once on mount", async () => {
     render(<App />);
     await screen.findByText("TimeKeeper");
