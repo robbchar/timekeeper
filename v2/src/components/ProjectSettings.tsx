@@ -96,21 +96,6 @@ function ProjectRow({
     void onChanged();
   };
 
-  // Step and mode save together, so one command never sees half a rule.
-  const saveRounding = async (minutes: number | null, mode: RoundingMode) => {
-    roundingMinutes.hold(minutes);
-    roundingMode.hold(mode);
-    try {
-      await api.setProjectRounding(project.id, minutes, mode);
-    } catch (err) {
-      roundingMinutes.drop();
-      roundingMode.drop();
-      onError(err);
-      return;
-    }
-    void onChanged();
-  };
-
   return (
     <li className={`project ${archived.shown ? "project--archived" : ""}`}>
       <input
@@ -146,9 +131,13 @@ function ProjectRow({
         <select
           aria-label={`${project.name}: round copied time to`}
           value={roundingMinutes.shown ?? ""}
-          onChange={(e) =>
-            void saveRounding(e.target.value ? Number(e.target.value) : null, roundingMode.shown)
-          }
+          onChange={(e) => {
+            // Step and mode save together; only the changed one is held.
+            const minutes = e.target.value ? Number(e.target.value) : null;
+            void save(roundingMinutes, minutes, () =>
+              api.setProjectRounding(project.id, minutes, roundingMode.shown),
+            );
+          }}
         >
           <option value="">Off</option>
           {roundingSteps.map((m) => (
@@ -161,7 +150,12 @@ function ProjectRow({
           aria-label={`${project.name}: round copied time`}
           disabled={roundingMinutes.shown === null}
           value={roundingMode.shown}
-          onChange={(e) => void saveRounding(roundingMinutes.shown, e.target.value as RoundingMode)}
+          onChange={(e) => {
+            const mode = e.target.value as RoundingMode;
+            void save(roundingMode, mode, () =>
+              api.setProjectRounding(project.id, roundingMinutes.shown, mode),
+            );
+          }}
         >
           {Object.entries(ROUNDING_MODES).map(([k, v]) => (
             <option key={k} value={k}>

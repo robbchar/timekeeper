@@ -108,10 +108,12 @@ function EntryRow({
   if (pending && pending.base !== entry.seconds) setPending(null);
   const seconds = pending?.seconds ?? entry.seconds;
   const exactTime = formatDuration(seconds, durationFormat);
-  const copiedTime = formatDuration(
-    roundSeconds(seconds, project?.roundingMinutes ?? null, project?.roundingMode ?? "nearest"),
-    durationFormat,
-  );
+  const copiedTime = project
+    ? formatDuration(
+        roundSeconds(seconds, project.roundingMinutes, project.roundingMode),
+        durationFormat,
+      )
+    : exactTime;
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   // Hidden once deleted, so a stale or failed refresh can't offer it again.

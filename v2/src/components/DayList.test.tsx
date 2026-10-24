@@ -361,7 +361,7 @@ describe("DayList Time copy rounding", () => {
     expect(api.copy).toHaveBeenCalledWith("00:10:00");
   });
 
-  it("copies the rounded time and shows the exact one beside it", () => {
+  it("copies the rounded time and puts the exact one in its title", () => {
     const rounding: Project = { ...acme, roundingMinutes: 15, roundingMode: "up" };
     render(list(entry, vi.fn(), undefined, [rounding]));
     expect(time()).toHaveAttribute("title", "Copy: 00:15:00 (rounded from 00:10:00)");

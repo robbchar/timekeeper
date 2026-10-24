@@ -366,9 +366,13 @@ function handle<T>(cmd: string, a: Record<string, unknown>): T {
           `rounding step must be one of [${roundingSteps.join(", ")}] minutes (got ${minutes})`,
         );
       }
+      const mode = a.mode as RoundingMode;
+      if (!["up", "nearest", "down"].includes(mode)) {
+        throw new Refused(`unknown rounding mode "${mode}"`);
+      }
       const p = project(a.projectId);
       p.roundingMinutes = minutes;
-      p.roundingMode = a.mode as RoundingMode;
+      p.roundingMode = mode;
       return undefined as T;
     }
     case "linear_key_status":

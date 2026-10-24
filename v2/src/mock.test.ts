@@ -46,6 +46,21 @@ describe("mock invoke", () => {
     ).rejects.toBe('a Linear team key is letters and digits, like LABS (got "LA-BS")');
   });
 
+  it("refuses a rounding step or mode the backend wouldn't accept", async () => {
+    await expect(
+      invoke("set_project_rounding", { projectId: 1, minutes: 7, mode: "up" }),
+    ).rejects.toBe("rounding step must be one of [5, 6, 10, 15, 30, 60] minutes (got 7)");
+    await expect(
+      invoke("set_project_rounding", { projectId: 1, minutes: 15, mode: "sideways" }),
+    ).rejects.toBe('unknown rounding mode "sideways"');
+    await invoke("set_project_rounding", { projectId: 1, minutes: 15, mode: "up" });
+    const snap = await invoke<Snapshot>("snapshot");
+    expect(snap.projects.find((p) => p.id === 1)).toMatchObject({
+      roundingMinutes: 15,
+      roundingMode: "up",
+    });
+  });
+
   it("suggests only for Linear projects, and needs a key", async () => {
     await invoke("set_project_linear_enabled", { projectId: 2, enabled: false });
     await expect(invoke("suggest_notes", { projectId: 2, day: "2026-10-16" })).resolves.toEqual([]);

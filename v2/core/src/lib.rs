@@ -65,6 +65,8 @@ pub enum RoundingMode {
 }
 
 impl RoundingMode {
+    const ALL: [Self; 3] = [Self::Up, Self::Nearest, Self::Down];
+
     fn as_str(self) -> &'static str {
         match self {
             Self::Up => "up",
@@ -74,16 +76,21 @@ impl RoundingMode {
     }
 }
 
+impl rusqlite::ToSql for RoundingMode {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
+        Ok(self.as_str().into())
+    }
+}
+
 impl rusqlite::types::FromSql for RoundingMode {
     fn column_result(v: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
-        match v.as_str()? {
-            "up" => Ok(Self::Up),
-            "nearest" => Ok(Self::Nearest),
-            "down" => Ok(Self::Down),
-            other => Err(rusqlite::types::FromSqlError::Other(
-                format!("unknown rounding mode {other:?}").into(),
-            )),
-        }
+        let s = v.as_str()?;
+        Self::ALL
+            .into_iter()
+            .find(|m| m.as_str() == s)
+            .ok_or_else(|| {
+                rusqlite::types::FromSqlError::Other(format!("unknown rounding mode {s:?}").into())
+            })
     }
 }
 
@@ -412,7 +419,7 @@ impl Store {
         }
         match self.conn.execute(
             "UPDATE projects SET rounding_minutes = ?2, rounding_mode = ?3 WHERE id = ?1",
-            params![id, minutes, mode.as_str()],
+            params![id, minutes, mode],
         )? {
             0 => Err(Error::ProjectNotFound(id)),
             _ => Ok(()),
