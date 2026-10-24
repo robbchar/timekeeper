@@ -45,12 +45,12 @@ camelCase throughout.
 
 Defined in `core/src/schema.rs`.
 
-| Table       | Holds                                                                                                |
-| ----------- | ---------------------------------------------------------------------------------------------------- |
-| `projects`  | name, color, archived flag, `legacy_project_id` (v1 id, unique), `linear_enabled`, `linear_team_key` |
-| `entries`   | a project, a local day and notes; `legacy_session_id` (unique)                                       |
-| `intervals` | `start_at`, `end_at` (NULL = running), `source`                                                      |
-| `settings`  | key/value strings                                                                                    |
+| Table       | Holds                                                                                                                                     |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `projects`  | name, color, archived flag, `legacy_project_id` (v1 id, unique), `linear_enabled`, `linear_team_key`, `rounding_minutes`, `rounding_mode` |
+| `entries`   | a project, a local day and notes; `legacy_session_id` (unique)                                                                            |
+| `intervals` | `start_at`, `end_at` (NULL = running), `source`                                                                                           |
+| `settings`  | key/value strings                                                                                                                         |
 
 - **An entry is a project + a local day + notes.** It has no duration column. `(project_id, day)`
   is not unique: the v1 import makes one entry per session, and `start` and `add_manual_time` reuse
@@ -74,6 +74,11 @@ Defined in `core/src/schema.rs`.
   light and a dark value. A new key needs a token too. `snapshot` sends `PALETTE` so the Settings
   picker lists the same keys `set_project_color` accepts. v1 colors aren't imported; imported
   projects get palette keys in order.
+- **Rounding happens only when copying.** A project's `rounding_minutes` (NULL = off, else one of
+  `ROUNDING_STEPS` in `core/src/lib.rs`) and `rounding_mode` (`up`, `nearest`, `down`) change what
+  the entry's Time button copies (`roundSeconds` in `src/format.ts`). Nothing rounded is stored, and
+  totals and the shown duration stay exact. `snapshot` sends `ROUNDING_STEPS` so the Settings picker
+  lists the steps `set_project_rounding` accepts; turning rounding off keeps the mode.
 - **Archiving hides a project from the timer's picker, nothing else.** Its entries, history and
   totals filter are unchanged, and a running timer keeps running. Which project a start defaults
   to is `resume_project_id` (the last one timed unless archived, else the first active one).

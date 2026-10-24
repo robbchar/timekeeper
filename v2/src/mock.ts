@@ -6,6 +6,7 @@ import type {
   IdlePrompt,
   ImportReport,
   Project,
+  RoundingMode,
   Snapshot,
   Status,
   Suggestion,
@@ -21,6 +22,8 @@ const projects: Project[] = [
     archived: false,
     linearEnabled: false,
     linearTeamKey: null,
+    roundingMinutes: null,
+    roundingMode: "nearest",
   },
   {
     id: 2,
@@ -29,10 +32,13 @@ const projects: Project[] = [
     archived: false,
     linearEnabled: false,
     linearTeamKey: null,
+    roundingMinutes: null,
+    roundingMode: "nearest",
   },
 ];
 
 const palette = ["teal", "coral", "blue", "gold", "purple", "green"];
+const roundingSteps = [5, 6, 10, 15, 30, 60];
 
 function project(id: unknown): Project {
   const p = projects.find((x) => x.id === id);
@@ -159,6 +165,7 @@ function handle<T>(cmd: string, a: Record<string, unknown>): T {
         status: status(),
         projects: sorted,
         palette,
+        roundingSteps,
         resumeProjectId: (active.find((p) => p.id === lastProjectId) ?? active[0])?.id ?? null,
         settings,
         startup: { recovered: null, imported: null, importError: null },
@@ -294,6 +301,8 @@ function handle<T>(cmd: string, a: Record<string, unknown>): T {
         archived: false,
         linearEnabled: false,
         linearTeamKey: null,
+        roundingMinutes: null,
+        roundingMode: "nearest",
       };
       projects.push(p);
       return p as T;
@@ -348,6 +357,22 @@ function handle<T>(cmd: string, a: Record<string, unknown>): T {
         throw new Refused(`a Linear team key is letters and digits, like LABS (got "${teamKey}")`);
       }
       project(a.projectId).linearTeamKey = teamKey ? teamKey.toUpperCase() : null;
+      return undefined as T;
+    }
+    case "set_project_rounding": {
+      const minutes = a.minutes as number | null;
+      if (minutes !== null && !roundingSteps.includes(minutes)) {
+        throw new Refused(
+          `rounding step must be one of [${roundingSteps.join(", ")}] minutes (got ${minutes})`,
+        );
+      }
+      const mode = a.mode as RoundingMode;
+      if (!["up", "nearest", "down"].includes(mode)) {
+        throw new Refused(`unknown rounding mode "${mode}"`);
+      }
+      const p = project(a.projectId);
+      p.roundingMinutes = minutes;
+      p.roundingMode = mode;
       return undefined as T;
     }
     case "linear_key_status":

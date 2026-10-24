@@ -24,8 +24,8 @@ use timekeeper_core::idle::{
     idle_action, idle_threshold, last_input_across_suspend, IdleAction, IDLE_MINUTES_SETTING,
 };
 use timekeeper_core::{
-    Entry, ImportReport, ManualTime, Project, Recovered, Status, Store, Totals, V1Data, WeekStart,
-    PALETTE,
+    Entry, ImportReport, ManualTime, Project, Recovered, RoundingMode, Status, Store, Totals,
+    V1Data, WeekStart, PALETTE, ROUNDING_STEPS,
 };
 
 /// Settings the UI is allowed to write.
@@ -108,6 +108,8 @@ struct Snapshot {
     projects: Vec<Project>,
     /// Project color keys; the UI styles each with a `--project-<key>` token.
     palette: &'static [&'static str],
+    /// Minutes a project can round copied durations to.
+    rounding_steps: &'static [i64],
     /// The project a one-click start uses (`Store::resume_project_id`).
     resume_project_id: Option<i64>,
     settings: std::collections::HashMap<String, String>,
@@ -170,6 +172,7 @@ fn snapshot(state: State<AppState>) -> Result<Snapshot, String> {
         status: store.status(Utc::now()).map_err(err)?,
         projects: store.projects().map_err(err)?,
         palette: PALETTE,
+        rounding_steps: ROUNDING_STEPS,
         resume_project_id: store.resume_project_id().map_err(err)?,
         settings,
         startup: state.startup.clone(),
@@ -368,6 +371,19 @@ fn set_project_linear_team(
     state
         .lock_store()
         .set_project_linear_team(project_id, team_key.as_deref())
+        .map_err(err)
+}
+
+#[tauri::command]
+fn set_project_rounding(
+    state: State<AppState>,
+    project_id: i64,
+    minutes: Option<i64>,
+    mode: RoundingMode,
+) -> Result<(), String> {
+    state
+        .lock_store()
+        .set_project_rounding(project_id, minutes, mode)
         .map_err(err)
 }
 
@@ -1066,6 +1082,7 @@ pub fn run() {
             set_start_at_login,
             set_project_linear_enabled,
             set_project_linear_team,
+            set_project_rounding,
             linear_key_status,
             save_linear_key,
             test_linear_connection,

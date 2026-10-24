@@ -1,6 +1,8 @@
 // Formatting for display and for the copy buttons. Copy formats are
 // user-adjustable because every client system wants something different.
 
+import type { RoundingMode } from "./api";
+
 export type DurationFormat = "hms" | "hm" | "decimal";
 export type DateFormat = "iso" | "us" | "long";
 
@@ -31,6 +33,19 @@ export function formatDuration(seconds: number, format: DurationFormat): string 
     case "decimal":
       return (s / 3600).toFixed(2);
   }
+}
+
+/** Whole seconds rounded to a step of `stepMinutes`; `null` only drops the fraction. */
+export function roundSeconds(
+  seconds: number,
+  stepMinutes: number | null,
+  mode: RoundingMode,
+): number {
+  const s = Math.max(0, Math.round(seconds));
+  if (stepMinutes === null) return s;
+  const step = stepMinutes * 60;
+  const round = mode === "up" ? Math.ceil : mode === "down" ? Math.floor : Math.round;
+  return round(s / step) * step;
 }
 
 /** Compact display form: "4h 05m", "35m", "0m". */

@@ -17,7 +17,7 @@ pub use import::{ImportReport, V1Data};
 
 use chrono::{DateTime, Datelike, Duration, NaiveDate, SecondsFormat, Utc};
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, thiserror::Error)]
@@ -49,7 +49,53 @@ pub struct Project {
     pub linear_enabled: bool,
     /// Limits Linear suggestions to one team, e.g. `LABS`; `None` means any team.
     pub linear_team_key: Option<String>,
+    /// Step that copied durations round to, one of [`ROUNDING_STEPS`]; `None` means exact.
+    pub rounding_minutes: Option<i64>,
+    /// Kept while rounding is off, so turning it back on restores the mode.
+    pub rounding_mode: RoundingMode,
 }
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum RoundingMode {
+    Up,
+    #[default]
+    Nearest,
+    Down,
+}
+
+impl RoundingMode {
+    const ALL: [Self; 3] = [Self::Up, Self::Nearest, Self::Down];
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Up => "up",
+            Self::Nearest => "nearest",
+            Self::Down => "down",
+        }
+    }
+}
+
+impl rusqlite::ToSql for RoundingMode {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
+        Ok(self.as_str().into())
+    }
+}
+
+impl rusqlite::types::FromSql for RoundingMode {
+    fn column_result(v: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        let s = v.as_str()?;
+        Self::ALL
+            .into_iter()
+            .find(|m| m.as_str() == s)
+            .ok_or_else(|| {
+                rusqlite::types::FromSqlError::Other(format!("unknown rounding mode {s:?}").into())
+            })
+    }
+}
+
+/// Rounding steps a project can choose, in minutes. 6 is a tenth of an hour.
+pub const ROUNDING_STEPS: &[i64] = &[5, 6, 10, 15, 30, 60];
 
 /// One row in the day list: what gets copied into the client's system.
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -271,7 +317,8 @@ impl Store {
 
     pub fn projects(&self) -> Result<Vec<Project>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, name, color, archived, linear_enabled, linear_team_key
+            "SELECT id, name, color, archived, linear_enabled, linear_team_key,
+                    rounding_minutes, rounding_mode
              FROM projects ORDER BY archived, name",
         )?;
         let rows = stmt.query_map([], |r| {
@@ -282,6 +329,8 @@ impl Store {
                 archived: r.get(3)?,
                 linear_enabled: r.get(4)?,
                 linear_team_key: r.get(5)?,
+                rounding_minutes: r.get(6)?,
+                rounding_mode: r.get(7)?,
             })
         })?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
@@ -308,6 +357,8 @@ impl Store {
             archived: false,
             linear_enabled: false,
             linear_team_key: None,
+            rounding_minutes: None,
+            rounding_mode: RoundingMode::default(),
         })
     }
 
@@ -352,6 +403,27 @@ impl Store {
             "UPDATE projects SET linear_team_key = ?2 WHERE id = ?1",
             team_key,
         )
+    }
+
+    /// Sets how copied durations round; `minutes: None` turns rounding off and keeps the mode.
+    pub fn set_project_rounding(
+        &self,
+        id: i64,
+        minutes: Option<i64>,
+        mode: RoundingMode,
+    ) -> Result<()> {
+        if let Some(m) = minutes.filter(|m| !ROUNDING_STEPS.contains(m)) {
+            return Err(Error::Invalid(format!(
+                "rounding step must be one of {ROUNDING_STEPS:?} minutes (got {m})"
+            )));
+        }
+        match self.conn.execute(
+            "UPDATE projects SET rounding_minutes = ?2, rounding_mode = ?3 WHERE id = ?1",
+            params![id, minutes, mode],
+        )? {
+            0 => Err(Error::ProjectNotFound(id)),
+            _ => Ok(()),
+        }
     }
 
     fn update_project(&self, id: i64, sql: &str, value: impl rusqlite::ToSql) -> Result<()> {

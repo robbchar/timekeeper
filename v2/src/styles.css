@@ -549,7 +549,7 @@ button:focus-visible {
 }
 .project {
   display: grid;
-  grid-template-columns: minmax(0, 260px) auto auto;
+  grid-template-columns: minmax(0, 260px) auto auto auto;
   justify-content: start;
   align-items: center;
   gap: 16px;
@@ -645,6 +645,13 @@ button:focus-visible {
   .swatch:focus-visible {
     outline-color: Highlight;
   }
+}
+.project__rounding {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
 }
 .project__archive {
   display: flex;
