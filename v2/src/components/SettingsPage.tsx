@@ -46,6 +46,7 @@ export function SettingsPage({ snapshot, onSetting, onChanged, onError }: Props)
       <ProjectSettings
         projects={snapshot.projects}
         palette={snapshot.palette}
+        roundingSteps={snapshot.roundingSteps}
         onChanged={onChanged}
         onError={onError}
       />
@@ -53,7 +54,8 @@ export function SettingsPage({ snapshot, onSetting, onChanged, onError }: Props)
       <section className="panel">
         <h2>Copying</h2>
         <p className="panel__hint">
-          What the Time and Date buttons on each entry put on the clipboard.
+          What the Time and Date buttons on each entry put on the clipboard. Each project can also
+          round the copied Time, under Projects.
         </p>
         <div className="field">
           <label htmlFor="duration-format">Time</label>

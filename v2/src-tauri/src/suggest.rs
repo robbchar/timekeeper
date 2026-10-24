@@ -102,6 +102,8 @@ mod tests {
             archived: false,
             linear_enabled,
             linear_team_key: team.map(str::to_owned),
+            rounding_minutes: None,
+            rounding_mode: Default::default(),
         }
     }
 

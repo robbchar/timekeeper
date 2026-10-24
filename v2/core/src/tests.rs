@@ -538,6 +538,93 @@ fn set_project_linear_on_an_unknown_project_fails() {
 }
 
 #[test]
+fn migration_4_leaves_existing_projects_unrounded() {
+    let conn = Connection::open_in_memory().unwrap();
+    conn.execute_batch(&format!(
+        "{} {} {} PRAGMA user_version = 3;",
+        schema::MIGRATIONS[0],
+        schema::MIGRATIONS[1],
+        schema::MIGRATIONS[2]
+    ))
+    .unwrap();
+    conn.execute_batch(
+        "INSERT INTO projects (id, name, color, created_at) VALUES (1, 'a', 'teal', 'x');",
+    )
+    .unwrap();
+
+    let s = Store::init(conn).unwrap();
+    let p = &s.projects().unwrap()[0];
+    assert_eq!(p.rounding_minutes, None);
+    assert_eq!(p.rounding_mode, RoundingMode::Nearest);
+}
+
+#[test]
+fn new_projects_start_unrounded() {
+    let (s, id) = store_with_project();
+    let p = project(&s, id);
+    assert_eq!(p.rounding_minutes, None);
+    assert_eq!(p.rounding_mode, RoundingMode::Nearest);
+}
+
+#[test]
+fn set_project_rounding_saves_step_and_mode() {
+    let (s, id) = store_with_project();
+    s.set_project_rounding(id, Some(15), RoundingMode::Up)
+        .unwrap();
+    let p = project(&s, id);
+    assert_eq!(p.rounding_minutes, Some(15));
+    assert_eq!(p.rounding_mode, RoundingMode::Up);
+}
+
+#[test]
+fn turning_rounding_off_keeps_the_mode() {
+    let (s, id) = store_with_project();
+    s.set_project_rounding(id, Some(6), RoundingMode::Down)
+        .unwrap();
+    s.set_project_rounding(id, None, RoundingMode::Down)
+        .unwrap();
+    let p = project(&s, id);
+    assert_eq!(p.rounding_minutes, None);
+    assert_eq!(p.rounding_mode, RoundingMode::Down);
+}
+
+#[test]
+fn set_project_rounding_refuses_a_step_outside_the_list() {
+    let (s, id) = store_with_project();
+    for bad in [0, -15, 7, 45, 120] {
+        assert!(
+            matches!(
+                s.set_project_rounding(id, Some(bad), RoundingMode::Up),
+                Err(Error::Invalid(_))
+            ),
+            "{bad}"
+        );
+    }
+    assert_eq!(project(&s, id).rounding_minutes, None, "nothing saved");
+}
+
+#[test]
+fn set_project_rounding_on_an_unknown_project_fails() {
+    let (s, _) = store_with_project();
+    assert!(matches!(
+        s.set_project_rounding(99, Some(15), RoundingMode::Up),
+        Err(Error::ProjectNotFound(99))
+    ));
+}
+
+#[test]
+fn the_database_refuses_an_unknown_rounding_mode() {
+    let (s, id) = store_with_project();
+    assert!(s
+        .conn
+        .execute(
+            "UPDATE projects SET rounding_mode = 'sideways' WHERE id = ?1",
+            [id]
+        )
+        .is_err());
+}
+
+#[test]
 fn migrations_are_idempotent() {
     let dir = std::env::temp_dir().join(format!("tk-mig-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();

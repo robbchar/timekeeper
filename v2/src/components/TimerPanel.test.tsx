@@ -23,6 +23,8 @@ const acme: Project = {
   archived: false,
   linearEnabled: false,
   linearTeamKey: null,
+  roundingMinutes: null,
+  roundingMode: "nearest",
 };
 const beta: Project = {
   id: 2,
@@ -31,6 +33,8 @@ const beta: Project = {
   archived: false,
   linearEnabled: false,
   linearTeamKey: null,
+  roundingMinutes: null,
+  roundingMode: "nearest",
 };
 const lateEntry: Entry = {
   id: 7,
@@ -121,6 +125,8 @@ describe("TimerPanel", () => {
       archived: false,
       linearEnabled: false,
       linearTeamKey: null,
+      roundingMinutes: null,
+      roundingMode: "nearest",
     };
     // Gamma, not the first active project, so the test pins the resume project.
     const props = {
@@ -158,6 +164,8 @@ describe("TimerPanel", () => {
       archived: false,
       linearEnabled: false,
       linearTeamKey: null,
+      roundingMinutes: null,
+      roundingMode: "nearest",
     };
     vi.mocked(api.createProject).mockResolvedValueOnce(gamma);
     const acmeToday: Entry = { ...betaToday, id: 9, projectId: 1, projectName: "Acme" };

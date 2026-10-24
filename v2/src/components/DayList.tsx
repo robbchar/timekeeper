@@ -9,6 +9,7 @@ import {
   formatDuration,
   formatShort,
   parseDuration,
+  roundSeconds,
 } from "../format";
 import { projectColor } from "../palette";
 import { appendLines, SuggestButton } from "./SuggestButton";
@@ -16,7 +17,7 @@ import { useInlineEdit } from "./useInlineEdit";
 
 interface Props {
   entries: Entry[];
-  /** For which entries offer Linear suggestions. */
+  /** Per-project Linear suggestions and copy rounding. */
   projects: Project[];
   today: string;
   durationFormat: DurationFormat;
@@ -59,7 +60,7 @@ export function DayList({
             <EntryRow
               key={e.id}
               entry={e}
-              linearEnabled={projects.some((p) => p.id === e.projectId && p.linearEnabled)}
+              project={projects.find((p) => p.id === e.projectId)}
               durationFormat={durationFormat}
               dateFormat={dateFormat}
               onChanged={onChanged}
@@ -74,14 +75,14 @@ export function DayList({
 
 function EntryRow({
   entry,
-  linearEnabled,
+  project,
   durationFormat,
   dateFormat,
   onChanged,
   onError,
 }: {
   entry: Entry;
-  linearEnabled: boolean;
+  project: Project | undefined;
   durationFormat: DurationFormat;
   dateFormat: DateFormat;
   onChanged: () => Promise<void>;
@@ -106,6 +107,11 @@ function EntryRow({
   const [pending, setPending] = useState<Pending | null>(null);
   if (pending && pending.base !== entry.seconds) setPending(null);
   const seconds = pending?.seconds ?? entry.seconds;
+  const exactTime = formatDuration(seconds, durationFormat);
+  const copiedTime = formatDuration(
+    roundSeconds(seconds, project?.roundingMinutes ?? null, project?.roundingMode ?? "nearest"),
+    durationFormat,
+  );
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   // Hidden once deleted, so a stale or failed refresh can't offer it again.
@@ -180,7 +186,7 @@ function EntryRow({
             {notes.unsaved ? notes.draft : entry.notes || "Add notes"}
           </button>
         )}
-        {linearEnabled && (
+        {project?.linearEnabled && (
           <SuggestButton
             projectId={entry.projectId}
             day={entry.day}
@@ -202,7 +208,15 @@ function EntryRow({
           <DeleteConfirm busy={deleting} onConfirm={() => void remove()} onCancel={closeConfirm} />
         ) : (
           <>
-            <CopyButton label="Time" text={formatDuration(seconds, durationFormat)} />
+            <CopyButton
+              label="Time"
+              text={copiedTime}
+              title={
+                copiedTime === exactTime
+                  ? undefined
+                  : `Copy: ${copiedTime} (rounded from ${exactTime})`
+              }
+            />
             <CopyButton label="Notes" text={entry.notes} />
             <CopyButton label="Date" text={formatDate(entry.day, dateFormat)} />
             <button
@@ -342,12 +356,12 @@ function DeleteConfirm({
   );
 }
 
-function CopyButton({ label, text }: { label: string; text: string }) {
+function CopyButton({ label, text, title }: { label: string; text: string; title?: string }) {
   const [state, setState] = useState<"idle" | "done" | "failed">("idle");
   return (
     <button
       className={`copy ${state === "done" ? "copy--done" : ""}`}
-      title={`Copy: ${text}`}
+      title={title ?? `Copy: ${text}`}
       disabled={!text}
       onClick={() =>
         void api

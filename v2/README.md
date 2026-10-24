@@ -97,6 +97,8 @@ and open <http://localhost:1420>.
 - Copy buttons on each day's entry: **Time**, **Notes**, **Date**. Formats, and which day the week starts on, are on the Settings page.
 - Projects are renamed, recolored and archived on the Settings page. An archived project leaves the
   timer's list but keeps its history and stays in the totals filter.
+- Each project can round what **Time** copies (5–60 minute steps; up, nearest or down). The hover
+  text shows the exact value too; nothing rounded is stored.
 - Linear is opt-in per project on the Settings page, with an optional team key (e.g. `LABS`). Saving
   a key checks it with Linear first; a key Linear refuses is never stored.
 - For those projects, **Suggest from Linear** under the timer's notes and under each day's entry

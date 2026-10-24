@@ -16,6 +16,7 @@ const snapshot: Snapshot = {
   status: { running: null, elapsedSeconds: 0 },
   projects: [],
   palette: [],
+  roundingSteps: [],
   resumeProjectId: null,
   settings: {},
   startup: { recovered: null, imported: null, importError: null },
