@@ -142,9 +142,10 @@ bumps `user_version` in that same transaction, so a failed step leaves the datab
   exists, has a schema (`user_version` > 0) and is behind the build, it is copied with `backup_to`
   to `timekeeper-before-update-<local date>_<time with ms>.db` in the backups folder before
   anything migrates. If the copy fails, the open fails and nothing is migrated.
-- **Newer databases are refused:** `migrate` returns `Error::SchemaTooNew` when `user_version` is
-  above `CURRENT_VERSION`, before writing anything, so an older build never runs against data it
-  doesn't understand.
+- **Newer databases are refused:** `Error::SchemaTooNew` when `user_version` is above
+  `CURRENT_VERSION`, so an older build never runs against data it doesn't understand.
+  `open_with_backup` checks on a read-only connection first, because `Store::open` sets WAL mode
+  before `migrate` can refuse; `migrate` checks again for any other caller.
 
 ## v1 import
 
@@ -190,8 +191,9 @@ Two kinds of backup are automatic, in the same folder:
 
 - **Daily:** the ticker calls `Store::daily_backup` on its first tick and hourly after, so a PC that
   stays on still gets one a day. It writes `timekeeper-auto-<local date>.db` unless that day's
-  file exists, then deletes all but the newest 30 `timekeeper-auto-<date>.db` files. Nothing else
-  in the folder is ever deleted. A failure is appended to `panic.log` and retried an hour later.
+  file exists, then deletes all but the newest 30 `timekeeper-auto-<date>.db` files, plus any
+  `timekeeper-auto-<date>.db.partial` left by an interrupted run (one would make `VACUUM INTO`
+  fail every retry that day). Nothing else in the folder is ever deleted. A failure is appended to `panic.log` and retried an hour later.
 - **Before a migration:** see [Migrations](#migrations). These are never pruned.
 
 ## Settings

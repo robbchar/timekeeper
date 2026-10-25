@@ -1146,8 +1146,9 @@ fn show_error(title: &str, message: &str) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
-            // A login launch while already running leaves the window as it is.
-            if !login::launched_hidden(args) {
+            // A login launch while already running leaves the window as it is. Before setup has
+            // managed the state (the startup error dialog pumps messages), there's nothing to show.
+            if !login::launched_hidden(args) && app.try_state::<AppState>().is_some() {
                 show_main(app)
             }
         }))

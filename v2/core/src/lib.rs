@@ -46,6 +46,13 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// File name prefix of the daily backups, the only backups ever pruned.
 const AUTO_BACKUP_PREFIX: &str = "timekeeper-auto-";
 
+/// Where `Store::backup_to` writes before renaming to `path`.
+fn partial_path(path: &Path) -> PathBuf {
+    let mut partial = path.as_os_str().to_owned();
+    partial.push(".partial");
+    PathBuf::from(partial)
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Project {
@@ -959,9 +966,7 @@ impl Store {
             std::fs::create_dir_all(dir).map_err(|e| io(dir, e))?;
         }
         // Written under a temporary name, so a failed write never looks like a backup.
-        let mut partial = path.as_os_str().to_owned();
-        partial.push(".partial");
-        let partial = PathBuf::from(partial);
+        let partial = partial_path(path);
         let target = partial
             .to_str()
             .ok_or_else(|| Error::Invalid(format!("{} isn't valid UTF-8", path.display())))?;
@@ -978,8 +983,15 @@ impl Store {
     /// Opens `db` like `open`, first copying it to `backup()` when it holds data from an older
     /// schema. If the copy fails, nothing is migrated.
     pub fn open_with_backup(db: &Path, backup: impl FnOnce() -> Result<PathBuf>) -> Result<Self> {
-        if let Some(version) = schema::version_of(db)? {
-            if version > 0 && version < schema::CURRENT_VERSION {
+        match schema::version_of(db)? {
+            // Refused before `open`, which writes even when `migrate` then refuses.
+            Some(found) if found > schema::CURRENT_VERSION => {
+                return Err(Error::SchemaTooNew {
+                    found,
+                    supported: schema::CURRENT_VERSION,
+                });
+            }
+            Some(version) if version > 0 && version < schema::CURRENT_VERSION => {
                 backup()
                     .and_then(|path| Self::backup_to(db, &path))
                     .map_err(|e| {
@@ -988,27 +1000,42 @@ impl Store {
                         ))
                     })?;
             }
+            _ => {}
         }
         Self::open(db)
     }
 
     /// Writes today's `timekeeper-auto-<day>.db` to `dir` unless it's there, then deletes all but
-    /// the newest `keep` of those. Nothing else in `dir` is ever deleted.
+    /// the newest `keep` of those, and any of their `.partial` files left by an interrupted run.
+    /// Nothing else in `dir` is ever deleted.
     pub fn daily_backup(db: &Path, dir: &Path, today: NaiveDate, keep: usize) -> Result<()> {
         let io = |p: &Path, e: std::io::Error| Error::Invalid(format!("{}: {e}", p.display()));
         let path = dir.join(format!("{AUTO_BACKUP_PREFIX}{today}.db"));
         if !path.try_exists().map_err(|e| io(&path, e))? {
+            // VACUUM INTO refuses a non-empty file, so a leftover would fail every retry today.
+            let partial = partial_path(&path);
+            match std::fs::remove_file(&partial) {
+                Err(e) if e.kind() != std::io::ErrorKind::NotFound => return Err(io(&partial, e)),
+                _ => {}
+            }
             Self::backup_to(db, &path)?;
         }
         let mut autos = Vec::new();
         for entry in std::fs::read_dir(dir).map_err(|e| io(dir, e))? {
             let entry = entry.map_err(|e| io(dir, e))?;
-            let day = entry.file_name().to_str().and_then(|name| {
-                let day = name.strip_prefix(AUTO_BACKUP_PREFIX)?.strip_suffix(".db")?;
-                NaiveDate::parse_from_str(day, "%Y-%m-%d").ok()
-            });
-            if let Some(day) = day {
+            let name = entry.file_name();
+            let Some(rest) = name
+                .to_str()
+                .and_then(|n| n.strip_prefix(AUTO_BACKUP_PREFIX))
+            else {
+                continue;
+            };
+            let is_day = |day: &str| NaiveDate::parse_from_str(day, "%Y-%m-%d").ok();
+            if let Some(day) = rest.strip_suffix(".db").and_then(is_day) {
                 autos.push((day, entry.path()));
+            } else if rest.strip_suffix(".db.partial").and_then(is_day).is_some() {
+                // Only this function writes automatic backups, so none is in progress.
+                std::fs::remove_file(entry.path()).map_err(|e| io(&entry.path(), e))?;
             }
         }
         autos.sort_unstable_by_key(|(day, _)| std::cmp::Reverse(*day));
