@@ -9,6 +9,7 @@
 //! An interval with no `end_at` is the running timer, so the timer survives a
 //! crash by construction. At most one interval is open at a time.
 
+pub mod idle;
 mod import;
 mod schema;
 
@@ -16,7 +17,7 @@ pub use import::{ImportReport, V1Data};
 
 use chrono::{DateTime, Datelike, Duration, NaiveDate, SecondsFormat, Utc};
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, thiserror::Error)]
@@ -48,7 +49,53 @@ pub struct Project {
     pub linear_enabled: bool,
     /// Limits Linear suggestions to one team, e.g. `LABS`; `None` means any team.
     pub linear_team_key: Option<String>,
+    /// Step that copied durations round to, one of [`ROUNDING_STEPS`]; `None` means exact.
+    pub rounding_minutes: Option<i64>,
+    /// Kept while rounding is off, so turning it back on restores the mode.
+    pub rounding_mode: RoundingMode,
 }
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum RoundingMode {
+    Up,
+    #[default]
+    Nearest,
+    Down,
+}
+
+impl RoundingMode {
+    const ALL: [Self; 3] = [Self::Up, Self::Nearest, Self::Down];
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Up => "up",
+            Self::Nearest => "nearest",
+            Self::Down => "down",
+        }
+    }
+}
+
+impl rusqlite::ToSql for RoundingMode {
+    fn to_sql(&self) -> rusqlite::Result<rusqlite::types::ToSqlOutput<'_>> {
+        Ok(self.as_str().into())
+    }
+}
+
+impl rusqlite::types::FromSql for RoundingMode {
+    fn column_result(v: rusqlite::types::ValueRef<'_>) -> rusqlite::types::FromSqlResult<Self> {
+        let s = v.as_str()?;
+        Self::ALL
+            .into_iter()
+            .find(|m| m.as_str() == s)
+            .ok_or_else(|| {
+                rusqlite::types::FromSqlError::Other(format!("unknown rounding mode {s:?}").into())
+            })
+    }
+}
+
+/// Rounding steps a project can choose, in minutes. 6 is a tenth of an hour.
+pub const ROUNDING_STEPS: &[i64] = &[5, 6, 10, 15, 30, 60];
 
 /// One row in the day list: what gets copied into the client's system.
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -179,6 +226,27 @@ pub const MAX_ENTRY_SECONDS: i64 = 24 * 3600;
 const CLOSE_OPEN_INTERVALS: &str =
     "UPDATE intervals SET end_at = MAX(start_at, ?1) WHERE end_at IS NULL";
 
+/// Setting key for when the user went idle while timing; cleared when the timer stops or the
+/// idle prompt is answered.
+const IDLE_SINCE: &str = "idle_since";
+const CLEAR_SETTING: &str = "DELETE FROM settings WHERE key = ?1";
+
+/// Opens a timer interval at `now` on `project_id`'s entry for `today`.
+fn open_interval(
+    tx: &rusqlite::Transaction,
+    project_id: i64,
+    notes: Option<&str>,
+    now: DateTime<Utc>,
+    today: NaiveDate,
+) -> Result<()> {
+    let (entry_id, _) = entry_for(tx, project_id, today, notes, now)?;
+    tx.execute(
+        "INSERT INTO intervals (entry_id, start_at, source) VALUES (?1, ?2, 'timer')",
+        params![entry_id, ts(now)],
+    )?;
+    Ok(())
+}
+
 /// The entry for `project_id` on `day`, created with `notes` if there isn't one.
 /// Returns its id and whether it was just created.
 fn entry_for(
@@ -249,7 +317,8 @@ impl Store {
 
     pub fn projects(&self) -> Result<Vec<Project>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, name, color, archived, linear_enabled, linear_team_key
+            "SELECT id, name, color, archived, linear_enabled, linear_team_key,
+                    rounding_minutes, rounding_mode
              FROM projects ORDER BY archived, name",
         )?;
         let rows = stmt.query_map([], |r| {
@@ -260,6 +329,8 @@ impl Store {
                 archived: r.get(3)?,
                 linear_enabled: r.get(4)?,
                 linear_team_key: r.get(5)?,
+                rounding_minutes: r.get(6)?,
+                rounding_mode: r.get(7)?,
             })
         })?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
@@ -286,6 +357,8 @@ impl Store {
             archived: false,
             linear_enabled: false,
             linear_team_key: None,
+            rounding_minutes: None,
+            rounding_mode: RoundingMode::default(),
         })
     }
 
@@ -330,6 +403,27 @@ impl Store {
             "UPDATE projects SET linear_team_key = ?2 WHERE id = ?1",
             team_key,
         )
+    }
+
+    /// Sets how copied durations round; `minutes: None` turns rounding off and keeps the mode.
+    pub fn set_project_rounding(
+        &self,
+        id: i64,
+        minutes: Option<i64>,
+        mode: RoundingMode,
+    ) -> Result<()> {
+        if let Some(m) = minutes.filter(|m| !ROUNDING_STEPS.contains(m)) {
+            return Err(Error::Invalid(format!(
+                "rounding step must be one of {ROUNDING_STEPS:?} minutes (got {m})"
+            )));
+        }
+        match self.conn.execute(
+            "UPDATE projects SET rounding_minutes = ?2, rounding_mode = ?3 WHERE id = ?1",
+            params![id, minutes, mode],
+        )? {
+            0 => Err(Error::ProjectNotFound(id)),
+            _ => Ok(()),
+        }
     }
 
     fn update_project(&self, id: i64, sql: &str, value: impl rusqlite::ToSql) -> Result<()> {
@@ -412,11 +506,8 @@ impl Store {
         // Closing the previous interval shares the transaction, so a switch is all-or-nothing.
         let tx = self.conn.transaction()?;
         tx.execute(CLOSE_OPEN_INTERVALS, [ts(now)])?;
-        let (entry_id, _) = entry_for(&tx, project_id, today, notes, now)?;
-        tx.execute(
-            "INSERT INTO intervals (entry_id, start_at, source) VALUES (?1, ?2, 'timer')",
-            params![entry_id, ts(now)],
-        )?;
+        tx.execute(CLEAR_SETTING, [IDLE_SINCE])?;
+        open_interval(&tx, project_id, notes, now, today)?;
         tx.execute(
             "INSERT INTO settings (key, value) VALUES ('last_project_id', ?1)
              ON CONFLICT(key) DO UPDATE SET value = excluded.value",
@@ -428,7 +519,58 @@ impl Store {
     }
 
     pub fn stop(&mut self, now: DateTime<Utc>) -> Result<Status> {
-        self.conn.execute(CLOSE_OPEN_INTERVALS, [ts(now)])?;
+        let tx = self.conn.transaction()?;
+        tx.execute(CLOSE_OPEN_INTERVALS, [ts(now)])?;
+        tx.execute(CLEAR_SETTING, [IDLE_SINCE])?;
+        tx.commit()?;
+        self.status(now)
+    }
+
+    /// Records that the user went idle at `since` while timing. An earlier mark is kept, so a
+    /// discard always trims back to the first idle start. Does nothing when no timer is running.
+    pub fn mark_idle(&self, since: DateTime<Utc>, now: DateTime<Utc>) -> Result<()> {
+        if self.status(now)?.running.is_none() || self.idle_since()?.is_some() {
+            return Ok(());
+        }
+        self.set_setting(IDLE_SINCE, &ts(since))
+    }
+
+    /// When the user went idle while timing, if the idle prompt is still unanswered.
+    pub fn idle_since(&self) -> Result<Option<DateTime<Utc>>> {
+        self.setting(IDLE_SINCE)?
+            .as_deref()
+            .map(parse_ts)
+            .transpose()
+    }
+
+    /// Answers the idle prompt with Keep: the idle time stays on the entry.
+    pub fn keep_idle(&self) -> Result<()> {
+        self.conn.execute(CLEAR_SETTING, [IDLE_SINCE])?;
+        Ok(())
+    }
+
+    /// Answers the idle prompt with Discard: the open interval ends where idling began (never
+    /// before its own start), and timing resumes at `returned_at` on `return_day`'s entry, so
+    /// time spent back before answering is kept.
+    pub fn discard_idle(
+        &mut self,
+        returned_at: DateTime<Utc>,
+        return_day: NaiveDate,
+        now: DateTime<Utc>,
+    ) -> Result<Status> {
+        let Some(since) = self.idle_since()? else {
+            return self.status(now);
+        };
+        let running = self.status(now)?.running;
+        let tx = self.conn.transaction()?;
+        tx.execute(CLEAR_SETTING, [IDLE_SINCE])?;
+        if let Some(r) = running {
+            let ended = since.min(now).max(parse_ts(&r.interval_started_at)?);
+            tx.execute(CLOSE_OPEN_INTERVALS, [ts(ended)])?;
+            let resume = returned_at.max(ended).min(now);
+            open_interval(&tx, r.project_id, None, resume, return_day)?;
+        }
+        tx.commit()?;
         self.status(now)
     }
 
@@ -439,7 +581,9 @@ impl Store {
 
     /// Called at startup. If a timer is open and the last heartbeat is older
     /// than `stale_after`, the previous run ended without stopping it: close
-    /// the interval at the last heartbeat so the dead time isn't counted.
+    /// the interval at the last heartbeat so the dead time isn't counted. If the user had
+    /// gone idle before that, it closes where idling began: nobody was asked, so the time
+    /// away isn't counted.
     pub fn recover_stale(
         &mut self,
         now: DateTime<Utc>,
@@ -456,10 +600,14 @@ impl Store {
         if now - last_seen < stale_after {
             return Ok(None);
         }
-        self.stop(last_seen)?;
+        let stopped_at = match self.idle_since()? {
+            Some(idle) => idle.clamp(started, last_seen),
+            None => last_seen,
+        };
+        self.stop(stopped_at)?;
         Ok(Some(Recovered {
             project_name: running.project_name,
-            stopped_at: ts(last_seen),
+            stopped_at: ts(stopped_at),
         }))
     }
 

@@ -66,6 +66,12 @@ pub(crate) const MIGRATIONS: &[&str] = &[
     ALTER TABLE projects ADD COLUMN linear_enabled INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE projects ADD COLUMN linear_team_key TEXT;  -- NULL = any team
     "#,
+    // 4: per-project rounding, applied only when copying; entries stay exact
+    r#"
+    ALTER TABLE projects ADD COLUMN rounding_minutes INTEGER;  -- NULL = off
+    ALTER TABLE projects ADD COLUMN rounding_mode TEXT NOT NULL DEFAULT 'nearest'
+        CHECK (rounding_mode IN ('up', 'nearest', 'down'));
+    "#,
 ];
 
 #[cfg_attr(not(test), allow(dead_code))]

@@ -3,6 +3,12 @@ import type { Snapshot } from "./api";
 import { invoke } from "./mock";
 
 describe("mock invoke", () => {
+  it("answers the idle prompt even when none is waiting", async () => {
+    const snap = await invoke<Snapshot>("snapshot");
+    expect(snap).toMatchObject({ idleSupported: true, idlePrompt: null });
+    await expect(invoke("answer_idle_prompt", { keep: false })).resolves.toEqual(snap.status);
+  });
+
   it("rejects with the message string, like Tauri", async () => {
     await expect(invoke("delete_entry", { entryId: 999999 })).rejects.toBe(
       "entry 999999 not found",
@@ -38,6 +44,21 @@ describe("mock invoke", () => {
     await expect(
       invoke("set_project_linear_team", { projectId: 1, teamKey: "LA-BS" }),
     ).rejects.toBe('a Linear team key is letters and digits, like LABS (got "LA-BS")');
+  });
+
+  it("refuses a rounding step or mode the backend wouldn't accept", async () => {
+    await expect(
+      invoke("set_project_rounding", { projectId: 1, minutes: 7, mode: "up" }),
+    ).rejects.toBe("rounding step must be one of [5, 6, 10, 15, 30, 60] minutes (got 7)");
+    await expect(
+      invoke("set_project_rounding", { projectId: 1, minutes: 15, mode: "sideways" }),
+    ).rejects.toBe('unknown rounding mode "sideways"');
+    await invoke("set_project_rounding", { projectId: 1, minutes: 15, mode: "up" });
+    const snap = await invoke<Snapshot>("snapshot");
+    expect(snap.projects.find((p) => p.id === 1)).toMatchObject({
+      roundingMinutes: 15,
+      roundingMode: "up",
+    });
   });
 
   it("suggests only for Linear projects, and needs a key", async () => {

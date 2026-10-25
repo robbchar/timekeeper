@@ -46,12 +46,12 @@ camelCase throughout.
 
 Defined in `core/src/schema.rs`.
 
-| Table       | Holds                                                                                                |
-| ----------- | ---------------------------------------------------------------------------------------------------- |
-| `projects`  | name, color, archived flag, `legacy_project_id` (v1 id, unique), `linear_enabled`, `linear_team_key` |
-| `entries`   | a project, a local day and notes; `legacy_session_id` (unique)                                       |
-| `intervals` | `start_at`, `end_at` (NULL = running), `source`                                                      |
-| `settings`  | key/value strings                                                                                    |
+| Table       | Holds                                                                                                                                     |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `projects`  | name, color, archived flag, `legacy_project_id` (v1 id, unique), `linear_enabled`, `linear_team_key`, `rounding_minutes`, `rounding_mode` |
+| `entries`   | a project, a local day and notes; `legacy_session_id` (unique)                                                                            |
+| `intervals` | `start_at`, `end_at` (NULL = running), `source`                                                                                           |
+| `settings`  | key/value strings                                                                                                                         |
 
 - **An entry is a project + a local day + notes.** It has no duration column. `(project_id, day)`
   is not unique: the v1 import makes one entry per session, and `start` and `add_manual_time` reuse
@@ -75,6 +75,11 @@ Defined in `core/src/schema.rs`.
   light and a dark value. A new key needs a token too. `snapshot` sends `PALETTE` so the Settings
   picker lists the same keys `set_project_color` accepts. v1 colors aren't imported; imported
   projects get palette keys in order.
+- **Rounding happens only when copying.** A project's `rounding_minutes` (NULL = off, else one of
+  `ROUNDING_STEPS` in `core/src/lib.rs`) and `rounding_mode` (`up`, `nearest`, `down`) change what
+  the entry's Time button copies (`roundSeconds` in `src/format.ts`). Nothing rounded is stored, and
+  totals and the shown duration stay exact. `snapshot` sends `ROUNDING_STEPS` so the Settings picker
+  lists the steps `set_project_rounding` accepts; turning rounding off keeps the mode.
 - **Archiving hides a project from the timer's picker, nothing else.** Its entries, history and
   totals filter are unchanged, and a running timer keeps running. Which project a start defaults
   to is `resume_project_id` (the last one timed unless archived, else the first active one).
@@ -86,7 +91,30 @@ Defined in `core/src/schema.rs`.
 Because the running timer is a row, a crash loses nothing. While timing, the shell writes a
 heartbeat every 30 seconds (and `start` writes one at once); `heartbeat_at` is not updated while
 idle. At startup, `recover_stale` closes any interval whose heartbeat is more than two minutes
-old at the last heartbeat time, and the UI says so.
+old at the last heartbeat time, and the UI says so. If an idle start is saved (below), it closes
+there instead, since nobody was asked about that time.
+
+### Idle time
+
+Windows only for now. Each second the ticker reads the last input time (`src-tauri/src/idle.rs`,
+`GetLastInputInfo`), and `core::idle::idle_action` decides what to do with it:
+
+1. While timing, once there has been no input for the threshold (`idle_minutes`, default 20),
+   `mark_idle` saves the last input time as `idle_since`. Only the first mark counts. If more
+   than 30 seconds pass between ticks, the PC slept: the last input seen before the gap counts,
+   not the input that woke it (`last_input_across_suspend`).
+2. When input arrives after `idle_since`, the shell holds an `IdlePrompt` in memory, shows the
+   window and emits `timer-changed`. `snapshot` carries the prompt, and the UI shows `IdleDialog`
+   over an inert page.
+3. `answer_idle_prompt` keeps the time (`keep_idle` clears the mark) or discards it
+   (`discard_idle`: in one transaction, end the open interval at `idle_since` and open a new one
+   at the prompt's return time on that day's entry, so time back before answering counts).
+
+The timer keeps running while the prompt waits. If the user goes idle again before answering, the
+shell remembers that start and marks it once the prompt is answered, so the next tick asks about
+the second stretch. `start` and `stop` clear `idle_since`, which drops any open prompt. Quit just
+stops the timer, so idle time is kept. Elsewhere, `idle_for` returns `None`,
+`snapshot.idleSupported` is false and the UI hides the setting.
 
 ## Times and days
 
@@ -160,9 +188,10 @@ in `src-tauri/src/lib.rs`:
 | `duration_format` | default `hms` (frontend)          |
 | `date_format`     | default `iso` (frontend)          |
 | `week_start`      | `sunday`; anything else is Monday |
+| `idle_minutes`    | minutes, `0` = off; default 20    |
 
 `set_setting` rejects any other key but does not validate values, and `snapshot` returns only these.
-Internal keys (`v1_imported_at`, `heartbeat_at`, `last_project_id`, `start_at_login`) share the
+Internal keys (`v1_imported_at`, `heartbeat_at`, `last_project_id`, `start_at_login`, `idle_since`) share the
 table but are not UI-writable.
 
 ### Start at login
@@ -251,12 +280,14 @@ system. Nothing is ever written to Linear.
 
 - **Tray-first.** Closing the window hides it. The app quits only from the tray menu.
 - **Quitting stops the timer** at that moment, so the timer never runs while the app is closed.
+  Idle time is kept, as if the prompt were answered Keep.
 - **Single instance.** Launching again shows the existing window, unless that launch passed
   `--hidden`.
 - **Hidden start.** The window is created hidden (`visible: false`) and shown during setup, unless
   the app was launched with `--hidden`, as the login entry does.
 - **Indicators.** While timing, the tray icon gets a red dot. On Windows the taskbar button gets an
-  overlay badge.
+  overlay badge. While the idle prompt waits, both show an amber "!" badge instead (`with_bang`,
+  `bang_badge`), and the tray's start/stop item opens the window.
 - **Tray changes reach the UI** through the `timer-changed` event, which `api.onTimerChanged`
   subscribes to.
 - The database lives at `<app data dir>/timekeeper.db` (identifier `dev.cathedraltree.timekeeper`).
@@ -272,7 +303,9 @@ them. An invalid value fails startup instead of being ignored.
 | `TK_V1_IMPORT_DB`     | the v1 database both imports read                |
 | `TK_HEARTBEAT_SECS`   | the 30-second heartbeat interval                 |
 | `TK_STALE_AFTER_SECS` | the two-minute stale window `recover_stale` uses |
+| `TK_IDLE_SECS`        | the `idle_minutes` setting, in seconds           |
 
-They exist for `scripts/smoke-windows.ts`. `TK_DATA_DIR` doesn't move WebView2's profile; the
+They exist for `scripts/smoke-windows.ts`, apart from `TK_IDLE_SECS`, which is for trying the idle
+prompt by hand. `TK_DATA_DIR` doesn't move WebView2's profile; the
 script sets `WEBVIEW2_USER_DATA_FOLDER` for that. Single instance is keyed by the app identifier, not the
 data dir, so an overridden run still hands off to any other running v2.

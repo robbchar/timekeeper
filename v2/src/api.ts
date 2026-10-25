@@ -16,7 +16,13 @@ export interface Project {
   linearEnabled: boolean;
   /** Limits Linear suggestions to one team, e.g. "LABS"; `null` means any team. */
   linearTeamKey: string | null;
+  /** Step copied durations round to, one of `Snapshot.roundingSteps`; `null` copies them exact. */
+  roundingMinutes: number | null;
+  /** Kept while rounding is off. */
+  roundingMode: RoundingMode;
 }
+
+export type RoundingMode = "up" | "nearest" | "down";
 
 /** A Linear key that was just checked: its last four characters and whose it is. */
 export interface LinearConnection {
@@ -75,11 +81,19 @@ export interface ImportReport {
   stillOpen: number;
 }
 
+/** The user came back after going idle while timing (UTC, RFC 3339). */
+export interface IdlePrompt {
+  since: string;
+  returnedAt: string;
+}
+
 export interface Snapshot {
   status: Status;
   projects: Project[];
   /** Project color keys; see `projectColor`. */
   palette: string[];
+  /** Minutes a project can round copied durations to. */
+  roundingSteps: number[];
   /** The last project timed unless it's archived, else the first active one. */
   resumeProjectId: number | null;
   settings: Record<string, string>;
@@ -90,6 +104,10 @@ export interface Snapshot {
   };
   dataDir: string;
   v1ImportedAt: string | null;
+  /** Whether idle time can be detected here; the idle setting is hidden when it can't. */
+  idleSupported: boolean;
+  /** Waiting for Keep or Discard; nothing else can be done until it's answered. */
+  idlePrompt: IdlePrompt | null;
 }
 
 const inTauri = "__TAURI_INTERNALS__" in window;
@@ -102,6 +120,8 @@ export const api = {
   snapshot: () => call<Snapshot>("snapshot"),
   start: (projectId: number, notes?: string) => call<Status>("start", { projectId, notes }),
   stop: () => call<Status>("stop"),
+  /** Keep leaves the idle time on the entry; discard trims it and keeps timing from the return. */
+  answerIdlePrompt: (keep: boolean) => call<Status>("answer_idle_prompt", { keep }),
   entries: (from: string, to: string, projectId: number | null) =>
     call<Entry[]>("entries", { from, to, projectId }),
   totals: (projectId: number | null) => call<Totals>("totals", { projectId }),
@@ -124,6 +144,9 @@ export const api = {
   /** Normalized by the backend: trimmed, uppercased, blank → `null`; refused unless letters and digits. */
   setProjectLinearTeam: (projectId: number, teamKey: string | null) =>
     call<void>("set_project_linear_team", { projectId, teamKey }),
+  /** `minutes: null` turns rounding off; refused unless a step in `Snapshot.roundingSteps`. */
+  setProjectRounding: (projectId: number, minutes: number | null, mode: RoundingMode) =>
+    call<void>("set_project_rounding", { projectId, minutes, mode }),
   setSetting: (key: string, value: string) => call<void>("set_setting", { key, value }),
   /** Brings in v1 sessions recorded since the last import; still-open ones wait. */
   importV1Again: () => call<ImportReport>("import_v1_again"),

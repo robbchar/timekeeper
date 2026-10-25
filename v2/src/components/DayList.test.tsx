@@ -33,6 +33,8 @@ const acme: Project = {
   archived: false,
   linearEnabled: false,
   linearTeamKey: null,
+  roundingMinutes: null,
+  roundingMode: "nearest",
 };
 
 const list = (
@@ -344,5 +346,39 @@ describe("DayList Linear suggestions", () => {
       resolve([{ source: "linear", lines: ["LABS-1 T — commented"], notice: null }]),
     );
     expect(screen.getByRole("textbox")).toHaveValue("typed meanwhile\nLABS-1 T — commented");
+  });
+});
+
+describe("DayList Time copy rounding", () => {
+  beforeEach(() => vi.mocked(api.copy).mockReset().mockResolvedValue(undefined));
+
+  const time = () => screen.getByRole("button", { name: "Time" });
+
+  it("copies the exact time when the project doesn't round", () => {
+    render(list(entry, vi.fn()));
+    expect(time()).toHaveAttribute("title", "Copy: 00:10:00");
+    fireEvent.click(time());
+    expect(api.copy).toHaveBeenCalledWith("00:10:00");
+  });
+
+  it("copies the rounded time and puts the exact one in its title", () => {
+    const rounding: Project = { ...acme, roundingMinutes: 15, roundingMode: "up" };
+    render(list(entry, vi.fn(), undefined, [rounding]));
+    expect(time()).toHaveAttribute("title", "Copy: 00:15:00 (rounded from 00:10:00)");
+    fireEvent.click(time());
+    expect(api.copy).toHaveBeenCalledWith("00:15:00");
+  });
+
+  it("shows a single value when rounding doesn't change it", () => {
+    const rounding: Project = { ...acme, roundingMinutes: 5, roundingMode: "nearest" };
+    render(list(entry, vi.fn(), undefined, [rounding]));
+    expect(time()).toHaveAttribute("title", "Copy: 00:10:00");
+  });
+
+  it("leaves the shown duration exact", () => {
+    const rounding: Project = { ...acme, roundingMinutes: 60, roundingMode: "up" };
+    render(list(entry, vi.fn(), undefined, [rounding]));
+    expect(screen.getByText("00:10:00")).toBeInTheDocument();
+    expect(time()).toHaveAttribute("title", "Copy: 01:00:00 (rounded from 00:10:00)");
   });
 });

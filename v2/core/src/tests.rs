@@ -187,6 +187,199 @@ fn a_stale_timer_is_closed_at_the_last_heartbeat() {
 }
 
 #[test]
+fn a_stale_timer_that_went_idle_is_closed_where_idling_began() {
+    let (mut s, p) = store_with_project();
+    s.start(p, None, at("2026-10-05T15:00:00Z"), day("2026-10-05"))
+        .unwrap();
+    s.mark_idle(at("2026-10-05T16:00:00Z"), at("2026-10-05T16:20:00Z"))
+        .unwrap();
+    s.heartbeat(at("2026-10-05T17:00:00Z")).unwrap();
+    let rec = s
+        .recover_stale(at("2026-10-06T14:00:00Z"), Duration::minutes(2))
+        .unwrap();
+    assert_eq!(rec.unwrap().stopped_at, "2026-10-05T16:00:00.000Z");
+    assert_eq!(s.idle_since().unwrap(), None);
+}
+
+#[test]
+fn a_fresh_heartbeat_leaves_the_idle_mark_for_the_prompt() {
+    let (mut s, p) = store_with_project();
+    s.start(p, None, at("2026-10-05T15:00:00Z"), day("2026-10-05"))
+        .unwrap();
+    s.mark_idle(at("2026-10-05T15:30:00Z"), at("2026-10-05T15:50:00Z"))
+        .unwrap();
+    s.heartbeat(at("2026-10-05T15:59:30Z")).unwrap();
+    let rec = s
+        .recover_stale(at("2026-10-05T16:00:00Z"), Duration::minutes(2))
+        .unwrap();
+    assert!(rec.is_none());
+    assert_eq!(s.idle_since().unwrap(), Some(at("2026-10-05T15:30:00Z")));
+}
+
+#[test]
+fn the_first_idle_mark_is_kept() {
+    let (mut s, p) = store_with_project();
+    s.start(p, None, at("2026-10-05T15:00:00Z"), day("2026-10-05"))
+        .unwrap();
+    s.mark_idle(at("2026-10-05T15:30:00Z"), at("2026-10-05T15:50:00Z"))
+        .unwrap();
+    s.mark_idle(at("2026-10-05T15:40:00Z"), at("2026-10-05T16:00:00Z"))
+        .unwrap();
+    assert_eq!(s.idle_since().unwrap(), Some(at("2026-10-05T15:30:00Z")));
+}
+
+#[test]
+fn idling_while_stopped_is_not_marked() {
+    let (s, _) = store_with_project();
+    s.mark_idle(at("2026-10-05T15:30:00Z"), at("2026-10-05T15:50:00Z"))
+        .unwrap();
+    assert_eq!(s.idle_since().unwrap(), None);
+}
+
+#[test]
+fn stopping_or_starting_clears_the_idle_mark() {
+    let (mut s, p) = store_with_project();
+    s.start(p, None, at("2026-10-05T15:00:00Z"), day("2026-10-05"))
+        .unwrap();
+    s.mark_idle(at("2026-10-05T15:30:00Z"), at("2026-10-05T15:50:00Z"))
+        .unwrap();
+    s.stop(at("2026-10-05T16:00:00Z")).unwrap();
+    assert_eq!(s.idle_since().unwrap(), None);
+
+    let b = s
+        .create_project("Katas", at("2026-10-01T00:00:00Z"))
+        .unwrap()
+        .id;
+    s.start(p, None, at("2026-10-05T17:00:00Z"), day("2026-10-05"))
+        .unwrap();
+    s.mark_idle(at("2026-10-05T17:30:00Z"), at("2026-10-05T17:50:00Z"))
+        .unwrap();
+    s.start(b, None, at("2026-10-05T18:00:00Z"), day("2026-10-05"))
+        .unwrap();
+    assert_eq!(s.idle_since().unwrap(), None);
+}
+
+#[test]
+fn keeping_idle_time_leaves_the_interval_open() {
+    let (mut s, p) = store_with_project();
+    s.start(p, None, at("2026-10-05T15:00:00Z"), day("2026-10-05"))
+        .unwrap();
+    s.mark_idle(at("2026-10-05T15:30:00Z"), at("2026-10-05T15:50:00Z"))
+        .unwrap();
+    s.keep_idle().unwrap();
+    assert_eq!(s.idle_since().unwrap(), None);
+    let st = s.status(at("2026-10-05T16:00:00Z")).unwrap();
+    assert_eq!(st.elapsed_seconds, 3600);
+}
+
+#[test]
+fn discarding_idle_time_trims_and_times_from_the_return() {
+    let (mut s, p) = store_with_project();
+    s.start(p, None, at("2026-10-05T15:00:00Z"), day("2026-10-05"))
+        .unwrap();
+    s.mark_idle(at("2026-10-05T15:30:00Z"), at("2026-10-05T15:50:00Z"))
+        .unwrap();
+    let st = s
+        .discard_idle(
+            at("2026-10-05T15:55:00Z"),
+            day("2026-10-05"),
+            at("2026-10-05T16:00:00Z"),
+        )
+        .unwrap();
+    let r = st.running.unwrap();
+    assert_eq!(r.project_id, p);
+    assert_eq!(r.interval_started_at, "2026-10-05T15:55:00.000Z");
+    assert_eq!(r.prior_seconds, 1800);
+    assert_eq!(s.idle_since().unwrap(), None);
+    let st = s.status(at("2026-10-05T16:10:00Z")).unwrap();
+    assert_eq!(st.elapsed_seconds, 2700);
+}
+
+#[test]
+fn discarding_never_resumes_after_now() {
+    let (mut s, p) = store_with_project();
+    s.start(p, None, at("2026-10-05T15:00:00Z"), day("2026-10-05"))
+        .unwrap();
+    s.mark_idle(at("2026-10-05T15:30:00Z"), at("2026-10-05T15:50:00Z"))
+        .unwrap();
+    let st = s
+        .discard_idle(
+            at("2026-10-05T17:00:00Z"),
+            day("2026-10-05"),
+            at("2026-10-05T16:00:00Z"),
+        )
+        .unwrap();
+    let r = st.running.unwrap();
+    assert_eq!(r.interval_started_at, "2026-10-05T16:00:00.000Z");
+}
+
+#[test]
+fn discarding_never_trims_before_the_interval_started() {
+    let (mut s, p) = store_with_project();
+    s.start(p, None, at("2026-10-05T15:00:00Z"), day("2026-10-05"))
+        .unwrap();
+    s.mark_idle(at("2026-10-05T14:00:00Z"), at("2026-10-05T15:20:00Z"))
+        .unwrap();
+    s.discard_idle(
+        at("2026-10-05T16:00:00Z"),
+        day("2026-10-05"),
+        at("2026-10-05T16:00:00Z"),
+    )
+    .unwrap();
+    let e = s
+        .entries(
+            day("2026-10-05"),
+            day("2026-10-05"),
+            None,
+            at("2026-10-05T16:00:00Z"),
+        )
+        .unwrap();
+    assert_eq!(e[0].seconds, 0);
+}
+
+#[test]
+fn discarding_across_midnight_resumes_on_todays_entry() {
+    let (mut s, p) = store_with_project();
+    s.start(p, None, at("2026-10-05T22:00:00Z"), day("2026-10-05"))
+        .unwrap();
+    s.mark_idle(at("2026-10-05T23:00:00Z"), at("2026-10-05T23:20:00Z"))
+        .unwrap();
+    s.discard_idle(
+        at("2026-10-06T08:00:00Z"),
+        day("2026-10-06"),
+        at("2026-10-06T08:00:00Z"),
+    )
+    .unwrap();
+    let e = s
+        .entries(
+            day("2026-10-05"),
+            day("2026-10-06"),
+            None,
+            at("2026-10-06T08:30:00Z"),
+        )
+        .unwrap();
+    let by_day = |d: &str| e.iter().find(|x| x.day == d).unwrap().seconds;
+    assert_eq!(by_day("2026-10-05"), 3600);
+    assert_eq!(by_day("2026-10-06"), 1800);
+}
+
+#[test]
+fn discarding_without_an_idle_mark_changes_nothing() {
+    let (mut s, p) = store_with_project();
+    s.start(p, None, at("2026-10-05T15:00:00Z"), day("2026-10-05"))
+        .unwrap();
+    let st = s
+        .discard_idle(
+            at("2026-10-05T16:00:00Z"),
+            day("2026-10-05"),
+            at("2026-10-05T16:00:00Z"),
+        )
+        .unwrap();
+    assert_eq!(st.elapsed_seconds, 3600);
+    assert!(st.running.is_some());
+}
+
+#[test]
 fn a_fresh_heartbeat_leaves_the_timer_running() {
     let (mut s, p) = store_with_project();
     s.start(p, None, at("2026-10-05T15:00:00Z"), day("2026-10-05"))
@@ -535,6 +728,93 @@ fn set_project_linear_on_an_unknown_project_fails() {
         s.set_project_linear_team(99, None),
         Err(Error::ProjectNotFound(99))
     ));
+}
+
+#[test]
+fn migration_4_leaves_existing_projects_unrounded() {
+    let conn = Connection::open_in_memory().unwrap();
+    conn.execute_batch(&format!(
+        "{} {} {} PRAGMA user_version = 3;",
+        schema::MIGRATIONS[0],
+        schema::MIGRATIONS[1],
+        schema::MIGRATIONS[2]
+    ))
+    .unwrap();
+    conn.execute_batch(
+        "INSERT INTO projects (id, name, color, created_at) VALUES (1, 'a', 'teal', 'x');",
+    )
+    .unwrap();
+
+    let s = Store::init(conn).unwrap();
+    let p = &s.projects().unwrap()[0];
+    assert_eq!(p.rounding_minutes, None);
+    assert_eq!(p.rounding_mode, RoundingMode::Nearest);
+}
+
+#[test]
+fn new_projects_start_unrounded() {
+    let (s, id) = store_with_project();
+    let p = project(&s, id);
+    assert_eq!(p.rounding_minutes, None);
+    assert_eq!(p.rounding_mode, RoundingMode::Nearest);
+}
+
+#[test]
+fn set_project_rounding_saves_step_and_mode() {
+    let (s, id) = store_with_project();
+    s.set_project_rounding(id, Some(15), RoundingMode::Up)
+        .unwrap();
+    let p = project(&s, id);
+    assert_eq!(p.rounding_minutes, Some(15));
+    assert_eq!(p.rounding_mode, RoundingMode::Up);
+}
+
+#[test]
+fn turning_rounding_off_keeps_the_mode() {
+    let (s, id) = store_with_project();
+    s.set_project_rounding(id, Some(6), RoundingMode::Down)
+        .unwrap();
+    s.set_project_rounding(id, None, RoundingMode::Down)
+        .unwrap();
+    let p = project(&s, id);
+    assert_eq!(p.rounding_minutes, None);
+    assert_eq!(p.rounding_mode, RoundingMode::Down);
+}
+
+#[test]
+fn set_project_rounding_refuses_a_step_outside_the_list() {
+    let (s, id) = store_with_project();
+    for bad in [0, -15, 7, 45, 120] {
+        assert!(
+            matches!(
+                s.set_project_rounding(id, Some(bad), RoundingMode::Up),
+                Err(Error::Invalid(_))
+            ),
+            "{bad}"
+        );
+    }
+    assert_eq!(project(&s, id).rounding_minutes, None, "nothing saved");
+}
+
+#[test]
+fn set_project_rounding_on_an_unknown_project_fails() {
+    let (s, _) = store_with_project();
+    assert!(matches!(
+        s.set_project_rounding(99, Some(15), RoundingMode::Up),
+        Err(Error::ProjectNotFound(99))
+    ));
+}
+
+#[test]
+fn the_database_refuses_an_unknown_rounding_mode() {
+    let (s, id) = store_with_project();
+    assert!(s
+        .conn
+        .execute(
+            "UPDATE projects SET rounding_mode = 'sideways' WHERE id = ?1",
+            [id]
+        )
+        .is_err());
 }
 
 #[test]

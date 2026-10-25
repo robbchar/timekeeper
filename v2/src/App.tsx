@@ -8,6 +8,7 @@ import { AddTimeForm } from "./components/AddTimeForm";
 import { DayList } from "./components/DayList";
 import { SettingsPage } from "./components/SettingsPage";
 import { StartupNotices } from "./components/StartupNotices";
+import { IdleDialog } from "./components/IdleDialog";
 
 const PAGE_DAYS = 30;
 
@@ -142,81 +143,98 @@ export default function App() {
     </>
   );
 
+  // Everything behind the idle prompt is inert until it's answered.
+  const prompting = snap.idlePrompt != null;
+  const idleDialog = snap.idlePrompt && (
+    <IdleDialog
+      prompt={snap.idlePrompt}
+      projectName={status.running?.projectName ?? null}
+      onAnswered={refresh}
+      onError={reportError}
+    />
+  );
+
   if (view === "settings") {
     return (
-      <div className="app">
-        <header className="topbar">
-          <h1>Settings</h1>
-          <button className="btn btn--ghost" onClick={() => setView("main")}>
-            Done
-          </button>
-        </header>
-        {errorBanner}
-        <SettingsPage
-          snapshot={snap}
-          onSetting={(k, v) => void saveSetting(k, v)}
-          onChanged={refresh}
-          onError={reportError}
-        />
-      </div>
+      <>
+        {idleDialog}
+        <div className="app" inert={prompting}>
+          <header className="topbar">
+            <h1>Settings</h1>
+            <button className="btn btn--ghost" onClick={() => setView("main")}>
+              Done
+            </button>
+          </header>
+          {errorBanner}
+          <SettingsPage
+            snapshot={snap}
+            onSetting={(k, v) => void saveSetting(k, v)}
+            onChanged={refresh}
+            onError={reportError}
+          />
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="app">
-      <header className="topbar">
-        <h1>TimeKeeper</h1>
-        <button className="btn btn--ghost" onClick={() => setView("settings")}>
-          Settings
+    <>
+      {idleDialog}
+      <div className="app" inert={prompting}>
+        <header className="topbar">
+          <h1>TimeKeeper</h1>
+          <button className="btn btn--ghost" onClick={() => setView("settings")}>
+            Settings
+          </button>
+        </header>
+
+        {errorBanner}
+        <StartupNotices
+          startup={snap.startup}
+          dismissed={dismissed}
+          onDismiss={(k) => setDismissed((d) => new Set(d).add(k))}
+        />
+
+        <TimerPanel
+          projects={snap.projects}
+          resumeProjectId={snap.resumeProjectId}
+          status={status}
+          liveSeconds={liveSeconds}
+          entries={entries}
+          today={today}
+          onChanged={refresh}
+          onError={reportError}
+        />
+
+        <TotalsStrip
+          totals={liveTotals}
+          projects={snap.projects}
+          filter={filter}
+          onFilter={setFilter}
+        />
+
+        <AddTimeForm
+          projects={snap.projects}
+          resumeProjectId={snap.resumeProjectId}
+          today={today}
+          onChanged={refresh}
+          onError={reportError}
+        />
+
+        <DayList
+          entries={liveEntries}
+          projects={snap.projects}
+          today={today}
+          durationFormat={durationFormat}
+          dateFormat={dateFormat}
+          onChanged={refresh}
+          onError={reportError}
+        />
+
+        <button className="more" onClick={() => setDays((d) => d + PAGE_DAYS)}>
+          Show {PAGE_DAYS} more days
         </button>
-      </header>
-
-      {errorBanner}
-      <StartupNotices
-        startup={snap.startup}
-        dismissed={dismissed}
-        onDismiss={(k) => setDismissed((d) => new Set(d).add(k))}
-      />
-
-      <TimerPanel
-        projects={snap.projects}
-        resumeProjectId={snap.resumeProjectId}
-        status={status}
-        liveSeconds={liveSeconds}
-        entries={entries}
-        today={today}
-        onChanged={refresh}
-        onError={reportError}
-      />
-
-      <TotalsStrip
-        totals={liveTotals}
-        projects={snap.projects}
-        filter={filter}
-        onFilter={setFilter}
-      />
-
-      <AddTimeForm
-        projects={snap.projects}
-        resumeProjectId={snap.resumeProjectId}
-        today={today}
-        onChanged={refresh}
-        onError={reportError}
-      />
-
-      <DayList
-        entries={liveEntries}
-        projects={snap.projects}
-        today={today}
-        durationFormat={durationFormat}
-        dateFormat={dateFormat}
-        onChanged={refresh}
-        onError={reportError}
-      />
-
-      <button className="more" onClick={() => setDays((d) => d + PAGE_DAYS)}>
-        Show {PAGE_DAYS} more days
-      </button>
-    </div>
+      </div>
+    </>
   );
 }

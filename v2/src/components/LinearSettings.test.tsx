@@ -21,6 +21,8 @@ const acme: Project = {
   archived: false,
   linearEnabled: true,
   linearTeamKey: "LABS",
+  roundingMinutes: null,
+  roundingMode: "nearest",
 };
 const side: Project = {
   id: 2,
@@ -29,6 +31,8 @@ const side: Project = {
   archived: false,
   linearEnabled: false,
   linearTeamKey: null,
+  roundingMinutes: null,
+  roundingMode: "nearest",
 };
 const old: Project = {
   id: 3,
@@ -37,6 +41,8 @@ const old: Project = {
   archived: true,
   linearEnabled: true,
   linearTeamKey: null,
+  roundingMinutes: null,
+  roundingMode: "nearest",
 };
 const never = <T,>() => new Promise<T>(() => {});
 const UNAUTHORIZED =

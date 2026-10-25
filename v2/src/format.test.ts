@@ -8,6 +8,7 @@ import {
   formatShort,
   localDay,
   parseDuration,
+  roundSeconds,
 } from "./format";
 
 describe("formatDuration", () => {
@@ -48,6 +49,51 @@ describe("formatDuration", () => {
 
   it("clamps negative durations to zero", () => {
     expect(formatDuration(-5, "hms")).toBe("00:00:00");
+  });
+});
+
+describe("roundSeconds", () => {
+  const exact = 12 * 60 + 34;
+
+  it.each([
+    ["up", 15, 15 * 60],
+    ["nearest", 15, 15 * 60],
+    ["down", 15, 0],
+    ["up", 6, 18 * 60],
+    ["nearest", 6, 12 * 60],
+    ["down", 6, 12 * 60],
+    ["up", 60, 3600],
+    ["nearest", 60, 0],
+  ] as const)("rounds 12:34 %s to %i minutes", (mode, step, expected) => {
+    expect(roundSeconds(exact, step, mode)).toBe(expected);
+  });
+
+  it("leaves the value alone when rounding is off", () => {
+    expect(roundSeconds(exact, null, "up")).toBe(exact);
+  });
+
+  it("leaves exact multiples alone in every mode", () => {
+    for (const mode of ["up", "nearest", "down"] as const) {
+      expect(roundSeconds(30 * 60, 15, mode)).toBe(30 * 60);
+    }
+  });
+
+  it("rounds an exact half up when rounding to nearest", () => {
+    expect(roundSeconds(7 * 60 + 30, 15, "nearest")).toBe(15 * 60);
+    expect(roundSeconds(7 * 60 + 29, 15, "nearest")).toBe(0);
+  });
+
+  it("keeps zero at zero when rounding up", () => {
+    expect(roundSeconds(0, 15, "up")).toBe(0);
+  });
+
+  it("works in whole seconds, so a live fraction doesn't bump up a step", () => {
+    expect(roundSeconds(900.3, 15, "up")).toBe(900);
+    expect(roundSeconds(900.3, null, "up")).toBe(900);
+  });
+
+  it("clamps negative durations to zero", () => {
+    expect(roundSeconds(-5, 15, "up")).toBe(0);
   });
 });
 

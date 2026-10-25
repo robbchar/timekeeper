@@ -8,6 +8,7 @@ vi.mock("../api", () => ({
     renameProject: vi.fn(() => Promise.resolve()),
     setProjectColor: vi.fn(() => Promise.resolve()),
     setProjectArchived: vi.fn(() => Promise.resolve()),
+    setProjectRounding: vi.fn(() => Promise.resolve()),
   },
 }));
 
@@ -18,6 +19,8 @@ const acme: Project = {
   archived: false,
   linearEnabled: false,
   linearTeamKey: null,
+  roundingMinutes: null,
+  roundingMode: "nearest",
 };
 const old: Project = {
   id: 2,
@@ -26,6 +29,8 @@ const old: Project = {
   archived: true,
   linearEnabled: false,
   linearTeamKey: null,
+  roundingMinutes: null,
+  roundingMode: "nearest",
 };
 const palette = ["teal", "coral", "gold"];
 const never = () => new Promise<void>(() => {});
@@ -35,6 +40,7 @@ function setup(projects = [acme], onChanged = vi.fn(() => Promise.resolve()), on
     <ProjectSettings
       projects={projects}
       palette={palette}
+      roundingSteps={[6, 15]}
       onChanged={onChanged}
       onError={onError}
     />,
@@ -114,7 +120,12 @@ describe("ProjectSettings", () => {
 
   it("shows a refreshed color over one still saving", () => {
     vi.mocked(api.setProjectColor).mockImplementationOnce(never);
-    const props = { palette, onChanged: vi.fn(() => Promise.resolve()), onError: vi.fn() };
+    const props = {
+      palette,
+      roundingSteps: [6, 15],
+      onChanged: vi.fn(() => Promise.resolve()),
+      onError: vi.fn(),
+    };
     const { rerender } = render(<ProjectSettings projects={[acme]} {...props} />);
     fireEvent.click(screen.getByRole("radio", { name: "coral" }));
     rerender(<ProjectSettings projects={[{ ...acme, color: "gold" }]} {...props} />);
@@ -175,5 +186,50 @@ describe("ProjectSettings", () => {
     ]);
     const names = screen.getAllByRole("textbox").map((box) => (box as HTMLInputElement).value);
     expect(names).toEqual(["Old client", "Acme"]);
+  });
+});
+
+describe("ProjectSettings rounding", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const step = () => screen.getByRole("combobox", { name: "Acme: round copied time to" });
+  const mode = () => screen.getByRole("combobox", { name: "Acme: round copied time" });
+
+  it("starts off, with the direction disabled", () => {
+    setup();
+    expect(step()).toHaveValue("");
+    expect(mode()).toBeDisabled();
+  });
+
+  it("saves a step with the current direction and refreshes", async () => {
+    const { onChanged } = setup();
+    fireEvent.change(step(), { target: { value: "15" } });
+    expect(api.setProjectRounding).toHaveBeenCalledExactlyOnceWith(1, 15, "nearest");
+    expect(step()).toHaveValue("15");
+    expect(mode()).toBeEnabled();
+    await waitFor(() => expect(onChanged).toHaveBeenCalled());
+  });
+
+  it("saves a direction with the current step", () => {
+    setup([{ ...acme, roundingMinutes: 6 }]);
+    fireEvent.change(mode(), { target: { value: "up" } });
+    expect(api.setProjectRounding).toHaveBeenCalledExactlyOnceWith(1, 6, "up");
+  });
+
+  it("turning it off keeps the direction", () => {
+    setup([{ ...acme, roundingMinutes: 15, roundingMode: "down" }]);
+    fireEvent.change(step(), { target: { value: "" } });
+    expect(api.setProjectRounding).toHaveBeenCalledExactlyOnceWith(1, null, "down");
+    expect(mode()).toBeDisabled();
+    expect(mode()).toHaveValue("down");
+  });
+
+  it("puts the saved rule back and reports when saving fails", async () => {
+    vi.mocked(api.setProjectRounding).mockRejectedValueOnce(new Error("nope"));
+    const { onChanged, onError } = setup();
+    fireEvent.change(step(), { target: { value: "15" } });
+    await waitFor(() => expect(onError).toHaveBeenCalled());
+    expect(step()).toHaveValue("");
+    expect(onChanged).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,5 @@
 import { CSSProperties } from "react";
-import { api, Project } from "../api";
+import { api, Project, RoundingMode } from "../api";
 import { projectColor } from "../palette";
 import { useInlineEdit } from "./useInlineEdit";
 import { Pending, usePending } from "./usePending";
@@ -7,18 +7,26 @@ import { Pending, usePending } from "./usePending";
 interface Props {
   projects: Project[];
   palette: string[];
+  roundingSteps: number[];
   onChanged: () => Promise<void>;
   onError: (err: unknown) => void;
 }
 
-export function ProjectSettings({ projects, palette, onChanged, onError }: Props) {
+const ROUNDING_MODES: Record<RoundingMode, string> = {
+  up: "Up",
+  nearest: "Nearest",
+  down: "Down",
+};
+
+export function ProjectSettings({ projects, palette, roundingSteps, onChanged, onError }: Props) {
   // Creation order, so archiving or renaming doesn't move a row (and its focus) mid-edit.
   const rows = [...projects].sort((a, b) => a.id - b.id);
   return (
     <section className="panel">
       <h2>Projects</h2>
       <p className="panel__hint">
-        Archived projects leave the timer's list but keep their history and totals.
+        Archived projects leave the timer's list but keep their history and totals. Rounding applies
+        only to the copied Time; what's recorded stays exact.
       </p>
       {rows.length === 0 ? (
         <p className="panel__hint">No projects yet. Add one from the timer.</p>
@@ -29,6 +37,7 @@ export function ProjectSettings({ projects, palette, onChanged, onError }: Props
               key={p.id}
               project={p}
               palette={palette}
+              roundingSteps={roundingSteps}
               onChanged={onChanged}
               onError={onError}
             />
@@ -42,17 +51,21 @@ export function ProjectSettings({ projects, palette, onChanged, onError }: Props
 function ProjectRow({
   project,
   palette,
+  roundingSteps,
   onChanged,
   onError,
 }: {
   project: Project;
   palette: string[];
+  roundingSteps: number[];
   onChanged: () => Promise<void>;
   onError: (err: unknown) => void;
 }) {
   const savedName = usePending(project.name);
   const color = usePending(project.color);
   const archived = usePending(project.archived);
+  const roundingMinutes = usePending(project.roundingMinutes);
+  const roundingMode = usePending(project.roundingMode);
 
   const name = useInlineEdit(
     savedName.shown,
@@ -113,6 +126,44 @@ function ProjectRow({
           />
         ))}
       </fieldset>
+      <span className="project__rounding">
+        Round copies
+        <select
+          aria-label={`${project.name}: round copied time to`}
+          value={roundingMinutes.shown ?? ""}
+          onChange={(e) => {
+            // Step and mode save together; only the changed one is held.
+            const minutes = e.target.value ? Number(e.target.value) : null;
+            void save(roundingMinutes, minutes, () =>
+              api.setProjectRounding(project.id, minutes, roundingMode.shown),
+            );
+          }}
+        >
+          <option value="">Off</option>
+          {roundingSteps.map((m) => (
+            <option key={m} value={m}>
+              {m} min
+            </option>
+          ))}
+        </select>
+        <select
+          aria-label={`${project.name}: round copied time`}
+          disabled={roundingMinutes.shown === null}
+          value={roundingMode.shown}
+          onChange={(e) => {
+            const mode = e.target.value as RoundingMode;
+            void save(roundingMode, mode, () =>
+              api.setProjectRounding(project.id, roundingMinutes.shown, mode),
+            );
+          }}
+        >
+          {Object.entries(ROUNDING_MODES).map(([k, v]) => (
+            <option key={k} value={k}>
+              {v}
+            </option>
+          ))}
+        </select>
+      </span>
       <label className="project__archive">
         <input
           type="checkbox"
