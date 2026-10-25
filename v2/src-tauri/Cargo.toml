@@ -34,3 +34,6 @@ keyring = "4"
 keyring-core = "1"
 secret-service = "5"
 zbus-secret-service-keyring-store = { version = "1", features = ["crypto-rust"] }
+# Matching on the store's errors, and `block_in_place` around its blocking calls.
+zbus = "5"
+tokio = { version = "1", features = ["rt-multi-thread"] }

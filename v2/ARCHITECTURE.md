@@ -198,7 +198,9 @@ changes on every launch; the variable alone isn't trusted, as anything an AppIma
 it. The same reconcile runs, with two differences: `Hidden=true` or `X-GNOME-Autostart-enabled=false`
 (what desktop startup settings write) is the "off" flag, and a missing file means off, since nothing
 but the user deletes it. Turning the toggle on rewrites the whole file, through a temp file and a
-rename.
+rename; a launch that finds a stale path changes only `Exec`, keeping any keys the user added. A
+path that isn't UTF-8 or holds a control character can't go in a desktop file, so the toggle is
+hidden.
 
 ## Linear
 
@@ -213,8 +215,9 @@ system. Nothing is ever written to Linear.
 - **Linux connects per call.** `keychain.rs` uses `keyring-core` with the zbus Secret Service store
   directly rather than `keyring::v1`, which connects once per process and keeps a failure, so a
   keyring that starts after the app (a login launch) still works. With no Secret Service, Save
-  fails before the key is sent to Linear, with a message naming GNOME Keyring and KWallet. There is
-  no plain-file fallback.
+  fails before the key is sent to Linear, with a message naming GNOME Keyring and KWallet; other
+  connection failures show their real cause. There is no plain-file fallback. Calls run under
+  `block_in_place`, since an unlock prompt can block for as long as the user takes.
 - **Save checks first.** `save_linear_key` asks Linear for `{ viewer { name } }` and stores the key
   only if Linear accepts it. `test_linear_connection` repeats the check with the stored key.
 - **One endpoint.** `linear.rs` POSTs to `https://api.linear.app/graphql` with

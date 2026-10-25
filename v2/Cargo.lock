@@ -4369,8 +4369,10 @@ dependencies = [
  "tauri-plugin-clipboard-manager",
  "tauri-plugin-single-instance",
  "timekeeper-core",
+ "tokio",
  "windows-registry 0.100.0",
  "windows-result 0.100.0",
+ "zbus",
  "zbus-secret-service-keyring-store",
 ]
 

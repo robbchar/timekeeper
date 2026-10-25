@@ -157,7 +157,7 @@ pub use linux::LoginItem;
 mod linux {
     use super::{LoginEntry, HIDDEN_ARG};
     use std::ffi::OsString;
-    use std::io::ErrorKind;
+    use std::io::{ErrorKind, Write};
     use std::path::{Path, PathBuf};
 
     const GROUP: &str = "[Desktop Entry]";
@@ -223,28 +223,52 @@ mod linux {
         })
     }
 
+    /// `contents` with the group's `Exec` set to `exec`; `None` if it has none to replace.
+    fn with_exec(contents: &str, exec: &str) -> Option<String> {
+        let mut in_group = false;
+        let mut found = false;
+        let mut out = String::with_capacity(contents.len());
+        for line in contents.lines() {
+            let t = line.trim();
+            if t.starts_with('[') {
+                in_group = t == GROUP;
+            } else if in_group && t.split_once('=').is_some_and(|(k, _)| k.trim() == "Exec") {
+                found = true;
+                out.push_str(&format!("Exec={exec}\n"));
+                continue;
+            }
+            out.push_str(line);
+            out.push('\n');
+        }
+        found.then_some(out)
+    }
+
     impl LoginItem {
-        /// `None` if the app's path or the config dir can't be found.
+        /// `None` if the app's path or the config dir can't be found, or the path
+        /// can't be written in a desktop file.
         pub fn for_current_exe(name: &str, id: &str) -> Option<Self> {
             let exe = launch_path(
                 std::env::current_exe().ok()?,
                 std::env::var_os("APPIMAGE"),
                 std::env::var_os("APPDIR"),
             );
-            Some(Self::at(&config_dir()?.join("autostart"), id, name, &exe))
+            Self::at(&config_dir()?.join("autostart"), id, name, &exe)
         }
 
-        pub(crate) fn at(dir: &Path, id: &str, name: &str, exe: &Path) -> Self {
-            let exec = format!("{} {HIDDEN_ARG}", exec_arg(&exe.to_string_lossy()));
+        /// `None` for a path that isn't UTF-8 or holds a control character, which a
+        /// desktop file can't hold (a newline would even start a new key).
+        pub(crate) fn at(dir: &Path, id: &str, name: &str, exe: &Path) -> Option<Self> {
+            let exe = exe.to_str().filter(|s| !s.chars().any(char::is_control))?;
+            let exec = format!("{} {HIDDEN_ARG}", exec_arg(exe));
             let contents = format!(
                 "{GROUP}\nType=Application\nName={name}\nExec={exec}\nTerminal=false\n\
                  X-GNOME-Autostart-enabled=true\n"
             );
-            Self {
+            Some(Self {
                 path: dir.join(format!("{id}.desktop")),
                 exec,
                 contents,
-            }
+            })
         }
 
         fn read(&self) -> Result<Option<String>, String> {
@@ -255,15 +279,23 @@ mod linux {
             }
         }
 
-        /// Through a temp file and a rename, so a half-written file is never left behind.
-        fn write(&self) -> Result<(), String> {
+        /// Through a synced temp file and a rename, so a half-written file is never left
+        /// behind; the temp file is removed if either step fails.
+        fn write(&self, contents: &str) -> Result<(), String> {
             let err = |e: std::io::Error| format!("Couldn't write {}: {e}", self.path.display());
             if let Some(dir) = self.path.parent() {
                 std::fs::create_dir_all(dir).map_err(err)?;
             }
             let tmp = self.path.with_extension("desktop.tmp");
-            std::fs::write(&tmp, &self.contents).map_err(err)?;
-            std::fs::rename(&tmp, &self.path).map_err(err)
+            let written = std::fs::File::create(&tmp).and_then(|mut f| {
+                f.write_all(contents.as_bytes())?;
+                f.sync_all()
+            });
+            let result = written.and_then(|()| std::fs::rename(&tmp, &self.path));
+            if result.is_err() {
+                let _ = std::fs::remove_file(&tmp);
+            }
+            result.map_err(err)
         }
 
         pub fn state(&self) -> Result<LoginEntry, String> {
@@ -282,7 +314,7 @@ mod linux {
         /// Turning it on rewrites the whole file, which also clears an outside "off".
         pub fn set(&self, on: bool) -> Result<(), String> {
             if on {
-                return self.write();
+                return self.write(&self.contents);
             }
             match std::fs::remove_file(&self.path) {
                 Ok(()) => Ok(()),
@@ -291,14 +323,18 @@ mod linux {
             }
         }
 
-        /// Rewrites the file unless it already launches this exe.
+        /// Repoints `Exec` at this exe, keeping any other keys the desktop or user added.
         pub fn refresh(&self) -> Result<(), String> {
-            if self.command()?.as_deref() == Some(&self.exec) {
+            let Some(old) = self.read()? else {
+                return self.write(&self.contents);
+            };
+            if values(&old, "Exec").next() == Some(self.exec.as_str()) {
                 return Ok(());
             }
-            self.write()
+            self.write(&with_exec(&old, &self.exec).unwrap_or_else(|| self.contents.clone()))
         }
 
+        #[cfg(test)]
         pub(crate) fn command(&self) -> Result<Option<String>, String> {
             Ok(self
                 .read()?
@@ -495,7 +531,8 @@ mod tests {
                 "dev.test.timekeeper",
                 "TimeKeeper Test",
                 Path::new(exe),
-            );
+            )
+            .unwrap();
             (Scratch(root), item, dir.join("dev.test.timekeeper.desktop"))
         }
 
@@ -576,6 +613,53 @@ mod tests {
             let (_m, missing, _) = scratch("refresh-missing", EXE);
             missing.refresh().unwrap();
             assert_eq!(missing.state().unwrap(), LoginEntry::Enabled);
+        }
+
+        #[test]
+        fn refresh_keeps_other_keys() {
+            let (_s, item, file) = scratch("refresh-keeps", EXE);
+            std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+            std::fs::write(
+                &file,
+                "# mine\n[Desktop Entry]\nName=Mine\nExec = \"/old/tk\" --hidden\n\
+                 X-GNOME-Autostart-Delay=30\n[Desktop Action x]\nExec=other\n",
+            )
+            .unwrap();
+
+            item.refresh().unwrap();
+            assert_eq!(
+                read(&file),
+                "# mine\n[Desktop Entry]\nName=Mine\n\
+                 Exec=\"/home/me/Apps/TimeKeeper v2.AppImage\" --hidden\n\
+                 X-GNOME-Autostart-Delay=30\n[Desktop Action x]\nExec=other\n"
+            );
+
+            // No `Exec` to repoint: the whole entry is written.
+            std::fs::write(&file, "[Desktop Entry]\nName=Mine\n").unwrap();
+            item.refresh().unwrap();
+            assert_eq!(
+                item.command().unwrap().as_deref(),
+                Some(r#""/home/me/Apps/TimeKeeper v2.AppImage" --hidden"#)
+            );
+        }
+
+        #[test]
+        fn a_failed_write_leaves_no_temp_file() {
+            let (_s, item, file) = scratch("failed-write", EXE);
+            // A non-empty directory where the file goes makes the rename fail.
+            std::fs::create_dir_all(file.join("child")).unwrap();
+            assert!(item.set(true).is_err());
+            assert!(!file.with_extension("desktop.tmp").exists());
+        }
+
+        #[test]
+        fn refuses_a_path_a_desktop_file_cant_hold() {
+            use std::os::unix::ffi::OsStrExt;
+            let dir = Path::new("/tmp/autostart");
+            let at = |exe: &Path| LoginItem::at(dir, "dev.test.timekeeper", "TimeKeeper", exe);
+            assert!(at(Path::new("/opt/tk\nHidden=true/tk")).is_none());
+            assert!(at(Path::new(std::ffi::OsStr::from_bytes(b"/opt/\xff/tk"))).is_none());
+            assert!(at(Path::new("/opt/caf\u{e9}/tk")).is_some());
         }
 
         #[test]

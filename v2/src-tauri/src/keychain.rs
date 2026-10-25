@@ -104,51 +104,72 @@ mod linux {
 
         /// Connects on every call, so a keyring that starts after the app is still found.
         fn entry(&self) -> Result<Entry, String> {
-            let store = Store::new().map_err(|_| UNAVAILABLE.to_string())?;
+            let store = Store::new().map_err(describe)?;
             store
                 .build(&self.service, &self.user, None)
                 .map_err(describe)
         }
     }
 
+    /// D-Bus calls block, and an unlock prompt waits on the user, so free the async worker.
+    fn blocking<T>(f: impl FnOnce() -> T) -> T {
+        tokio::task::block_in_place(f)
+    }
+
+    /// No session bus, or one with nothing serving `org.freedesktop.secrets`.
+    fn unavailable(e: &ServiceError) -> bool {
+        use zbus::fdo::Error as Fdo;
+        let no_owner = |e: &Fdo| matches!(e, Fdo::ServiceUnknown(_) | Fdo::NameHasNoOwner(_));
+        match e {
+            ServiceError::Unavailable => true,
+            ServiceError::Zbus(zbus::Error::MethodError(name, ..)) => matches!(
+                name.as_str(),
+                "org.freedesktop.DBus.Error.ServiceUnknown"
+                    | "org.freedesktop.DBus.Error.NameHasNoOwner"
+            ),
+            ServiceError::Zbus(zbus::Error::FDO(e)) => no_owner(e),
+            ServiceError::ZbusFdo(e) => no_owner(e),
+            _ => false,
+        }
+    }
+
     /// `NoStorageAccess` also covers a missing default collection, so check what's underneath.
     pub(super) fn describe(e: Error) -> String {
-        let locked = match &e {
-            Error::NoStorageAccess(b) => matches!(
-                b.downcast_ref(),
-                Some(ServiceError::Locked | ServiceError::Prompt)
-            ),
-            _ => false,
+        let cause = match &e {
+            Error::NoStorageAccess(b) | Error::PlatformFailure(b) => b.downcast_ref(),
+            _ => None,
         };
-        if locked {
-            "The keyring is locked. Unlock it, then try again.".into()
-        } else {
-            format!("Couldn't access the keyring: {e}")
+        match cause {
+            Some(c) if unavailable(c) => UNAVAILABLE.into(),
+            Some(ServiceError::Locked | ServiceError::Prompt) => {
+                "The keyring is locked. Unlock it, then try again.".into()
+            }
+            _ => format!("Couldn't access the keyring: {e}"),
         }
     }
 
     impl super::SecretStore for Keychain {
         fn get(&self) -> Result<Option<String>, String> {
-            match self.entry()?.get_password() {
+            blocking(|| match self.entry()?.get_password() {
                 Ok(secret) => Ok(Some(secret)),
                 Err(Error::NoEntry) => Ok(None),
                 Err(e) => Err(describe(e)),
-            }
+            })
         }
 
         fn set(&self, secret: &str) -> Result<(), String> {
-            self.entry()?.set_password(secret).map_err(describe)
+            blocking(|| self.entry()?.set_password(secret).map_err(describe))
         }
 
         fn delete(&self) -> Result<(), String> {
-            match self.entry()?.delete_credential() {
+            blocking(|| match self.entry()?.delete_credential() {
                 Ok(()) | Err(Error::NoEntry) => Ok(()),
                 Err(e) => Err(describe(e)),
-            }
+            })
         }
 
         fn writable(&self) -> Result<(), String> {
-            self.entry().map(drop)
+            blocking(|| self.entry().map(drop))
         }
     }
 }
@@ -239,14 +260,48 @@ mod tests {
     #[cfg(target_os = "linux")]
     #[test]
     fn describes_only_a_real_lock_as_locked() {
-        use keyring_core::Error;
         use secret_service::Error as ServiceError;
+        // The store's own wrapper, so a `secret-service` version split fails to compile.
+        use zbus_secret_service_keyring_store::errors::decode_error;
         let locked = "The keyring is locked. Unlock it, then try again.";
 
-        let no_access = |e| linux::describe(Error::NoStorageAccess(Box::new(e)));
-        assert_eq!(no_access(ServiceError::Locked), locked);
-        assert_eq!(no_access(ServiceError::Prompt), locked);
+        let describe = |e| linux::describe(decode_error(e));
+        assert_eq!(describe(ServiceError::Locked), locked);
+        assert_eq!(describe(ServiceError::Prompt), locked);
         // No default collection: not a lock, so the real cause is shown.
-        assert!(no_access(ServiceError::NoResult).starts_with("Couldn't access the keyring: "));
+        assert!(describe(ServiceError::NoResult).starts_with("Couldn't access the keyring: "));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn describes_only_a_missing_service_as_unavailable() {
+        use secret_service::Error as ServiceError;
+        use zbus::fdo::Error as Fdo;
+        use zbus::message::Message;
+        use zbus_secret_service_keyring_store::errors::platform_failure;
+
+        let describe = |e| linux::describe(platform_failure(e));
+        let unavailable = linux::UNAVAILABLE.to_string();
+        assert_eq!(describe(ServiceError::Unavailable), unavailable);
+        assert_eq!(
+            describe(ServiceError::ZbusFdo(Fdo::ServiceUnknown("x".into()))),
+            unavailable
+        );
+
+        // A bus that's up with no provider answers OpenSession with ServiceUnknown.
+        let call = Message::method_call("/org/freedesktop/secrets", "OpenSession")
+            .unwrap()
+            .build(&())
+            .unwrap();
+        let reply = Message::error(&call.header(), "org.freedesktop.DBus.Error.ServiceUnknown")
+            .unwrap()
+            .build(&("not activatable",))
+            .unwrap();
+        assert_eq!(describe(ServiceError::Zbus(reply.into())), unavailable);
+
+        // A bus and a provider that fail some other way show the real cause.
+        assert!(
+            describe(ServiceError::Crypto("bad key")).starts_with("Couldn't access the keyring: ")
+        );
     }
 }
