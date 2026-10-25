@@ -388,7 +388,8 @@ fn set_project_rounding(
 }
 
 /// The saved key's last four characters, or `None`; never the key itself.
-#[tauri::command]
+// Off the main thread: on Linux a locked keyring prompts, and the window must stay live.
+#[tauri::command(async)]
 fn linear_key_status(state: State<AppState>) -> Result<Option<linear::KeyStatus>, String> {
     linear::key_status(&state.secrets)
 }
@@ -425,7 +426,8 @@ async fn suggest_notes(
     suggest::suggest(&project, start, end, &state.secrets, &state.linear).await
 }
 
-#[tauri::command]
+// Off the main thread, like `linear_key_status`.
+#[tauri::command(async)]
 fn remove_linear_key(state: State<AppState>) -> Result<(), String> {
     state.secrets.delete()
 }
@@ -968,7 +970,7 @@ fn login_item(app: &tauri::App) -> Option<login::LoginItem> {
     if cfg!(debug_assertions) {
         return None;
     }
-    login::LoginItem::for_current_exe(&app.package_info().name)
+    login::LoginItem::for_current_exe(&app.package_info().name, &app.config().identifier)
 }
 
 /// v1 (Electron) kept its database in the per-user config dir under "timekeeper".

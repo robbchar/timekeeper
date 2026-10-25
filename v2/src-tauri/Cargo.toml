@@ -29,3 +29,12 @@ windows-registry = "0.100"
 windows-result = "0.100"
 keyring = "4"
 windows-sys = { version = "0.61", features = ["Win32_System_SystemInformation", "Win32_UI_Input_KeyboardAndMouse"] }
+
+# Linux talks to the Secret Service directly, so each call makes its own D-Bus connection.
+[target.'cfg(target_os = "linux")'.dependencies]
+keyring-core = "1"
+secret-service = "5"
+zbus-secret-service-keyring-store = { version = "1", features = ["crypto-rust"] }
+# Matching on the store's errors, and `block_in_place` around its blocking calls.
+zbus = "5"
+tokio = { version = "1", features = ["rt-multi-thread"] }

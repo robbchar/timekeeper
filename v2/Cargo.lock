@@ -4359,7 +4359,9 @@ version = "0.2.0"
 dependencies = [
  "chrono",
  "keyring",
+ "keyring-core",
  "reqwest",
+ "secret-service",
  "serde",
  "serde_json",
  "tauri",
@@ -4367,9 +4369,12 @@ dependencies = [
  "tauri-plugin-clipboard-manager",
  "tauri-plugin-single-instance",
  "timekeeper-core",
+ "tokio",
  "windows-registry 0.100.0",
  "windows-result 0.100.0",
  "windows-sys 0.61.2",
+ "zbus",
+ "zbus-secret-service-keyring-store",
 ]
 
 [[package]]
