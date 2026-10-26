@@ -122,6 +122,8 @@ mod linux {
         let no_owner = |e: &Fdo| matches!(e, Fdo::ServiceUnknown(_) | Fdo::NameHasNoOwner(_));
         match e {
             ServiceError::Unavailable => true,
+            // The session bus socket isn't there.
+            ServiceError::Zbus(zbus::Error::Connection(..)) => true,
             ServiceError::Zbus(zbus::Error::MethodError(name, ..)) => matches!(
                 name.as_str(),
                 "org.freedesktop.DBus.Error.ServiceUnknown"
@@ -287,6 +289,13 @@ mod tests {
             describe(ServiceError::ZbusFdo(Fdo::ServiceUnknown("x".into()))),
             unavailable
         );
+
+        // No session bus to connect to.
+        let no_bus = zbus::Error::Connection(
+            std::sync::Arc::new(std::io::ErrorKind::NotFound.into()),
+            "unix:path=/nonexistent/bus".parse().unwrap(),
+        );
+        assert_eq!(describe(ServiceError::Zbus(no_bus)), unavailable);
 
         // A bus that's up with no provider answers OpenSession with ServiceUnknown.
         let call = Message::method_call("/org/freedesktop/secrets", "OpenSession")
