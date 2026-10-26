@@ -107,7 +107,7 @@ export function LinearSettings({ projects, onChanged, onError }: Props) {
           </form>
           <p className="panel__hint">
             Create a personal API key in Linear under Settings → Security &amp; access. It's kept in
-            Windows Credential Manager, not in TimeKeeper's database.
+            your system's credential store, not in TimeKeeper's database.
           </p>
         </>
       )}
