@@ -27,7 +27,8 @@ src/components/       React UI
   A panic doesn't take the app down: builds must unwind (a `compile_error!` enforces it), a
   poisoned `Store` lock is recovered, the ticker survives a failed tick, and panics are appended
   to `<app data dir>/panic.log`. This is safe because every `Store` write is a single statement or
-  a single transaction.
+  a single transaction. Startup is the exception: if setup fails (the store can't be opened,
+  migrated or backed up first), a message box shows the error and the folders, and the app exits.
 - **`src-tauri/src/linear.rs`** is the only code that makes network calls (see [Linear](#linear)),
   and **`src-tauri/src/keychain.rs`** keeps the Linear key in the OS credential store (Windows
   Credential Manager, or the Secret Service on Linux).
@@ -135,9 +136,17 @@ stops the timer, so idle time is kept. Elsewhere, `idle_for` returns `None`,
 how many have been applied. On open, `migrate` runs each pending step in its own transaction and
 bumps `user_version` in that same transaction, so a failed step leaves the database untouched.
 
-- Add a migration by **appending** to `MIGRATIONS`.
+- Add a migration by **appending** to `MIGRATIONS`, and bump the minor version (see the README).
 - **Never edit an applied migration.** Databases that already ran it won't run it again.
 - There is no separate "create tables" schema: new databases run every migration from step 1.
+- **Backed up first:** the shell opens the store with `Store::open_with_backup`. When the file
+  exists, has a schema (`user_version` > 0) and is behind the build, it is copied with `backup_to`
+  to `timekeeper-before-update-<local date>_<time with ms>.db` in the backups folder before
+  anything migrates. If the copy fails, the open fails and nothing is migrated.
+- **Newer databases are refused:** `Error::SchemaTooNew` when `user_version` is above
+  `CURRENT_VERSION`, so an older build never runs against data it doesn't understand.
+  `open_with_backup` checks on a read-only connection first, because `Store::open` sets WAL mode
+  before `migrate` can refuse; `migrate` checks again for any other caller.
 
 ## v1 import
 
@@ -176,7 +185,17 @@ runs and doesn't hold the store lock. It writes to `<name>.partial` and renames 
 failed write never leaves a file that looks like a backup. The shell picks the path,
 `<Documents>/TimeKeeper backups/timekeeper-<local date>_<time with ms>.db`, outside the app data dir
 so the uninstaller's "delete app data" option leaves backups alone. An existing file is never
-overwritten.
+overwritten. With `TK_DATA_DIR` set (debug only), the backups folder is `<data dir>/backups`
+instead, so smoke runs never write to the real one.
+
+Two kinds of backup are automatic, in the same folder:
+
+- **Daily:** the ticker calls `Store::daily_backup` on its first tick and hourly after, so a PC that
+  stays on still gets one a day. It writes `timekeeper-auto-<local date>.db` unless that day's
+  file exists, then deletes all but the newest 30 `timekeeper-auto-<date>.db` files, plus any
+  `timekeeper-auto-<date>.db.partial` left by an interrupted run (one would make `VACUUM INTO`
+  fail every retry that day). Nothing else in the folder is ever deleted. A failure is appended to `panic.log` and retried an hour later.
+- **Before a migration:** see [Migrations](#migrations). These are never pruned.
 
 ## Settings
 
@@ -203,7 +222,8 @@ hides the toggle. On Windows it is a per-user value named after `productName` un
 Startup apps on/off switch is a flag under `Explorer\StartupApproved\Run` with the same name.
 
 Windows is the source of truth for the toggle, but the choice is also saved as `start_at_login`
-(`on`/`off`). Upgrading with "uninstall before installing" (the default) deletes the Run value, so
+(`on`/`off`). Upgrading with "uninstall before installing" (the default when the version goes up)
+deletes the Run value, so
 each launch reconciles the two:
 
 | Windows has                   | Action                                      |
@@ -299,7 +319,7 @@ them. An invalid value fails startup instead of being ignored.
 
 | Variable              | Replaces                                         |
 | --------------------- | ------------------------------------------------ |
-| `TK_DATA_DIR`         | the app data dir                                 |
+| `TK_DATA_DIR`         | the app data dir, and puts backups in `backups/` |
 | `TK_V1_IMPORT_DB`     | the v1 database both imports read                |
 | `TK_HEARTBEAT_SECS`   | the 30-second heartbeat interval                 |
 | `TK_STALE_AFTER_SECS` | the two-minute stale window `recover_stale` uses |

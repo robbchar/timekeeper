@@ -819,8 +819,7 @@ fn the_database_refuses_an_unknown_rounding_mode() {
 
 #[test]
 fn migrations_are_idempotent() {
-    let dir = std::env::temp_dir().join(format!("tk-mig-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch("tk-mig");
     let path = dir.join("t.db");
     drop(Store::open(&path).unwrap());
     let s = Store::open(&path).unwrap();
@@ -836,9 +835,7 @@ fn migrations_are_idempotent() {
 
 #[test]
 fn backup_copies_everything_including_a_running_timer() {
-    let dir = std::env::temp_dir().join(format!("tk-backup-{}", std::process::id()));
-    std::fs::remove_dir_all(&dir).ok();
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch("tk-backup");
     let live = dir.join("live.db");
     let mut s = Store::open(&live).unwrap();
     let p = s
@@ -868,8 +865,7 @@ fn backup_copies_everything_including_a_running_timer() {
 
 #[test]
 fn backup_refuses_to_overwrite() {
-    let dir = std::env::temp_dir().join(format!("tk-backup-exists-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch("tk-backup-exists");
     let copy = dir.join("backup.db");
     std::fs::write(&copy, b"keep me").unwrap();
 
@@ -881,9 +877,7 @@ fn backup_refuses_to_overwrite() {
 
 #[test]
 fn failed_backup_leaves_no_file() {
-    let dir = std::env::temp_dir().join(format!("tk-backup-fails-{}", std::process::id()));
-    std::fs::remove_dir_all(&dir).ok();
-    std::fs::create_dir_all(&dir).unwrap();
+    let dir = scratch("tk-backup-fails");
     let live = dir.join("live.db");
     drop(Store::open(&live).unwrap());
     let copy = dir.join("backup.db");
@@ -894,6 +888,186 @@ fn failed_backup_leaves_no_file() {
     assert!(Store::backup_to(&live, &copy).is_err());
     assert!(!copy.exists());
     assert!(!partial.exists());
+    std::fs::remove_dir_all(dir).ok();
+}
+
+fn scratch(name: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("{name}-{}", std::process::id()));
+    std::fs::remove_dir_all(&dir).ok();
+    std::fs::create_dir_all(&dir).unwrap();
+    dir
+}
+
+/// A database migrated only as far as `version`, holding one project.
+fn database_at_version(path: &Path, version: usize) {
+    let c = Connection::open(path).unwrap();
+    for sql in &schema::MIGRATIONS[..version] {
+        c.execute_batch(sql).unwrap();
+    }
+    c.execute_batch(&format!("PRAGMA user_version = {version};"))
+        .unwrap();
+    c.execute(
+        "INSERT INTO projects (name, created_at) VALUES ('Elevate', '2026-10-01T00:00:00Z')",
+        [],
+    )
+    .unwrap();
+}
+
+fn user_version(path: &Path) -> i64 {
+    Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .unwrap()
+        .query_row("PRAGMA user_version", [], |r| r.get(0))
+        .unwrap()
+}
+
+fn names_in(dir: &Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(dir)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().into_string().unwrap())
+        .collect();
+    names.sort();
+    names
+}
+
+#[test]
+fn opening_an_older_database_backs_it_up_before_migrating() {
+    let dir = scratch("tk-open-older");
+    let db = dir.join("live.db");
+    database_at_version(&db, 2);
+    let copy = dir.join("backups").join("before.db");
+
+    let s = Store::open_with_backup(&db, || Ok(copy.clone())).unwrap();
+
+    assert_eq!(user_version(&copy), 2);
+    let projects: i64 = Connection::open(&copy)
+        .unwrap()
+        .query_row("SELECT COUNT(*) FROM projects", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(projects, 1);
+    drop(s);
+    assert_eq!(user_version(&db), schema::CURRENT_VERSION);
+    std::fs::remove_dir_all(dir).ok();
+}
+
+#[test]
+fn opening_a_new_or_current_database_makes_no_backup() {
+    let dir = scratch("tk-open-current");
+    let db = dir.join("live.db");
+
+    drop(Store::open_with_backup(&db, || panic!("backed up a new database")).unwrap());
+    drop(Store::open_with_backup(&db, || panic!("backed up a current database")).unwrap());
+    std::fs::remove_dir_all(dir).ok();
+}
+
+#[test]
+fn a_failed_backup_stops_the_migration() {
+    let dir = scratch("tk-open-backup-fails");
+    let db = dir.join("live.db");
+    database_at_version(&db, 2);
+    let copy = dir.join("before.db");
+    // backup_to never overwrites, so this copy fails.
+    std::fs::write(&copy, b"taken").unwrap();
+
+    assert!(Store::open_with_backup(&db, || Ok(copy.clone())).is_err());
+    assert_eq!(user_version(&db), 2);
+    std::fs::remove_dir_all(dir).ok();
+}
+
+#[test]
+fn a_database_from_a_newer_build_is_refused_untouched() {
+    let dir = scratch("tk-open-newer");
+    let db = dir.join("live.db");
+    drop(Store::open(&db).unwrap());
+    let newer = schema::CURRENT_VERSION + 1;
+    // Rollback journal mode, so a read-write open that switches it to WAL would change the file.
+    Connection::open(&db)
+        .unwrap()
+        .execute_batch(&format!(
+            "PRAGMA journal_mode = DELETE; PRAGMA user_version = {newer};"
+        ))
+        .unwrap();
+    let before = std::fs::read(&db).unwrap();
+
+    let result = Store::open_with_backup(&db, || panic!("backed up a newer database"));
+
+    assert!(matches!(
+        result,
+        Err(Error::SchemaTooNew { found, supported })
+            if found == newer && supported == schema::CURRENT_VERSION
+    ));
+    assert_eq!(std::fs::read(&db).unwrap(), before);
+    assert_eq!(names_in(&dir), ["live.db"]);
+    std::fs::remove_dir_all(dir).ok();
+}
+
+#[test]
+fn daily_backup_writes_one_file_per_day() {
+    let dir = scratch("tk-daily-once");
+    let db = dir.join("live.db");
+    drop(Store::open(&db).unwrap());
+    let backups = dir.join("backups");
+
+    Store::daily_backup(&db, &backups, day("2026-10-24"), 30).unwrap();
+    Store::daily_backup(&db, &backups, day("2026-10-24"), 30).unwrap();
+
+    assert_eq!(names_in(&backups), ["timekeeper-auto-2026-10-24.db"]);
+    std::fs::remove_dir_all(dir).ok();
+}
+
+#[test]
+fn daily_backup_prunes_only_older_automatic_backups() {
+    let dir = scratch("tk-daily-prune");
+    let db = dir.join("live.db");
+    drop(Store::open(&db).unwrap());
+    let backups = dir.join("backups");
+    std::fs::create_dir_all(&backups).unwrap();
+    for name in [
+        "timekeeper-auto-2026-10-20.db",
+        "timekeeper-auto-2026-10-21.db",
+        "timekeeper-auto-2026-10-22.db",
+        "timekeeper-auto-2026-10-23.db.partial",
+        "timekeeper-auto-notes.txt",
+        "timekeeper-2026-10-01_090000.000.db",
+        "timekeeper-before-update-2026-10-02_090000.000.db",
+    ] {
+        std::fs::write(backups.join(name), b"x").unwrap();
+    }
+
+    Store::daily_backup(&db, &backups, day("2026-10-24"), 2).unwrap();
+
+    assert_eq!(
+        names_in(&backups),
+        [
+            "timekeeper-2026-10-01_090000.000.db",
+            "timekeeper-auto-2026-10-22.db",
+            "timekeeper-auto-2026-10-24.db",
+            "timekeeper-auto-notes.txt",
+            "timekeeper-before-update-2026-10-02_090000.000.db",
+        ]
+    );
+    std::fs::remove_dir_all(dir).ok();
+}
+
+#[test]
+fn daily_backup_replaces_a_partial_left_by_an_interrupted_run() {
+    let dir = scratch("tk-daily-partial");
+    let db = dir.join("live.db");
+    drop(Store::open(&db).unwrap());
+    let backups = dir.join("backups");
+    std::fs::create_dir_all(&backups).unwrap();
+    std::fs::write(
+        backups.join("timekeeper-auto-2026-10-24.db.partial"),
+        b"cut off",
+    )
+    .unwrap();
+
+    Store::daily_backup(&db, &backups, day("2026-10-24"), 30).unwrap();
+
+    assert_eq!(names_in(&backups), ["timekeeper-auto-2026-10-24.db"]);
+    assert_eq!(
+        user_version(&backups.join("timekeeper-auto-2026-10-24.db")),
+        schema::CURRENT_VERSION
+    );
     std::fs::remove_dir_all(dir).ok();
 }
 

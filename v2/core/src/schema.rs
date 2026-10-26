@@ -1,7 +1,9 @@
 //! Versioned schema. `PRAGMA user_version` records how far a database has
 //! been migrated; each step runs inside its own transaction.
 
-use rusqlite::Connection;
+use crate::{Error, Result};
+use rusqlite::{Connection, OpenFlags};
+use std::path::Path;
 
 pub(crate) const MIGRATIONS: &[&str] = &[
     // 1: initial schema
@@ -74,11 +76,31 @@ pub(crate) const MIGRATIONS: &[&str] = &[
     "#,
 ];
 
-#[cfg_attr(not(test), allow(dead_code))]
 pub const CURRENT_VERSION: i64 = MIGRATIONS.len() as i64;
 
-pub fn migrate(conn: &Connection) -> rusqlite::Result<()> {
+/// The schema version of the database at `db`, read without writing to it; `None` if there's no file.
+pub fn version_of(db: &Path) -> Result<Option<i64>> {
+    let exists = db
+        .try_exists()
+        .map_err(|e| Error::Invalid(format!("{}: {e}", db.display())))?;
+    if !exists {
+        return Ok(None);
+    }
+    let conn = Connection::open_with_flags(db, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+    Ok(Some(
+        conn.query_row("PRAGMA user_version", [], |r| r.get(0))?,
+    ))
+}
+
+pub fn migrate(conn: &Connection) -> Result<()> {
     let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+    // An older build must not run against data it doesn't understand.
+    if version > CURRENT_VERSION {
+        return Err(Error::SchemaTooNew {
+            found: version,
+            supported: CURRENT_VERSION,
+        });
+    }
     for (i, sql) in MIGRATIONS.iter().enumerate().skip(version as usize) {
         let next = i as i64 + 1;
         conn.execute_batch(&format!(

@@ -28,7 +28,7 @@ chrono = { version = "0.4", default-features = false, features = ["std", "clock"
 windows-registry = "0.100"
 windows-result = "0.100"
 keyring = "4"
-windows-sys = { version = "0.61", features = ["Win32_System_SystemInformation", "Win32_UI_Input_KeyboardAndMouse"] }
+windows-sys = { version = "0.61", features = ["Win32_System_SystemInformation", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_WindowsAndMessaging"] }
 
 # Linux talks to the Secret Service directly, so each call makes its own D-Bus connection.
 [target.'cfg(target_os = "linux")'.dependencies]

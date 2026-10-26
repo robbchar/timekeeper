@@ -4355,7 +4355,7 @@ dependencies = [
 
 [[package]]
 name = "timekeeper"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "keyring",
@@ -4379,7 +4379,7 @@ dependencies = [
 
 [[package]]
 name = "timekeeper-core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "chrono",
  "rusqlite",
