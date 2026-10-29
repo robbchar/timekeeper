@@ -13,7 +13,8 @@ const TIMEOUT: Duration = Duration::from_secs(15);
 const NO_KEY: &str = "No Linear API key is saved.";
 const EMPTY_KEY: &str = "Paste a Linear API key first.";
 /// Pages fetched before giving up, so a broad day can't run into Linear's rate limit.
-const MAX_PAGES: usize = 8;
+/// 20 pages of 10 issues still covers 200 issues.
+const MAX_PAGES: usize = 20;
 const TRUNCATED: &str = "Linear had more activity than this; some issues are missing.";
 const TRUNCATED_ANY_TEAM: &str =
     "Linear had more activity than this. Set a team key in Settings to narrow it.";
@@ -208,11 +209,11 @@ impl LinearApi for Client {
 }
 
 // `Issue.history` can't be filtered: cast a wide net, keep only the viewer's day in `parse_activity`.
-// 25 issues × 100 history entries stays well under Linear's query complexity limit.
+// 10 issues × 100 history entries is about 4,600 of Linear's 10,000 points per query; 25 was over.
 const ACTIVITY_QUERY: &str = "query Activity(
   $filter: IssueFilter!, $comments: CommentFilter!, $attachments: AttachmentFilter!, $after: String
 ) {
-  issues(first: 25, after: $after, filter: $filter, includeArchived: true) {
+  issues(first: 10, after: $after, filter: $filter, includeArchived: true) {
     pageInfo { hasNextPage endCursor }
     nodes {
       identifier
@@ -1027,6 +1028,72 @@ mod tests {
         );
         assert!(filter["and"][1]["or"].is_array());
         assert_eq!(body["variables"]["after"], "cursor-1");
+    }
+
+    type Tokens = std::iter::Peekable<std::vec::IntoIter<String>>;
+
+    /// Linear's documented score, in tenths of a point: a scalar is 1, an object 10, and a
+    /// connection's children count `first` times. Every connection must pass `first`.
+    fn complexity_tenths(query: &str) -> u64 {
+        let mut tokens = Vec::new();
+        let mut word = String::new();
+        for c in query.chars() {
+            if c.is_alphanumeric() || c == '_' || c == '$' {
+                word.push(c);
+                continue;
+            }
+            if !word.is_empty() {
+                tokens.push(std::mem::take(&mut word));
+            }
+            if "{}():".contains(c) {
+                tokens.push(c.into());
+            }
+        }
+        let mut tokens = tokens.into_iter().peekable();
+        while tokens.next_if(|t| t != "{").is_some() {}
+        tokens.next();
+        selection(&mut tokens)
+    }
+
+    fn selection(tokens: &mut Tokens) -> u64 {
+        let mut total = 0;
+        while let Some(field) = tokens.next() {
+            if field == "}" {
+                break;
+            }
+            let mut first = None;
+            if tokens.next_if_eq("(").is_some() {
+                while let Some(t) = tokens.next() {
+                    if t == ")" {
+                        break;
+                    }
+                    if t == "first" {
+                        tokens.next_if_eq(":");
+                        first = tokens.next().and_then(|n| n.parse::<u64>().ok());
+                    }
+                }
+            }
+            total += match (tokens.next_if_eq("{").is_some(), first) {
+                (false, _) => 1,
+                (true, Some(n)) => n * selection(tokens),
+                (true, None) => 10 + selection(tokens),
+            };
+        }
+        total
+    }
+
+    #[test]
+    fn complexity_matches_linears_documented_example() {
+        let example =
+            r#"{ user(id: "x") { createdIssues(first: 10) { nodes { id title createdAt } } } }"#;
+        assert_eq!(complexity_tenths(example), 140);
+    }
+
+    #[test]
+    fn activity_query_fits_linears_per_query_limit() {
+        // Linear always rejects a single query over 10,000 points.
+        let points = complexity_tenths(ACTIVITY_QUERY) / 10;
+        assert!(points <= 10_000, "ACTIVITY_QUERY costs {points} points");
     }
 
     #[test]
