@@ -281,7 +281,9 @@ system. Nothing is ever written to Linear.
   e.g. `LABS-852 Product Isolation ADR — moved to In Review; commented`, which the UI appends to the
   notes. It fetches 10 issues per page (each with 100 history entries, which keeps the query
   under Linear's 10,000-point complexity limit), at most 20 pages; past that the suggestion
-  carries a `notice` the UI shows beside the button, never in the notes. The further back the day,
+  carries a `notice` the UI shows beside the button, never in the notes. A failure after the first
+  page (e.g. rate limited) keeps the pages already fetched, with the same notice; only a
+  first-page failure is an error. The further back the day,
   the more issues have been updated since, so old days hit that cap sooner. A state change you make
   on an issue you neither own nor follow isn't found.
 - **Late replies** go to the notes editor as it is when they arrive (`SuggestButton` calls the
