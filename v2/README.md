@@ -121,6 +121,8 @@ and open <http://localhost:1420>.
   while timing, the next launch stops the timer at the last heartbeat (written every 30s) and says so,
   or where you went idle if that came first.
 - Copy buttons on each day's entry: **Time**, **Notes**, **Date**. Formats, and which day the week starts on, are on the Settings page.
+  Time can be `02:15:30`, `2:15`, `2.26` or FreshBooks' `2h 15m`; the choice also sets how
+  durations are shown.
 - Projects are renamed, recolored and archived on the Settings page. An archived project leaves the
   timer's list but keeps its history and stays in the totals filter.
 - Each project can round what **Time** copies (5–60 minute steps; up, nearest or down). The hover

@@ -3,14 +3,21 @@
 
 import type { RoundingMode } from "./api";
 
-export type DurationFormat = "hms" | "hm" | "decimal";
+export type DurationFormat = "hms" | "hm" | "decimal" | "hm_units";
 export type DateFormat = "iso" | "us" | "long";
 
 export const DURATION_FORMATS: Record<DurationFormat, string> = {
   hms: "hh:mm:ss  (02:15:30)",
   hm: "h:mm  (2:15)",
   decimal: "Decimal hours  (2.26)",
+  hm_units: "FreshBooks  (2h 15m)",
 };
+
+/** A saved `duration_format`; `hms` when unset or unknown, e.g. saved by a newer build. */
+export function parseDurationFormat(value: string | undefined): DurationFormat {
+  const known = Object.keys(DURATION_FORMATS) as DurationFormat[];
+  return known.find((f) => f === value) ?? "hms";
+}
 
 export const DATE_FORMATS: Record<DateFormat, string> = {
   iso: "2026-10-09",
@@ -32,6 +39,8 @@ export function formatDuration(seconds: number, format: DurationFormat): string 
       return `${h}:${pad(m)}`;
     case "decimal":
       return (s / 3600).toFixed(2);
+    case "hm_units":
+      return `${h}h ${pad(m)}m`;
   }
 }
 

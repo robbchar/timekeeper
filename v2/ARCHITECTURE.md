@@ -202,12 +202,12 @@ Two kinds of backup are automatic, in the same folder:
 Settings are rows in the `settings` table. The UI may only read and write the keys in `UI_SETTINGS`
 in `src-tauri/src/lib.rs`:
 
-| Key               | Values                            |
-| ----------------- | --------------------------------- |
-| `duration_format` | default `hms` (frontend)          |
-| `date_format`     | default `iso` (frontend)          |
-| `week_start`      | `sunday`; anything else is Monday |
-| `idle_minutes`    | minutes, `0` = off; default 20    |
+| Key               | Values                                                                   |
+| ----------------- | ------------------------------------------------------------------------ |
+| `duration_format` | `hms`, `hm`, `decimal`, `hm_units`; unset or unknown is `hms` (frontend) |
+| `date_format`     | default `iso` (frontend)                                                 |
+| `week_start`      | `sunday`; anything else is Monday                                        |
+| `idle_minutes`    | minutes, `0` = off; default 20                                           |
 
 `set_setting` rejects any other key but does not validate values, and `snapshot` returns only these.
 Internal keys (`v1_imported_at`, `heartbeat_at`, `last_project_id`, `start_at_login`, `idle_since`) share the

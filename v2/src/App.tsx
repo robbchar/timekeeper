@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, Entry, Snapshot, Status, Totals } from "./api";
-import { addDays, DateFormat, DurationFormat, localDay } from "./format";
+import { addDays, DateFormat, localDay, parseDurationFormat } from "./format";
 import { liveTotals as foldLive } from "./live";
 import { TimerPanel } from "./components/TimerPanel";
 import { TotalsStrip } from "./components/TotalsStrip";
@@ -118,7 +118,7 @@ export default function App() {
     return <div className="loading">{error ?? "Loading…"}</div>;
   }
 
-  const durationFormat = (snap.settings.duration_format as DurationFormat) ?? "hms";
+  const durationFormat = parseDurationFormat(snap.settings.duration_format);
   const dateFormat = (snap.settings.date_format as DateFormat) ?? "iso";
   const saveSetting = async (key: string, value: string) => {
     try {

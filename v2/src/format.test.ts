@@ -8,6 +8,7 @@ import {
   formatShort,
   localDay,
   parseDuration,
+  parseDurationFormat,
   roundSeconds,
 } from "./format";
 
@@ -16,6 +17,7 @@ describe("formatDuration", () => {
     ["hms", "02:15:30"],
     ["hm", "2:15"],
     ["decimal", "2.26"],
+    ["hm_units", "2h 15m"],
   ] as const)("formats 2h 15m 30s as %s", (format, expected) => {
     expect(formatDuration(8130, format)).toBe(expected);
   });
@@ -24,6 +26,7 @@ describe("formatDuration", () => {
     ["hms", "00:00:00"],
     ["hm", "0:00"],
     ["decimal", "0.00"],
+    ["hm_units", "0h 00m"],
   ] as const)("formats 0 as %s", (format, expected) => {
     expect(formatDuration(0, format)).toBe(expected);
   });
@@ -37,6 +40,14 @@ describe("formatDuration", () => {
     expect(formatDuration(8159, "hm")).toBe("2:15");
   });
 
+  it("drops leftover seconds in FreshBooks form", () => {
+    expect(formatDuration(8159, "hm_units")).toBe("2h 15m");
+  });
+
+  it("keeps zero hours in FreshBooks form", () => {
+    expect(formatDuration(35 * 60, "hm_units")).toBe("0h 35m");
+  });
+
   it("rounds decimal hours to two places", () => {
     expect(formatDuration(30, "decimal")).toBe("0.01");
     expect(formatDuration(8100, "decimal")).toBe("2.25");
@@ -45,10 +56,21 @@ describe("formatDuration", () => {
   it("does not wrap past 24 hours", () => {
     expect(formatDuration(100 * 3600, "hms")).toBe("100:00:00");
     expect(formatDuration(100 * 3600, "hm")).toBe("100:00");
+    expect(formatDuration(100 * 3600, "hm_units")).toBe("100h 00m");
   });
 
   it("clamps negative durations to zero", () => {
     expect(formatDuration(-5, "hms")).toBe("00:00:00");
+  });
+});
+
+describe("parseDurationFormat", () => {
+  it("keeps a known format", () => {
+    expect(parseDurationFormat("hm_units")).toBe("hm_units");
+  });
+
+  it.each([undefined, "weekly", "toString"])("falls back to hh:mm:ss for %s", (value) => {
+    expect(parseDurationFormat(value)).toBe("hms");
   });
 });
 

@@ -172,6 +172,16 @@ describe("SettingsPage: back up now", () => {
   });
 });
 
+describe("SettingsPage: copy formats", () => {
+  const select = () => screen.getByRole("combobox", { name: "Time" });
+
+  it("offers the FreshBooks format and saves it", () => {
+    const { onSetting } = renderPage();
+    fireEvent.change(select(), { target: { value: "hm_units" } });
+    expect(onSetting).toHaveBeenCalledWith("duration_format", "hm_units");
+  });
+});
+
 describe("SettingsPage: idle time", () => {
   const select = () => screen.getByRole("combobox", { name: "Ask after" });
 

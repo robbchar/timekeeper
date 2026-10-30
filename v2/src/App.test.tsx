@@ -112,6 +112,16 @@ describe("App", () => {
     expect(container.querySelector(".app")).not.toHaveAttribute("inert");
   });
 
+  it("shows durations as hh:mm:ss when the saved format is unknown", async () => {
+    vi.mocked(api.snapshot).mockResolvedValue({
+      ...snapshot,
+      settings: { duration_format: "weekly" },
+    });
+    vi.mocked(api.entries).mockResolvedValue([entryWithNotes(1, "Work")]);
+    render(<App />);
+    expect((await screen.findAllByText("00:01:00")).length).toBeGreaterThan(0);
+  });
+
   it("fetches once on mount", async () => {
     render(<App />);
     await screen.findByText("TimeKeeper");
