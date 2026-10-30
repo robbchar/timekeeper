@@ -279,10 +279,13 @@ system. Nothing is ever written to Linear.
   that were updated that day. A PR update alone only counts on an issue assigned to you, since
   anyone could have made it. Issues with none of these are dropped. Each issue becomes one line,
   e.g. `LABS-852 Product Isolation ADR — moved to In Review; commented`, which the UI appends to the
-  notes. It fetches 25 issues per page, at most 8 pages; past that the suggestion carries a
-  `notice` the UI shows beside the button, never in the notes. The further back the day, the more
-  issues have been updated since, so old days hit that cap sooner. A state change you make on an
-  issue you neither own nor follow isn't found.
+  notes. It fetches 10 issues per page (each with 100 history entries, which keeps the query
+  under Linear's 10,000-point complexity limit), at most 20 pages; past that the suggestion
+  carries a `notice` the UI shows beside the button, never in the notes. A failure after the first
+  page (e.g. rate limited) keeps the pages already fetched, with the same notice; only a
+  first-page failure is an error. The further back the day,
+  the more issues have been updated since, so old days hit that cap sooner. A state change you make
+  on an issue you neither own nor follow isn't found.
 - **Late replies** go to the notes editor as it is when they arrive (`SuggestButton` calls the
   latest callback). The timer panel keys the button to its target entry, so a reply for an entry
   you've switched away from is dropped.

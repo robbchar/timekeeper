@@ -13,7 +13,8 @@ const TIMEOUT: Duration = Duration::from_secs(15);
 const NO_KEY: &str = "No Linear API key is saved.";
 const EMPTY_KEY: &str = "Paste a Linear API key first.";
 /// Pages fetched before giving up, so a broad day can't run into Linear's rate limit.
-const MAX_PAGES: usize = 8;
+/// 20 pages of 10 issues still covers 200 issues.
+const MAX_PAGES: usize = 20;
 const TRUNCATED: &str = "Linear had more activity than this; some issues are missing.";
 const TRUNCATED_ANY_TEAM: &str =
     "Linear had more activity than this. Set a team key in Settings to narrow it.";
@@ -114,7 +115,7 @@ impl IssueActivity {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Activity {
     pub issues: Vec<IssueActivity>,
-    /// More matching issues than `MAX_PAGES` holds.
+    /// More matching issues than `MAX_PAGES` holds, or Linear failed partway through.
     pub truncated: bool,
 }
 
@@ -189,30 +190,47 @@ impl LinearApi for Client {
     }
 
     async fn activity(&self, key: &str, query: &ActivityQuery) -> Result<Activity, LinearError> {
-        let mut activity = Activity::default();
-        let mut after = None;
-        for _ in 0..MAX_PAGES {
+        collect_pages(|after| async move {
             let (status, body) = self
                 .post(key, &activity_body(query, after.as_deref()))
                 .await?;
-            let page = parse_activity(status, &body, query)?;
-            activity.issues.extend(page.issues);
-            after = page.next;
-            if after.is_none() {
-                return Ok(activity);
-            }
-        }
-        activity.truncated = true;
-        Ok(activity)
+            parse_activity(status, &body, query)
+        })
+        .await
     }
 }
 
+/// Follows cursors for up to `MAX_PAGES`. A failure after the first page keeps what came back,
+/// marked truncated, instead of losing it to one bad reply.
+async fn collect_pages<F, Fut>(mut fetch: F) -> Result<Activity, LinearError>
+where
+    F: FnMut(Option<String>) -> Fut,
+    Fut: Future<Output = Result<ActivityPage, LinearError>>,
+{
+    let mut activity = Activity::default();
+    let mut after = None;
+    for n in 0..MAX_PAGES {
+        let page = match fetch(after.take()).await {
+            Ok(page) => page,
+            Err(e) if n == 0 => return Err(e),
+            Err(_) => break,
+        };
+        activity.issues.extend(page.issues);
+        after = page.next;
+        if after.is_none() {
+            return Ok(activity);
+        }
+    }
+    activity.truncated = true;
+    Ok(activity)
+}
+
 // `Issue.history` can't be filtered: cast a wide net, keep only the viewer's day in `parse_activity`.
-// 25 issues × 100 history entries stays well under Linear's query complexity limit.
+// 10 issues × 100 history entries is about 4,600 of Linear's 10,000 points per query; 25 was over.
 const ACTIVITY_QUERY: &str = "query Activity(
   $filter: IssueFilter!, $comments: CommentFilter!, $attachments: AttachmentFilter!, $after: String
 ) {
-  issues(first: 25, after: $after, filter: $filter, includeArchived: true) {
+  issues(first: 10, after: $after, filter: $filter, includeArchived: true) {
     pageInfo { hasNextPage endCursor }
     nodes {
       identifier
@@ -1027,6 +1045,135 @@ mod tests {
         );
         assert!(filter["and"][1]["or"].is_array());
         assert_eq!(body["variables"]["after"], "cursor-1");
+    }
+
+    type Tokens = std::iter::Peekable<std::vec::IntoIter<String>>;
+
+    /// Linear's documented score, in tenths of a point: a scalar is 1, an object 10, and a
+    /// connection's children count `first` times. Every connection must pass `first`.
+    fn complexity_tenths(query: &str) -> u64 {
+        let mut tokens = Vec::new();
+        let mut word = String::new();
+        for c in query.chars() {
+            if c.is_alphanumeric() || c == '_' || c == '$' {
+                word.push(c);
+                continue;
+            }
+            if !word.is_empty() {
+                tokens.push(std::mem::take(&mut word));
+            }
+            if "{}():".contains(c) {
+                tokens.push(c.into());
+            }
+        }
+        let mut tokens = tokens.into_iter().peekable();
+        while tokens.next_if(|t| t != "{").is_some() {}
+        tokens.next();
+        selection(&mut tokens, false)
+    }
+
+    /// `paged`: the enclosing field passed a literal `first`.
+    fn selection(tokens: &mut Tokens, paged: bool) -> u64 {
+        let mut total = 0;
+        while let Some(field) = tokens.next() {
+            if field == "}" {
+                break;
+            }
+            // Unpaged, Linear charges its default page size; this scorer would charge 1.
+            assert!(
+                paged || (field != "nodes" && field != "edges"),
+                "a connection has no literal `first`"
+            );
+            let mut first = None;
+            if tokens.next_if_eq("(").is_some() {
+                while let Some(t) = tokens.next() {
+                    if t == ")" {
+                        break;
+                    }
+                    if t == "first" {
+                        tokens.next_if_eq(":");
+                        first = tokens.next().and_then(|n| n.parse::<u64>().ok());
+                    }
+                }
+            }
+            total += match (tokens.next_if_eq("{").is_some(), first) {
+                (false, _) => 1,
+                (true, Some(n)) => n * selection(tokens, true),
+                (true, None) => 10 + selection(tokens, false),
+            };
+        }
+        total
+    }
+
+    #[test]
+    fn complexity_matches_linears_documented_example() {
+        let example =
+            r#"{ user(id: "x") { createdIssues(first: 10) { nodes { id title createdAt } } } }"#;
+        assert_eq!(complexity_tenths(example), 140);
+    }
+
+    #[test]
+    #[should_panic(expected = "no literal `first`")]
+    fn complexity_refuses_a_connection_without_first() {
+        complexity_tenths("{ issues { nodes { id } } }");
+    }
+
+    #[test]
+    fn activity_query_fits_linears_per_query_limit() {
+        // Linear always rejects a single query over 10,000 points; compare in tenths, unrounded.
+        let tenths = complexity_tenths(ACTIVITY_QUERY);
+        assert!(
+            tenths <= 100_000,
+            "ACTIVITY_QUERY costs {tenths} tenths of a point"
+        );
+    }
+
+    fn issue_page(id: &str, next: Option<&str>) -> ActivityPage {
+        ActivityPage {
+            issues: vec![IssueActivity {
+                identifier: id.into(),
+                ..Default::default()
+            }],
+            next: next.map(Into::into),
+        }
+    }
+
+    #[test]
+    fn collect_pages_keeps_earlier_pages_when_a_later_one_fails() {
+        let mut calls = 0;
+        let activity = block_on(collect_pages(|_| {
+            calls += 1;
+            let reply = match calls {
+                1 => Ok(issue_page("A-1", Some("c1"))),
+                _ => Err(LinearError::RateLimited),
+            };
+            async move { reply }
+        }))
+        .unwrap();
+        assert_eq!(activity.issues[0].identifier, "A-1");
+        assert!(activity.truncated);
+    }
+
+    #[test]
+    fn collect_pages_reports_a_first_page_failure() {
+        let result = block_on(collect_pages(|_| async { Err(LinearError::RateLimited) }));
+        assert_eq!(result, Err(LinearError::RateLimited));
+    }
+
+    #[test]
+    fn collect_pages_follows_cursors_and_stops_at_max_pages() {
+        let mut cursors = Vec::new();
+        let activity = block_on(collect_pages(|after| {
+            cursors.push(after);
+            let n = cursors.len();
+            async move { Ok(issue_page(&format!("A-{n}"), Some("more"))) }
+        }))
+        .unwrap();
+        assert_eq!(cursors.len(), MAX_PAGES);
+        assert_eq!(cursors[0], None);
+        assert_eq!(cursors[1].as_deref(), Some("more"));
+        assert_eq!(activity.issues.len(), MAX_PAGES);
+        assert!(activity.truncated);
     }
 
     #[test]
