@@ -381,6 +381,10 @@ button:focus-visible {
   padding: 0;
   cursor: text;
   overflow-wrap: anywhere;
+  /* Keeps one line per suggestion; long notes scroll instead of stretching the row. */
+  white-space: pre-wrap;
+  max-height: 6lh;
+  overflow-y: auto;
 }
 .entry__notes--empty {
   color: var(--muted);
@@ -389,13 +393,24 @@ button:focus-visible {
 .entry__notes--unsaved {
   color: var(--stop);
 }
-.entry__notes--unsaved::after {
-  content: " (not saved)";
+/* Before the text, so it's in view however long the notes are. */
+.entry__notes--unsaved::before {
+  content: "(not saved) ";
   font-style: italic;
 }
 .entry__edit {
   width: 100%;
   resize: vertical;
+  /* Grows with the text up to the read view's six lines (plus padding and border). */
+  field-sizing: content;
+  min-height: calc(2lh + 16px);
+  max-height: calc(6lh + 16px);
+}
+/* A dragged height would stop it growing with the text; WebKitGTK keeps the handle. */
+@supports (field-sizing: content) {
+  .entry__edit {
+    resize: none;
+  }
 }
 .entry__duration {
   font-family: var(--mono);

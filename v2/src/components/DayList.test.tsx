@@ -54,6 +54,26 @@ const list = (
   />
 );
 
+// jsdom has no layout: scrollTop is stored, scrollHeight fixed. Returns the undo.
+function fakeScroll() {
+  const tops = new WeakMap<Element, number>();
+  const proto = HTMLElement.prototype;
+  Object.defineProperty(proto, "scrollTop", {
+    configurable: true,
+    get(this: Element) {
+      return tops.get(this) ?? 0;
+    },
+    set(this: Element, v: number) {
+      tops.set(this, v);
+    },
+  });
+  Object.defineProperty(proto, "scrollHeight", { configurable: true, get: () => 500 });
+  return () => {
+    Reflect.deleteProperty(proto, "scrollTop");
+    Reflect.deleteProperty(proto, "scrollHeight");
+  };
+}
+
 function editNotes(value: string, onError = vi.fn()) {
   const { rerender } = render(list(entry, onError));
   fireEvent.click(screen.getByTitle("Edit notes"));
@@ -103,6 +123,27 @@ describe("DayList notes editing", () => {
     expect(screen.getByTitle("Edit notes")).toHaveTextContent("newer");
     fireEvent.click(screen.getByTitle("Edit notes"));
     expect(screen.getByRole("textbox")).toHaveValue("newer");
+  });
+
+  it("opens the editor scrolled where the read view was, caret where it was clicked", () => {
+    const restore = fakeScroll();
+    render(list(entry, vi.fn()));
+    const read = screen.getByTitle("Edit notes");
+    read.scrollTop = 120;
+    document.caretPositionFromPoint = () => ({
+      offsetNode: read.firstChild!,
+      offset: 3,
+      getClientRect: () => null,
+    });
+    try {
+      fireEvent.click(read, { detail: 1 });
+      const box = screen.getByRole<HTMLTextAreaElement>("textbox");
+      expect(box.scrollTop).toBe(120);
+      expect(box.selectionStart).toBe(3);
+    } finally {
+      Reflect.deleteProperty(document, "caretPositionFromPoint");
+      restore();
+    }
   });
 });
 
@@ -334,6 +375,21 @@ describe("DayList Linear suggestions", () => {
     await waitFor(() =>
       expect(screen.getByRole("textbox")).toHaveValue("typed\nLABS-1 T — commented"),
     );
+  });
+
+  it("scrolls the editor to the appended lines", async () => {
+    const restore = fakeScroll();
+    try {
+      render(list(entry, vi.fn(), undefined, linear));
+      fireEvent.click(screen.getByTitle("Edit notes"));
+      fireEvent.click(screen.getByRole("button", { name: "Suggest from Linear" }));
+      await waitFor(() =>
+        expect(screen.getByRole("textbox")).toHaveValue("original\nLABS-1 T — commented"),
+      );
+      expect(screen.getByRole("textbox").scrollTop).toBe(500);
+    } finally {
+      restore();
+    }
   });
   it("keeps what was typed while Linear was answering", async () => {
     let resolve: (v: Suggestion[]) => void = () => {};
