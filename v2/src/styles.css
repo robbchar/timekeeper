@@ -393,8 +393,9 @@ button:focus-visible {
 .entry__notes--unsaved {
   color: var(--stop);
 }
-.entry__notes--unsaved::after {
-  content: " (not saved)";
+/* Before the text, so it's in view however long the notes are. */
+.entry__notes--unsaved::before {
+  content: "(not saved) ";
   font-style: italic;
 }
 .entry__edit {
@@ -404,6 +405,12 @@ button:focus-visible {
   field-sizing: content;
   min-height: calc(2lh + 16px);
   max-height: calc(6lh + 16px);
+}
+/* A dragged height would stop it growing with the text; WebKitGTK keeps the handle. */
+@supports (field-sizing: content) {
+  .entry__edit {
+    resize: none;
+  }
 }
 .entry__duration {
   font-family: var(--mono);

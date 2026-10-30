@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { MouseEvent, useLayoutEffect, useRef, useState } from "react";
 import { api, Entry, Project } from "../api";
 import {
   dayHeading,
@@ -98,8 +98,28 @@ function EntryRow({
     },
     onError,
   );
+  // Where the editor shows on its next render: the read view's scroll and clicked spot, or the end.
+  const editor = useRef<HTMLTextAreaElement>(null);
+  const reveal = useRef<{ scrollTop: number; caret: number | null } | "end" | null>(null);
+  useLayoutEffect(() => {
+    const box = editor.current;
+    const at = reveal.current;
+    if (!box || !at) return;
+    reveal.current = null;
+    if (at === "end") {
+      box.scrollTop = box.scrollHeight;
+      return;
+    }
+    if (at.caret !== null) box.setSelectionRange(at.caret, at.caret);
+    box.scrollTop = at.scrollTop;
+  }, [notes.editing, notes.draft]);
+  const openNotes = (e: MouseEvent<HTMLButtonElement>) => {
+    reveal.current = { scrollTop: e.currentTarget.scrollTop, caret: clickedOffset(e) };
+    notes.open();
+  };
   // Lands in the open draft (or opens one), so it's reviewed before blur saves it.
   const addSuggestion = (text: string) => {
+    reveal.current = "end";
     if (!notes.editing) notes.open();
     notes.setDraft((draft) => appendLines(draft, text));
   };
@@ -164,6 +184,7 @@ function EntryRow({
         <div className="entry__project">{entry.projectName}</div>
         {notes.editing ? (
           <textarea
+            ref={editor}
             className="entry__edit"
             autoFocus
             rows={2}
@@ -183,7 +204,7 @@ function EntryRow({
           <button
             className={`entry__notes ${notes.unsaved ? "entry__notes--unsaved" : entry.notes ? "" : "entry__notes--empty"}`}
             title="Edit notes"
-            onClick={notes.open}
+            onClick={openNotes}
           >
             {notes.unsaved ? notes.draft : entry.notes || "Add notes"}
           </button>
@@ -239,6 +260,13 @@ function EntryRow({
       </div>
     </div>
   );
+}
+
+/** The notes offset a pointer click landed on, or null for a keyboard click or outside the text. */
+function clickedOffset(e: MouseEvent<HTMLButtonElement>) {
+  if (e.detail === 0 || !("caretPositionFromPoint" in document)) return null;
+  const pos = document.caretPositionFromPoint(e.clientX, e.clientY);
+  return pos && e.currentTarget.contains(pos.offsetNode) ? pos.offset : null;
 }
 
 interface Pending {
