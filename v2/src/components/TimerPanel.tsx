@@ -61,9 +61,16 @@ export function TimerPanel({
   const [notes, setNotes] = useState(target?.notes ?? "");
   const targetId = target?.id;
   const [seenTargetId, setSeenTargetId] = useState(targetId);
+  // Notes saved elsewhere (the day list) replace the box's text, unless it's being typed in.
+  const [seenNotes, setSeenNotes] = useState(target?.notes);
+  const [focused, setFocused] = useState(false);
   if (targetId !== seenTargetId) {
     setSeenTargetId(targetId);
+    setSeenNotes(target?.notes);
     setNotes(target?.notes ?? "");
+  } else if (target?.notes !== seenNotes) {
+    setSeenNotes(target?.notes);
+    if (!focused) setNotes(target?.notes ?? "");
   }
 
   const notesProject = listed.find((p) => p.id === (target?.projectId ?? selected));
@@ -186,7 +193,11 @@ export function TimerPanel({
         placeholder={target ? "What are you working on?" : "Notes for today — saved when you start"}
         value={notes}
         onChange={(e) => scheduleSave(e.target.value)}
-        onBlur={() => void flushSave().then((saved) => (saved ? onChanged() : undefined), onError)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => {
+          setFocused(false);
+          void flushSave().then((saved) => (saved ? onChanged() : undefined), onError);
+        }}
       />
       {notesProject?.linearEnabled && (
         <div className="timer__suggest">

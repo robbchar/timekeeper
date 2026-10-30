@@ -37,9 +37,18 @@ App commands need no entry in `src-tauri/capabilities/default.json`. Plugin APIs
 Append a SQL string to `MIGRATIONS` in `core/src/schema.rs`. `CURRENT_VERSION` follows from the list
 length. `migrations_are_idempotent` in `core/src/tests.rs` covers re-running.
 
-In the same PR, bump the minor version in `[workspace.package]` in `Cargo.toml` (and commit the
-`Cargo.lock` change). Startup backs the database up before migrating it and refuses one from a newer
-build; both key on the schema version, not the app version.
+A migration always means a minor bump (see [Versioning](#versioning)). Startup backs the database up
+before migrating it and refuses one from a newer build; both key on the schema version, not the app
+version.
+
+## Versioning
+
+Every PR bumps the app version, `version` in `[workspace.package]` in `Cargo.toml` (the installer
+takes it from there): patch for a fix, minor for a feature or any migration, major for retiring v1
+(1.0.0). Run `cargo update --workspace --offline` so `Cargo.lock` follows, and commit both.
+
+Bump against main as it is when the PR merges: open PRs all edit the same line, so recheck the
+number whenever you merge main into a branch.
 
 ## Adding a UI setting
 
