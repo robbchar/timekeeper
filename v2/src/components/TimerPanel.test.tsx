@@ -212,6 +212,43 @@ describe("TimerPanel", () => {
     expect(screen.getByRole("textbox")).toHaveValue("beta notes");
   });
 
+  describe("when today's notes are edited in the day list", () => {
+    const acmeToday: Entry = {
+      ...betaToday,
+      id: 9,
+      projectId: 1,
+      projectName: "Acme",
+      notes: "typed at the top",
+    };
+    const editedBelow = { ...acmeToday, notes: "rewritten in the day list" };
+
+    it("shows the new notes", () => {
+      const { rerender } = render(<TimerPanel {...defaults} entries={[acmeToday]} />);
+      rerender(<TimerPanel {...defaults} entries={[editedBelow]} />);
+      expect(screen.getByRole("textbox")).toHaveValue("rewritten in the day list");
+    });
+
+    it("doesn't save its old text over them when clicked in and out", () => {
+      const { rerender } = render(<TimerPanel {...defaults} entries={[acmeToday]} />);
+      rerender(<TimerPanel {...defaults} entries={[editedBelow]} />);
+      const notes = screen.getByRole("textbox");
+      fireEvent.focus(notes);
+      fireEvent.blur(notes);
+      expect(api.setNotes).not.toHaveBeenCalled();
+    });
+
+    it("keeps what's being typed at the top", () => {
+      const { rerender } = render(<TimerPanel {...defaults} entries={[acmeToday]} />);
+      const notes = screen.getByRole("textbox");
+      fireEvent.focus(notes);
+      fireEvent.change(notes, { target: { value: "typed at the top, and more" } });
+      rerender(<TimerPanel {...defaults} entries={[editedBelow]} />);
+      expect(notes).toHaveValue("typed at the top, and more");
+      fireEvent.blur(notes);
+      expect(api.setNotes).toHaveBeenCalledWith(9, "typed at the top, and more");
+    });
+  });
+
   it("reports a failed start and re-enables the button", async () => {
     vi.mocked(api.start).mockRejectedValueOnce("database is locked");
     const onError = vi.fn();
