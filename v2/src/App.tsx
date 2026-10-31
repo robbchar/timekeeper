@@ -225,6 +225,7 @@ export default function App() {
           entries={liveEntries}
           projects={snap.projects}
           today={today}
+          runningProjectId={status.running?.projectId ?? null}
           durationFormat={durationFormat}
           dateFormat={dateFormat}
           onChanged={refresh}

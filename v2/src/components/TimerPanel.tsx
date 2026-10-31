@@ -51,12 +51,12 @@ export function TimerPanel({
     if (runningProjectId != null) setChosen(runningProjectId);
   }
 
-  // The notes box edits the entry the timer would use: the running one (from
-  // any day, since it can run past midnight), or today's entry for the
-  // selected project. With neither, it's a draft that becomes the new entry's
-  // notes on Start.
+  const isRunningHere = running != null && running.projectId === selected;
+  // The notes box edits the entry the timer would use for the selected project:
+  // the running one (from any day, since it can run past midnight), or today's.
+  // With neither, it's a draft that becomes the new entry's notes on Start.
   const target =
-    entries.find((e) => e.id === running?.entryId) ??
+    (isRunningHere ? entries.find((e) => e.id === running.entryId) : undefined) ??
     entries.find((e) => e.day === today && e.projectId === selected);
   const [notes, setNotes] = useState(target?.notes ?? "");
   const targetId = target?.id;
@@ -73,7 +73,7 @@ export function TimerPanel({
     if (!focused) setNotes(target?.notes ?? "");
   }
 
-  const notesProject = listed.find((p) => p.id === (target?.projectId ?? selected));
+  const selectedProject = listed.find((p) => p.id === selected);
 
   const saveTimer = useRef<number | undefined>(undefined);
   const scheduleSave = (value: string) => {
@@ -106,15 +106,18 @@ export function TimerPanel({
     }
   };
 
-  const toggle = () =>
+  // A failed save aborts the action, so the refresh can't discard the typed notes.
+  const stop = () =>
     act(async () => {
-      if (running) {
-        // A failed save aborts the stop, so the refresh can't discard the typed notes.
-        await flushSave();
-        await api.stop();
-      } else if (selected != null) {
-        await api.start(selected, targetId == null ? notes : undefined);
-      }
+      await flushSave();
+      await api.stop();
+    });
+  // While another project runs, this switches to the selected one with no gap.
+  const start = () =>
+    act(async () => {
+      if (selected == null) return;
+      await flushSave();
+      await api.start(selected, targetId == null ? notes : undefined);
     });
 
   const addProject = () =>
@@ -126,8 +129,6 @@ export function TimerPanel({
       setAdding(false);
       setNewName("");
     });
-
-  const isRunningHere = running != null && running.projectId === selected;
 
   return (
     <section className={`timer ${running ? "timer--running" : ""}`}>
@@ -178,12 +179,17 @@ export function TimerPanel({
           {formatClock(isRunningHere ? liveSeconds : (target?.seconds ?? 0))}
         </div>
 
+        {running && !isRunningHere && (
+          <button className="btn btn--ghost" disabled={busy} onClick={() => void stop()}>
+            Stop {running.projectName}
+          </button>
+        )}
         <button
-          className={`btn btn--primary ${running ? "btn--stop" : ""}`}
-          disabled={busy || (!running && selected == null)}
-          onClick={() => void toggle()}
+          className={`btn btn--primary ${isRunningHere ? "btn--stop" : ""}`}
+          disabled={busy || selected == null}
+          onClick={() => void (isRunningHere ? stop() : start())}
         >
-          {running ? (isRunningHere ? "Stop" : `Stop ${running.projectName}`) : "Start"}
+          {isRunningHere ? "Stop" : running ? `Switch to ${selectedProject?.name}` : "Start"}
         </button>
       </div>
 
@@ -199,12 +205,12 @@ export function TimerPanel({
           void flushSave().then((saved) => (saved ? onChanged() : undefined), onError);
         }}
       />
-      {notesProject?.linearEnabled && (
+      {selectedProject?.linearEnabled && (
         <div className="timer__suggest">
           <SuggestButton
             // A new target drops a reply that was meant for the old one.
-            key={`${notesProject.id}:${target?.day ?? today}:${targetId ?? "draft"}`}
-            projectId={notesProject.id}
+            key={`${selectedProject.id}:${target?.day ?? today}:${targetId ?? "draft"}`}
+            projectId={selectedProject.id}
             day={target?.day ?? today}
             onSuggested={(text) => scheduleSave(appendLines(notes, text))}
             onError={onError}
