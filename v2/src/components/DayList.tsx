@@ -20,6 +20,7 @@ interface Props {
   /** Per-project Linear suggestions and copy rounding. */
   projects: Project[];
   today: string;
+  runningProjectId: number | null;
   durationFormat: DurationFormat;
   dateFormat: DateFormat;
   onChanged: () => Promise<void>;
@@ -30,6 +31,7 @@ export function DayList({
   entries,
   projects,
   today,
+  runningProjectId,
   durationFormat,
   dateFormat,
   onChanged,
@@ -41,6 +43,16 @@ export function DayList({
     if (last && last[0] === e.day) last[1].push(e);
     else days.push([e.day, [e]]);
   }
+
+  // Start adds to a project's newest entry for today (listed first), so only that row offers it.
+  const startable = new Map<number, number>();
+  for (const e of entries) {
+    if (e.day === today && !startable.has(e.projectId)) startable.set(e.projectId, e.id);
+  }
+  const canStart = (e: Entry, project: Project | undefined) =>
+    startable.get(e.projectId) === e.id &&
+    project?.archived === false &&
+    e.projectId !== runningProjectId;
 
   if (days.length === 0) {
     return <p className="empty">No time recorded in this range yet.</p>;
@@ -56,17 +68,21 @@ export function DayList({
               {formatShort(list.reduce((n, e) => n + e.seconds, 0))}
             </span>
           </div>
-          {list.map((e) => (
-            <EntryRow
-              key={e.id}
-              entry={e}
-              project={projects.find((p) => p.id === e.projectId)}
-              durationFormat={durationFormat}
-              dateFormat={dateFormat}
-              onChanged={onChanged}
-              onError={onError}
-            />
-          ))}
+          {list.map((e) => {
+            const project = projects.find((p) => p.id === e.projectId);
+            return (
+              <EntryRow
+                key={e.id}
+                entry={e}
+                project={project}
+                startable={canStart(e, project)}
+                durationFormat={durationFormat}
+                dateFormat={dateFormat}
+                onChanged={onChanged}
+                onError={onError}
+              />
+            );
+          })}
         </div>
       ))}
     </section>
@@ -76,6 +92,7 @@ export function DayList({
 function EntryRow({
   entry,
   project,
+  startable,
   durationFormat,
   dateFormat,
   onChanged,
@@ -83,6 +100,7 @@ function EntryRow({
 }: {
   entry: Entry;
   project: Project | undefined;
+  startable: boolean;
   durationFormat: DurationFormat;
   dateFormat: DateFormat;
   onChanged: () => Promise<void>;
@@ -231,6 +249,15 @@ function EntryRow({
           <DeleteConfirm busy={deleting} onConfirm={() => void remove()} onCancel={closeConfirm} />
         ) : (
           <>
+            {(entry.running || startable) && (
+              <TimerButton
+                running={entry.running}
+                projectId={entry.projectId}
+                projectName={entry.projectName}
+                onChanged={onChanged}
+                onError={onError}
+              />
+            )}
             <CopyButton
               label="Time"
               text={copiedTime}
@@ -383,6 +410,46 @@ function DeleteConfirm({
         Cancel
       </button>
     </div>
+  );
+}
+
+/** Stops the running row, or switches the timer to this one with no gap. */
+function TimerButton({
+  running,
+  projectId,
+  projectName,
+  onChanged,
+  onError,
+}: {
+  running: boolean;
+  projectId: number;
+  projectName: string;
+  onChanged: () => Promise<void>;
+  onError: (err: unknown) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const label = running ? "Stop" : "Start";
+  const toggle = async () => {
+    setBusy(true);
+    try {
+      await (running ? api.stop() : api.start(projectId));
+    } catch (err) {
+      onError(err);
+      return;
+    } finally {
+      setBusy(false);
+    }
+    void onChanged();
+  };
+  return (
+    <button
+      className={`copy ${running ? "copy--stop" : "copy--start"}`}
+      aria-label={`${label} ${projectName}`}
+      disabled={busy}
+      onClick={() => void toggle()}
+    >
+      {label}
+    </button>
   );
 }
 

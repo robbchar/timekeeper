@@ -117,7 +117,7 @@ describe("TimerPanel", () => {
     expect(screen.queryByRole("option", { name: "Acme" })).toBeNull();
   });
 
-  it("falls back to the resume project when an archived timer stops", () => {
+  it("falls back to the resume project when an archived timer stops", async () => {
     const gamma: Project = {
       id: 3,
       name: "Gamma",
@@ -142,7 +142,7 @@ describe("TimerPanel", () => {
     expect(screen.getByRole("combobox")).toHaveValue("3");
     expect(screen.queryByRole("option", { name: "Acme" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
-    expect(api.start).toHaveBeenCalledWith(3, "");
+    await waitFor(() => expect(api.start).toHaveBeenCalledWith(3, ""));
   });
 
   it("offers the new-project form once a stopped archived timer leaves nothing to pick", () => {
@@ -249,6 +249,56 @@ describe("TimerPanel", () => {
     });
   });
 
+  describe("with another project picked while one is timing", () => {
+    beforeEach(() => vi.mocked(api.stop).mockClear());
+
+    const pickBeta = (entries: Entry[]) => {
+      render(<TimerPanel {...defaults} status={runningAcme} entries={entries} />);
+      fireEvent.change(screen.getByRole("combobox"), { target: { value: "2" } });
+    };
+
+    it("switches to it in one step", async () => {
+      pickBeta([lateEntry, betaToday]);
+      fireEvent.click(screen.getByRole("button", { name: "Switch to Beta" }));
+      await waitFor(() => expect(api.start).toHaveBeenCalledWith(2, undefined));
+      expect(api.stop).not.toHaveBeenCalled();
+    });
+
+    it("still offers to stop the running project", async () => {
+      pickBeta([lateEntry, betaToday]);
+      fireEvent.click(screen.getByRole("button", { name: "Stop Acme" }));
+      await waitFor(() => expect(api.stop).toHaveBeenCalled());
+      expect(api.start).not.toHaveBeenCalled();
+    });
+
+    it("edits the picked project's notes, not the running one's", () => {
+      pickBeta([lateEntry, betaToday]);
+      const notes = screen.getByRole("textbox");
+      expect(notes).toHaveValue("beta notes");
+      fireEvent.change(notes, { target: { value: "beta notes, more" } });
+      fireEvent.blur(notes);
+      expect(api.setNotes).toHaveBeenCalledWith(8, "beta notes, more");
+    });
+
+    it("saves the picked entry's notes before switching", async () => {
+      pickBeta([lateEntry, betaToday]);
+      fireEvent.change(screen.getByRole("textbox"), { target: { value: "beta notes, more" } });
+      fireEvent.click(screen.getByRole("button", { name: "Switch to Beta" }));
+      await waitFor(() => expect(api.start).toHaveBeenCalled());
+      expect(api.setNotes).toHaveBeenCalledWith(8, "beta notes, more");
+      const [saved] = vi.mocked(api.setNotes).mock.invocationCallOrder;
+      const [started] = vi.mocked(api.start).mock.invocationCallOrder;
+      expect(saved).toBeLessThan(started);
+    });
+
+    it("starts a project with no entry today with the draft notes", async () => {
+      pickBeta([lateEntry]);
+      fireEvent.change(screen.getByRole("textbox"), { target: { value: "beta draft" } });
+      fireEvent.click(screen.getByRole("button", { name: "Switch to Beta" }));
+      await waitFor(() => expect(api.start).toHaveBeenCalledWith(2, "beta draft"));
+    });
+  });
+
   it("reports a failed start and re-enables the button", async () => {
     vi.mocked(api.start).mockRejectedValueOnce("database is locked");
     const onError = vi.fn();
@@ -340,7 +390,9 @@ describe("TimerPanel Linear suggestions", () => {
     );
     expect(api.suggestNotes).toHaveBeenCalledWith(1, "2026-10-10");
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
-    expect(api.start).toHaveBeenCalledWith(1, "planning\nLABS-1 T — commented");
+    await waitFor(() =>
+      expect(api.start).toHaveBeenCalledWith(1, "planning\nLABS-1 T — commented"),
+    );
   });
   it("drops a suggestion that arrives after switching to another entry", async () => {
     let resolve: (v: Suggestion[]) => void = () => {};

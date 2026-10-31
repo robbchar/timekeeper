@@ -120,6 +120,10 @@ and open <http://localhost:1420>.
 - The running timer is an open interval in the database, so a crash loses nothing. If the app dies
   while timing, the next launch stops the timer at the last heartbeat (written every 30s) and says so,
   or where you went idle if that came first.
+- To switch projects while timing, pick another in the timer's list and press **Switch to …**, or
+  press **Start** on one of today's entries. The timer moves over with no gap, and the time adds to
+  that project's entry for today. The running entry has **Stop**. Past days and archived projects
+  have no Start.
 - Copy buttons on each day's entry: **Time**, **Notes**, **Date**. Formats, and which day the week starts on, are on the Settings page.
   Time can be `02:15:30`, `2:15`, `2.26` or FreshBooks' `2h 15m`; the choice also sets how
   durations are shown.

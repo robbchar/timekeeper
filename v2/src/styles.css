@@ -453,6 +453,11 @@ button:focus-visible {
   color: var(--accent);
   border-color: var(--accent);
 }
+.copy--start:hover:not(:disabled) {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.copy--stop:hover:not(:disabled),
 .copy--delete:hover:not(:disabled) {
   color: var(--stop);
   border-color: var(--stop);
