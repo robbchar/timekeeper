@@ -76,19 +76,27 @@ export function TimerPanel({
   const selectedProject = listed.find((p) => p.id === selected);
 
   const saveTimer = useRef<number | undefined>(undefined);
+  // The debounced save, kept so a flush after picking another project still sends it.
+  const pendingSave = useRef<{ entryId: number; value: string } | null>(null);
   const scheduleSave = (value: string) => {
     setNotes(value);
     if (targetId == null) return;
     window.clearTimeout(saveTimer.current);
-    saveTimer.current = window.setTimeout(
-      () => void api.setNotes(targetId, value).catch(onError),
-      600,
-    );
+    pendingSave.current = { entryId: targetId, value };
+    saveTimer.current = window.setTimeout(() => {
+      pendingSave.current = null;
+      void api.setNotes(targetId, value).catch(onError);
+    }, 600);
   };
   // Resolves true if it saved; rejects if the save fails.
   const flushSave = async () => {
-    if (targetId == null) return false;
     window.clearTimeout(saveTimer.current);
+    const pending = pendingSave.current;
+    pendingSave.current = null;
+    if (pending && pending.entryId !== targetId) {
+      await api.setNotes(pending.entryId, pending.value);
+    }
+    if (targetId == null) return false;
     if (notes === target?.notes) return false;
     await api.setNotes(targetId, notes);
     return true;
@@ -189,7 +197,11 @@ export function TimerPanel({
           disabled={busy || selected == null}
           onClick={() => void (isRunningHere ? stop() : start())}
         >
-          {isRunningHere ? "Stop" : running ? `Switch to ${selectedProject?.name}` : "Start"}
+          {isRunningHere
+            ? "Stop"
+            : running && selectedProject
+              ? `Switch to ${selectedProject.name}`
+              : "Start"}
         </button>
       </div>
 

@@ -291,6 +291,20 @@ describe("TimerPanel", () => {
       expect(saved).toBeLessThan(started);
     });
 
+    it("still saves the running entry's queued notes when switching", async () => {
+      vi.mocked(api.setNotes).mockClear();
+      vi.mocked(api.start).mockClear();
+      render(<TimerPanel {...defaults} status={runningAcme} entries={[lateEntry, betaToday]} />);
+      fireEvent.change(screen.getByRole("textbox"), { target: { value: "late fix, queued" } });
+      fireEvent.change(screen.getByRole("combobox"), { target: { value: "2" } });
+      fireEvent.click(screen.getByRole("button", { name: "Switch to Beta" }));
+      await waitFor(() => expect(api.start).toHaveBeenCalledWith(2, undefined));
+      expect(api.setNotes).toHaveBeenCalledWith(7, "late fix, queued");
+      const [saved] = vi.mocked(api.setNotes).mock.invocationCallOrder;
+      const [started] = vi.mocked(api.start).mock.invocationCallOrder;
+      expect(saved).toBeLessThan(started);
+    });
+
     it("starts a project with no entry today with the draft notes", async () => {
       pickBeta([lateEntry]);
       fireEvent.change(screen.getByRole("textbox"), { target: { value: "beta draft" } });

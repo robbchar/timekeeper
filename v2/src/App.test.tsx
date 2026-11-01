@@ -202,4 +202,26 @@ describe("App", () => {
     fireEvent.click(within(banner as HTMLElement).getByRole("button", { name: "Dismiss" }));
     expect(screen.queryByText("database is locked")).not.toBeInTheDocument();
   });
+
+  it("shows the timer every project's entries while the totals are filtered", async () => {
+    const beta: Entry = { ...entryWithNotes(2, "beta notes"), projectId: 2, projectName: "Beta" };
+    vi.mocked(api.entries).mockImplementation((_from, _to, projectId) =>
+      Promise.resolve(
+        projectId === 1
+          ? [entryWithNotes(1, "acme notes")]
+          : [entryWithNotes(1, "acme notes"), beta],
+      ),
+    );
+    const { container } = render(<App />);
+    await screen.findByText("TimeKeeper");
+    const timer = container.querySelector(".timer") as HTMLElement;
+    const totals = container.querySelector(".totals") as HTMLElement;
+    fireEvent.change(within(totals).getByRole("combobox"), { target: { value: "1" } });
+    await waitFor(() =>
+      expect(api.entries).toHaveBeenCalledWith(expect.any(String), expect.any(String), 1),
+    );
+
+    fireEvent.change(within(timer).getByRole("combobox"), { target: { value: "2" } });
+    await waitFor(() => expect(within(timer).getByRole("textbox")).toHaveValue("beta notes"));
+  });
 });

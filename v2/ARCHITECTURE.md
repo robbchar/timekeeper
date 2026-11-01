@@ -82,9 +82,9 @@ Defined in `core/src/schema.rs`.
   totals and the shown duration stay exact. `snapshot` sends `ROUNDING_STEPS` so the Settings picker
   lists the steps `set_project_rounding` accepts; turning rounding off keeps the mode.
 - **Archiving hides a project from the timer's picker and its entries' Start buttons, nothing
-  else.** Its entries, history and totals filter are unchanged, and a running timer keeps running. Which project a start defaults
-  to is `resume_project_id` (the last one timed unless archived, else the first active one).
-  The tray uses it directly, and `snapshot` sends it for the timer picker and Add time.
+  else.** Its entries, history and totals filter are unchanged, and a running timer keeps running.
+  Which project a start defaults to is `resume_project_id` (the last one timed unless archived,
+  else the first active one). The tray uses it directly, and `snapshot` sends it for the timer picker and Add time.
 - Deleting a project cascades to its entries and their intervals.
 - Deleting an entry cascades to its intervals. `delete_entry` refuses the running entry; stop the
   timer first.
