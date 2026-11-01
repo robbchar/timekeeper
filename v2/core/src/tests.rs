@@ -108,6 +108,65 @@ fn starting_another_project_stops_the_first() {
 }
 
 #[test]
+fn switching_back_and_forth_keeps_one_entry_per_project() {
+    let (mut s, a) = store_with_project();
+    let b = s
+        .create_project("Katas", at("2026-10-01T00:00:00Z"))
+        .unwrap()
+        .id;
+    s.start(a, Some("A"), at("2026-10-05T15:00:00Z"), day("2026-10-05"))
+        .unwrap();
+    s.start(b, Some("B"), at("2026-10-05T15:20:00Z"), day("2026-10-05"))
+        .unwrap();
+    s.start(
+        a,
+        Some("ignored"),
+        at("2026-10-05T15:50:00Z"),
+        day("2026-10-05"),
+    )
+    .unwrap();
+    s.stop(at("2026-10-05T16:05:00Z")).unwrap();
+
+    let e = s
+        .entries(
+            day("2026-10-05"),
+            day("2026-10-05"),
+            None,
+            at("2026-10-05T17:00:00Z"),
+        )
+        .unwrap();
+    assert_eq!(e.len(), 2);
+    let ea = e.iter().find(|e| e.project_id == a).unwrap();
+    let eb = e.iter().find(|e| e.project_id == b).unwrap();
+    assert_eq!((ea.seconds, ea.notes.as_str()), (2100, "A"));
+    assert_eq!((eb.seconds, eb.notes.as_str()), (1800, "B"));
+
+    // Each switch ends one interval at the instant the next begins.
+    let timer = |start: &str, end: &str| {
+        (
+            format!("2026-10-05T{start}:00.000Z"),
+            Some(format!("2026-10-05T{end}:00.000Z")),
+            "timer".to_string(),
+        )
+    };
+    assert_eq!(
+        intervals_of(&s, ea.id),
+        vec![timer("15:00", "15:20"), timer("15:50", "16:05")]
+    );
+    assert_eq!(intervals_of(&s, eb.id), vec![timer("15:20", "15:50")]);
+
+    let totals = s
+        .totals(
+            day("2026-10-05"),
+            WeekStart::Monday,
+            None,
+            at("2026-10-05T17:00:00Z"),
+        )
+        .unwrap();
+    assert_eq!(totals.today, 65 * 60, "the day adds up to the wall time");
+}
+
+#[test]
 fn starting_the_running_project_is_a_no_op() {
     let (mut s, p) = store_with_project();
     s.start(p, None, at("2026-10-05T15:00:00Z"), day("2026-10-05"))
