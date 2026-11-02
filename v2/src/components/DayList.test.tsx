@@ -8,6 +8,8 @@ vi.mock("../api", () => ({
     setNotes: vi.fn(() => Promise.resolve()),
     setEntrySeconds: vi.fn(() => Promise.resolve()),
     deleteEntry: vi.fn(() => Promise.resolve()),
+    start: vi.fn(() => Promise.resolve()),
+    stop: vi.fn(() => Promise.resolve()),
     copy: vi.fn(),
     suggestNotes: vi.fn(() =>
       Promise.resolve([{ source: "linear", lines: ["LABS-1 T — commented"], notice: null }]),
@@ -47,6 +49,7 @@ const list = (
     entries={[e]}
     projects={projects}
     today="2026-10-10"
+    runningProjectId={e.running ? e.projectId : null}
     durationFormat="hms"
     dateFormat="iso"
     onChanged={onChanged}
@@ -316,6 +319,7 @@ describe("DayList deleting", () => {
         entries={[entry, other]}
         projects={[acme]}
         today="2026-10-10"
+        runningProjectId={null}
         durationFormat="hms"
         dateFormat="iso"
         onChanged={() => Promise.resolve()}
@@ -436,5 +440,97 @@ describe("DayList Time copy rounding", () => {
     render(list(entry, vi.fn(), undefined, [rounding]));
     expect(screen.getByText("00:10:00")).toBeInTheDocument();
     expect(time()).toHaveAttribute("title", "Copy: 01:00:00 (rounded from 00:10:00)");
+  });
+});
+
+describe("DayList timer buttons", () => {
+  beforeEach(() => {
+    vi.mocked(api.start).mockClear();
+    vi.mocked(api.stop).mockClear();
+  });
+
+  const beta: Project = { ...acme, id: 2, name: "Beta" };
+  const betaRunning: Entry = {
+    ...entry,
+    id: 5,
+    projectId: 2,
+    projectName: "Beta",
+    notes: "beta",
+    running: true,
+  };
+  const yesterday: Entry = { ...entry, id: 2, day: "2026-10-09", notes: "yesterday" };
+
+  const days = (
+    entries: Entry[],
+    {
+      projects = [acme, beta],
+      runningProjectId = entries.find((e) => e.running)?.projectId ?? null,
+      onChanged = vi.fn(() => Promise.resolve()),
+      onError = vi.fn(),
+    } = {},
+  ) => {
+    render(
+      <DayList
+        entries={entries}
+        projects={projects}
+        today="2026-10-10"
+        runningProjectId={runningProjectId}
+        durationFormat="hms"
+        dateFormat="iso"
+        onChanged={onChanged}
+        onError={onError}
+      />,
+    );
+    return { onChanged, onError };
+  };
+
+  it("switches the timer to one of today's entries", async () => {
+    const { onChanged } = days([betaRunning, entry]);
+    fireEvent.click(screen.getByRole("button", { name: "Start Acme" }));
+    await waitFor(() => expect(onChanged).toHaveBeenCalled());
+    expect(api.start).toHaveBeenCalledWith(1);
+    expect(api.stop).not.toHaveBeenCalled();
+  });
+
+  it("stops the running entry", async () => {
+    const { onChanged } = days([betaRunning, entry]);
+    fireEvent.click(screen.getByRole("button", { name: "Stop Beta" }));
+    await waitFor(() => expect(onChanged).toHaveBeenCalled());
+    expect(api.stop).toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Start Beta" })).toBeNull();
+  });
+
+  it("offers no Start on past days", () => {
+    days([yesterday]);
+    expect(screen.queryByRole("button", { name: "Start Acme" })).toBeNull();
+  });
+
+  it("offers no Start for an archived project", () => {
+    days([entry], { projects: [{ ...acme, archived: true }] });
+    expect(screen.queryByRole("button", { name: "Start Acme" })).toBeNull();
+  });
+
+  it("offers Start only on the entry a start would time", () => {
+    // Start adds to the project's newest entry for today, which the list shows first.
+    days([{ ...entry, id: 9, notes: "newest" }, entry]);
+    const starts = screen.getAllByRole("button", { name: "Start Acme" });
+    expect(starts).toHaveLength(1);
+    expect(starts[0].closest(".entry")).toHaveTextContent("newest");
+  });
+
+  it("offers no Start while its project is timing an earlier day", () => {
+    days([entry, { ...yesterday, running: true }]);
+    expect(screen.queryByRole("button", { name: "Start Acme" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Stop Acme" })).toBeInTheDocument();
+  });
+
+  it("reports a failed start and re-enables the button", async () => {
+    vi.mocked(api.start).mockRejectedValueOnce("database is locked");
+    const { onError, onChanged } = days([entry]);
+    const start = screen.getByRole("button", { name: "Start Acme" });
+    fireEvent.click(start);
+    await waitFor(() => expect(onError).toHaveBeenCalledWith("database is locked"));
+    expect(onChanged).not.toHaveBeenCalled();
+    expect(start).toBeEnabled();
   });
 });

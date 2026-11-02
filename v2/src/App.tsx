@@ -16,6 +16,8 @@ export default function App() {
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [status, setStatus] = useState<Status>({ running: null, elapsedSeconds: 0 });
   const [entries, setEntries] = useState<Entry[]>([]);
+  // The timer picks any project's entry, so it never sees the totals filter.
+  const [timerEntries, setTimerEntries] = useState<Entry[]>([]);
   const [totals, setTotals] = useState<Totals | null>(null);
   const [fetchedAt, setFetchedAt] = useState(() => Date.now());
   const [now, setNow] = useState(() => Date.now());
@@ -36,15 +38,18 @@ export default function App() {
     const request = ++latestRefresh.current;
     try {
       const t = localDay();
-      const [s, e, tot] = await Promise.all([
+      const from = addDays(t, -(days - 1));
+      const [s, e, tot, all] = await Promise.all([
         api.snapshot(),
-        api.entries(addDays(t, -(days - 1)), t, filter),
+        api.entries(from, t, filter),
         api.totals(filter),
+        filter == null ? null : api.entries(from, t, null),
       ]);
       if (request !== latestRefresh.current) return;
       setSnap(s);
       setStatus(s.status);
       setEntries(e);
+      setTimerEntries(all ?? e);
       setTotals(tot);
       setFetchedAt(Date.now());
       setError(null);
@@ -200,7 +205,7 @@ export default function App() {
           resumeProjectId={snap.resumeProjectId}
           status={status}
           liveSeconds={liveSeconds}
-          entries={entries}
+          entries={timerEntries}
           today={today}
           onChanged={refresh}
           onError={reportError}
@@ -225,6 +230,7 @@ export default function App() {
           entries={liveEntries}
           projects={snap.projects}
           today={today}
+          runningProjectId={status.running?.projectId ?? null}
           durationFormat={durationFormat}
           dateFormat={dateFormat}
           onChanged={refresh}
