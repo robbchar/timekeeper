@@ -73,9 +73,6 @@ impl ActivityQuery {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct IssueActivity {
     pub identifier: String,
-    pub title: String,
-    pub created: bool,
-    pub assigned: bool,
     /// States the viewer moved the issue to, in order.
     pub moved_to: Vec<String>,
     pub commented: bool,
@@ -87,23 +84,11 @@ pub struct IssueActivity {
     pub project: Option<String>,
 }
 
-impl IssueActivity {
-    /// Whether the viewer did anything themselves; a PR update alone could be anyone's.
-    fn acted(&self) -> bool {
-        self.created || self.assigned || !self.moved_to.is_empty() || self.commented
-    }
-
-    /// Whether time likely went into the issue; creating or being assigned one is not work.
-    fn worked(&self) -> bool {
-        !self.moved_to.is_empty() || self.commented || !self.prs.is_empty()
-    }
-}
-
 /// One line per group, `product access isolation (LABS-778, LABS-864)`, in first-seen order.
 /// Issues with no label or project end up on a last line of bare keys.
 pub fn notes_lines(issues: &[IssueActivity]) -> Vec<String> {
     let mut groups: Vec<(Option<&str>, Vec<&str>)> = Vec::new();
-    for issue in issues.iter().filter(|i| i.worked()) {
+    for issue in issues {
         let name = issue.label.as_deref().or(issue.project.as_deref());
         match groups.iter_mut().find(|(n, _)| *n == name) {
             Some((_, keys)) => keys.push(&issue.identifier),
@@ -130,7 +115,7 @@ pub struct Activity {
 pub trait LinearApi {
     /// The name of the Linear user `key` belongs to.
     fn viewer(&self, key: &str) -> impl Future<Output = Result<String, LinearError>> + Send;
-    /// The issues the key's user created, was assigned, moved or commented on in `query`'s span.
+    /// The issues the key's user moved, commented on or had a PR change on in `query`'s span.
     fn activity(
         &self,
         key: &str,
@@ -242,11 +227,8 @@ const ACTIVITY_QUERY: &str = "query Activity(
     pageInfo { hasNextPage endCursor }
     nodes {
       identifier
-      title
-      createdAt
-      creator { isMe }
       assignee { isMe }
-      history(first: 100) { nodes { createdAt actor { isMe } toState { name } toAssignee { isMe } } }
+      history(first: 100) { nodes { createdAt actor { isMe } toState { name } } }
       comments(first: 1, filter: $comments) { nodes { id } }
       attachments(first: 10, filter: $attachments) { nodes { url } }
       labels(first: 1) { nodes { name } }
@@ -331,7 +313,7 @@ struct ActivityPage {
     next: Option<String>,
 }
 
-/// Keeps, per issue, only what the viewer did inside `query`'s span; drops issues with nothing.
+/// Keeps, per issue, only what the viewer did inside `query`'s span; drops issues that took no time.
 fn parse_activity(
     status: u16,
     body: &str,
@@ -357,8 +339,6 @@ fn parse_activity(
         history.sort_by_key(|e| str_of(&e["createdAt"]));
         let mut issue = IssueActivity {
             identifier: str_of(&node["identifier"]),
-            title: str_of(&node["title"]),
-            created: is_me(&node["creator"]) && query.contains(&str_of(&node["createdAt"])),
             commented: node["comments"]["nodes"]
                 .as_array()
                 .is_some_and(|c| !c.is_empty()),
@@ -375,7 +355,6 @@ fn parse_activity(
             ..IssueActivity::default()
         };
         for entry in history {
-            issue.assigned |= is_me(&entry["toAssignee"]);
             if let (true, Some(state)) = (is_me(&entry["actor"]), entry["toState"]["name"].as_str())
             {
                 if issue.moved_to.last().map(String::as_str) != Some(state) {
@@ -383,8 +362,9 @@ fn parse_activity(
                 }
             }
         }
-        // A PR update counts on the viewer's own issue; elsewhere it only adds to their activity.
-        if issue.acted() || (is_me(&node["assignee"]) && !issue.prs.is_empty()) {
+        // Creating or being assigned isn't work; a PR update only counts on the viewer's own issue.
+        let pr_of_mine = is_me(&node["assignee"]) && !issue.prs.is_empty();
+        if !issue.moved_to.is_empty() || issue.commented || pr_of_mine {
             found.push(issue);
         }
     }
@@ -564,9 +544,6 @@ mod tests {
     fn issue_node(extra: Value) -> Value {
         let mut node = json!({
             "identifier": "LABS-852",
-            "title": "Product Isolation ADR",
-            "createdAt": "2026-09-01T12:00:00.000Z",
-            "creator": { "isMe": false },
             "history": { "nodes": [] },
             "comments": { "nodes": [] },
             "attachments": { "nodes": [] },
@@ -888,35 +865,8 @@ mod tests {
     }
 
     #[test]
-    fn lines_skip_issues_that_were_only_created_or_assigned() {
-        let created = IssueActivity {
-            identifier: "LABS-2".into(),
-            created: true,
-            assigned: true,
-            label: Some("l".into()),
-            ..IssueActivity::default()
-        };
-        let moved = IssueActivity {
-            identifier: "LABS-3".into(),
-            moved_to: vec!["Done".into()],
-            label: Some("l".into()),
-            ..IssueActivity::default()
-        };
-        let pr = IssueActivity {
-            identifier: "LABS-4".into(),
-            prs: vec!["app#1".into()],
-            label: Some("l".into()),
-            ..IssueActivity::default()
-        };
-        assert_eq!(notes_lines(&[created, moved, pr]), ["l (LABS-3, LABS-4)"]);
-    }
-
-    #[test]
-    fn lines_are_empty_without_activity() {
-        assert_eq!(
-            notes_lines(&[IssueActivity::default()]),
-            Vec::<String>::new()
-        );
+    fn lines_are_empty_without_issues() {
+        assert_eq!(notes_lines(&[]), Vec::<String>::new());
     }
 
     #[test]
@@ -932,7 +882,7 @@ mod tests {
         let issues = parse(vec![issue_node(history)]);
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].moved_to, ["In Progress", "In Review"]);
-        assert!(!issues[0].created && !issues[0].assigned && !issues[0].commented);
+        assert!(!issues[0].commented);
     }
 
     #[test]
@@ -949,22 +899,23 @@ mod tests {
     }
 
     #[test]
-    fn parse_activity_assigned_to_me_that_day_by_anyone() {
-        let history = json!({ "history": { "nodes": [
+    fn parse_activity_drops_issues_i_only_created_or_was_assigned() {
+        let assigned = json!({ "history": { "nodes": [
             { "createdAt": "2026-10-16T14:00:00Z", "actor": { "isMe": false }, "toAssignee": { "isMe": true } },
         ] } });
-        let issues = parse(vec![issue_node(history)]);
-        assert!(issues[0].assigned);
-        assert!(issues[0].moved_to.is_empty());
+        let created = json!({ "creator": { "isMe": true }, "createdAt": "2026-10-16T15:00:00Z" });
+        assert!(parse(vec![issue_node(assigned), issue_node(created)]).is_empty());
     }
 
     #[test]
-    fn parse_activity_created_only_counts_inside_the_day() {
-        let today = json!({ "creator": { "isMe": true }, "createdAt": "2026-10-16T15:00:00Z" });
-        let yesterday = json!({ "creator": { "isMe": true }, "createdAt": "2026-10-15T15:00:00Z" });
-        let issues = parse(vec![issue_node(today), issue_node(yesterday)]);
-        assert_eq!(issues.len(), 1);
-        assert!(issues[0].created);
+    fn parse_activity_ignores_someone_elses_pr_on_an_issue_i_created() {
+        let handed_off = json!({
+            "creator": { "isMe": true },
+            "createdAt": "2026-10-16T15:00:00Z",
+            "assignee": { "isMe": false },
+            "attachments": { "nodes": [{ "url": "https://github.com/o/app/pull/12" }] },
+        });
+        assert!(parse(vec![issue_node(handed_off)]).is_empty());
     }
 
     #[test]
@@ -1234,7 +1185,6 @@ mod tests {
         secrets.set("lin_api_saved").unwrap();
         let issue = IssueActivity {
             identifier: "LABS-1".into(),
-            title: "T".into(),
             commented: true,
             ..IssueActivity::default()
         };
