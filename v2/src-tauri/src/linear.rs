@@ -81,6 +81,10 @@ pub struct IssueActivity {
     pub commented: bool,
     /// Linked GitHub PRs updated that day, e.g. `timekeeper#104`.
     pub prs: Vec<String>,
+    /// The issue's first label, which names its group in the notes.
+    pub label: Option<String>,
+    /// The Linear project, the group name for unlabelled issues.
+    pub project: Option<String>,
 }
 
 impl IssueActivity {
@@ -89,27 +93,31 @@ impl IssueActivity {
         self.created || self.assigned || !self.moved_to.is_empty() || self.commented
     }
 
-    /// `LABS-852 Product Isolation ADR — moved to In Review; commented`, or `None` if nothing happened.
-    pub fn line(&self) -> Option<String> {
-        let mut parts = Vec::new();
-        if self.created {
-            parts.push("created".to_owned());
-        }
-        if self.assigned {
-            parts.push("assigned".to_owned());
-        }
-        if !self.moved_to.is_empty() {
-            parts.push(format!("moved to {}", self.moved_to.join(", then ")));
-        }
-        if self.commented {
-            parts.push("commented".to_owned());
-        }
-        if !self.prs.is_empty() {
-            parts.push(format!("PR {}", self.prs.join(", ")));
-        }
-        (!parts.is_empty())
-            .then(|| format!("{} {} — {}", self.identifier, self.title, parts.join("; ")))
+    /// Whether time likely went into the issue; creating or being assigned one is not work.
+    fn worked(&self) -> bool {
+        !self.moved_to.is_empty() || self.commented || !self.prs.is_empty()
     }
+}
+
+/// One line per group, `product access isolation (LABS-778, LABS-864)`, in first-seen order.
+/// Issues with no label or project end up on a last line of bare keys.
+pub fn notes_lines(issues: &[IssueActivity]) -> Vec<String> {
+    let mut groups: Vec<(Option<&str>, Vec<&str>)> = Vec::new();
+    for issue in issues.iter().filter(|i| i.worked()) {
+        let name = issue.label.as_deref().or(issue.project.as_deref());
+        match groups.iter_mut().find(|(n, _)| *n == name) {
+            Some((_, keys)) => keys.push(&issue.identifier),
+            None => groups.push((name, vec![&issue.identifier])),
+        }
+    }
+    groups.sort_by_key(|(name, _)| name.is_none());
+    groups
+        .iter()
+        .map(|(name, keys)| match name {
+            Some(name) => format!("{name} ({})", keys.join(", ")),
+            None => format!("({})", keys.join(", ")),
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -241,6 +249,8 @@ const ACTIVITY_QUERY: &str = "query Activity(
       history(first: 100) { nodes { createdAt actor { isMe } toState { name } toAssignee { isMe } } }
       comments(first: 1, filter: $comments) { nodes { id } }
       attachments(first: 10, filter: $attachments) { nodes { url } }
+      labels(first: 1) { nodes { name } }
+      project { name }
     }
   }
 }";
@@ -358,6 +368,10 @@ fn parse_activity(
                 .flatten()
                 .filter_map(|a| pr_label(a["url"].as_str()?))
                 .collect(),
+            label: node["labels"]["nodes"][0]["name"]
+                .as_str()
+                .map(str::to_owned),
+            project: node["project"]["name"].as_str().map(str::to_owned),
             ..IssueActivity::default()
         };
         for entry in history {
@@ -444,7 +458,7 @@ pub struct Lines {
     pub notice: Option<String>,
 }
 
-/// One line per issue the saved key's user worked on in `query`'s span, for appending to notes.
+/// One line per label or project the saved key's user worked in during `query`'s span, for the notes.
 pub async fn suggest(
     secrets: &impl SecretStore,
     api: &impl LinearApi,
@@ -461,11 +475,7 @@ pub async fn suggest(
         .to_owned()
     });
     Ok(Lines {
-        lines: activity
-            .issues
-            .iter()
-            .filter_map(IssueActivity::line)
-            .collect(),
+        lines: notes_lines(&activity.issues),
         notice,
     })
 }
@@ -848,41 +858,65 @@ mod tests {
         assert!(api.asked.lock().unwrap().is_empty());
     }
 
-    #[test]
-    fn line_reads_like_the_spec_example() {
-        let issue = IssueActivity {
-            identifier: "LABS-852".into(),
-            title: "Product Isolation ADR".into(),
-            moved_to: vec!["In Review".into()],
+    fn worked(id: &str, label: Option<&str>, project: Option<&str>) -> IssueActivity {
+        IssueActivity {
+            identifier: id.into(),
             commented: true,
+            label: label.map(Into::into),
+            project: project.map(Into::into),
             ..IssueActivity::default()
-        };
+        }
+    }
+
+    #[test]
+    fn lines_group_keys_by_label_then_project_then_bare() {
+        let isolation = Some("product access isolation");
+        let issues = [
+            worked("LABS-778", isolation, Some("Elevate")),
+            worked("LABS-1", None, None),
+            worked("LABS-1053", None, Some("Insights")),
+            worked("LABS-864", isolation, None),
+        ];
         assert_eq!(
-            issue.line().as_deref(),
-            Some("LABS-852 Product Isolation ADR — moved to In Review; commented")
+            notes_lines(&issues),
+            [
+                "product access isolation (LABS-778, LABS-864)",
+                "Insights (LABS-1053)",
+                "(LABS-1)",
+            ]
         );
     }
 
     #[test]
-    fn line_lists_every_kind_of_activity_in_order() {
-        let issue = IssueActivity {
-            identifier: "LABS-1".into(),
-            title: "T".into(),
+    fn lines_skip_issues_that_were_only_created_or_assigned() {
+        let created = IssueActivity {
+            identifier: "LABS-2".into(),
             created: true,
             assigned: true,
-            moved_to: vec!["In Progress".into(), "In Review".into()],
-            commented: true,
-            prs: vec!["app#12".into(), "api#3".into()],
+            label: Some("l".into()),
+            ..IssueActivity::default()
         };
-        assert_eq!(
-            issue.line().as_deref(),
-            Some("LABS-1 T — created; assigned; moved to In Progress, then In Review; commented; PR app#12, api#3")
-        );
+        let moved = IssueActivity {
+            identifier: "LABS-3".into(),
+            moved_to: vec!["Done".into()],
+            label: Some("l".into()),
+            ..IssueActivity::default()
+        };
+        let pr = IssueActivity {
+            identifier: "LABS-4".into(),
+            prs: vec!["app#1".into()],
+            label: Some("l".into()),
+            ..IssueActivity::default()
+        };
+        assert_eq!(notes_lines(&[created, moved, pr]), ["l (LABS-3, LABS-4)"]);
     }
 
     #[test]
-    fn line_is_none_without_activity() {
-        assert_eq!(IssueActivity::default().line(), None);
+    fn lines_are_empty_without_activity() {
+        assert_eq!(
+            notes_lines(&[IssueActivity::default()]),
+            Vec::<String>::new()
+        );
     }
 
     #[test]
@@ -945,6 +979,24 @@ mod tests {
         let issues = parse(vec![issue_node(extra)]);
         assert!(issues[0].commented);
         assert_eq!(issues[0].prs, ["timekeeper#104"]);
+    }
+
+    #[test]
+    fn parse_activity_reads_the_first_label_and_the_project() {
+        let commented = json!({ "nodes": [{ "id": "c1" }] });
+        let tagged = json!({
+            "comments": commented,
+            "labels": { "nodes": [{ "name": "product access isolation" }, { "name": "bug" }] },
+            "project": { "name": "Elevate" },
+        });
+        let issues = parse(vec![issue_node(tagged)]);
+        assert_eq!(issues[0].label.as_deref(), Some("product access isolation"));
+        assert_eq!(issues[0].project.as_deref(), Some("Elevate"));
+        let bare = parse(vec![issue_node(
+            json!({ "comments": commented, "labels": { "nodes": [] }, "project": null }),
+        )]);
+        assert_eq!(bare[0].label, None);
+        assert_eq!(bare[0].project, None);
     }
 
     #[test]
@@ -1193,7 +1245,7 @@ mod tests {
         assert_eq!(
             block_on(suggest(&secrets, &api, &day())),
             Ok(Lines {
-                lines: vec!["LABS-1 T — commented".into()],
+                lines: vec!["(LABS-1)".into()],
                 notice: Some(
                     "Linear had more activity than this. Set a team key in Settings to narrow it."
                         .into()

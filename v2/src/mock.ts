@@ -394,10 +394,9 @@ function handle<T>(cmd: string, a: Record<string, unknown>): T {
       const p = project(a.projectId);
       if (!p.linearEnabled) return [] as T;
       if (!linearKey) throw new Refused("No Linear API key is saved.");
-      const issue = `${p.linearTeamKey ?? "MOCK"}-1 Mock issue for ${a.day as string}`;
-      return [
-        { source: "linear", lines: [`${issue} — moved to In Review; commented`], notice: null },
-      ] satisfies Suggestion[] as T;
+      const team = p.linearTeamKey ?? "MOCK";
+      const line = `mock label for ${a.day as string} (${team}-1, ${team}-2)`;
+      return [{ source: "linear", lines: [line], notice: null }] satisfies Suggestion[] as T;
     }
   }
   throw new Error(`mock: unknown command ${cmd}`);

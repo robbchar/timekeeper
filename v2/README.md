@@ -134,9 +134,10 @@ and open <http://localhost:1420>.
 - Linear is opt-in per project on the Settings page, with an optional team key (e.g. `LABS`). Saving
   a key checks it with Linear first; a key Linear refuses is never stored.
 - For those projects, **Suggest from Linear** under the timer's notes and under each day's entry
-  appends one line per issue you worked on that day (created, assigned, moved, commented, linked PR).
-  It never replaces what you wrote; in the day list it opens the notes so you can trim the lines
-  before they save.
+  appends one line per Linear label (or project, for unlabelled issues) with the keys of the issues
+  you moved, commented on or had a PR change on that day, e.g. `product access isolation (LABS-778,
+LABS-864)`. Issues you only created or were assigned are left out. It never replaces what you
+  wrote; in the day list it opens the notes so you can trim the lines before they save.
 
 ## Tests
 

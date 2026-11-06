@@ -277,9 +277,12 @@ system. Nothing is ever written to Linear.
   filtered server-side, so `parse_activity` keeps only what happened inside the day: states _you_
   moved it to, being assigned (by anyone), creating it, commenting, and GitHub PRs attached to it
   that were updated that day. A PR update alone only counts on an issue assigned to you, since
-  anyone could have made it. Issues with none of these are dropped. Each issue becomes one line,
-  e.g. `LABS-852 Product Isolation ADR — moved to In Review; commented`, which the UI appends to the
-  notes. It fetches 10 issues per page (each with 100 history entries, which keeps the query
+  anyone could have made it. Issues with none of these are dropped. `notes_lines` then keeps only
+  issues that took time (moved, commented or with a PR change; created or assigned alone does not
+  count) and groups their keys under the issue's first label, or its project when unlabelled, one
+  line per group, e.g. `product access isolation (LABS-778, LABS-864)`, with any issues that have
+  neither on a last line of bare keys. The UI appends those lines to the notes. It fetches 10 issues
+  per page (each with 100 history entries, which keeps the query
   under Linear's 10,000-point complexity limit), at most 20 pages; past that the suggestion
   carries a `notice` the UI shows beside the button, never in the notes. A failure after the first
   page (e.g. rate limited) keeps the pages already fetched, with the same notice; only a
