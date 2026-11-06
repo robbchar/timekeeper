@@ -85,8 +85,8 @@ mod tests {
             Ok(Activity {
                 issues: vec![IssueActivity {
                     identifier: "LABS-1".into(),
-                    title: "T".into(),
                     commented: true,
+                    label: Some("access".into()),
                     ..IssueActivity::default()
                 }],
                 truncated: false,
@@ -129,7 +129,7 @@ mod tests {
             got,
             Ok(vec![Suggestion {
                 source: Source::Linear,
-                lines: vec!["LABS-1 T — commented".into()],
+                lines: vec!["access (LABS-1)".into()],
                 notice: None,
             }])
         );

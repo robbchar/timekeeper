@@ -274,13 +274,14 @@ system. Nothing is ever written to Linear.
 - **Suggest from Linear** (`suggest_notes`, on demand only) takes a project and a local day and asks
   for issues you commented on or created that day, plus issues assigned to you or that you're
   subscribed to updated since the day began (filtered by team key, if set). `Issue.history` can't be
-  filtered server-side, so `parse_activity` keeps only what happened inside the day: states _you_
-  moved it to, being assigned (by anyone), creating it, commenting, and GitHub PRs attached to it
-  that were updated that day. A PR update alone only counts on an issue assigned to you, since
-  anyone could have made it. Issues with none of these are dropped. Each issue becomes one line,
-  e.g. `LABS-852 Product Isolation ADR — moved to In Review; commented`, which the UI appends to the
-  notes. It fetches 10 issues per page (each with 100 history entries, which keeps the query
-  under Linear's 10,000-point complexity limit), at most 20 pages; past that the suggestion
+  filtered server-side, so `parse_activity` keeps only issues that took time inside the day: states
+  _you_ moved it to, commenting, or a GitHub PR attached to it that was updated that day. A PR update
+  only counts on an issue assigned to you, since anyone could have made it. Creating an issue or
+  being assigned one is not work, so those alone drop it. `notes_lines` groups the remaining keys
+  under the issue's first label, or its project when unlabelled, one line per group, e.g.
+  `product access isolation (LABS-778, LABS-864)`, with any issues that have neither on a last line
+  of bare keys. The UI appends those lines to the notes. It fetches 10 issues per page (each with
+  100 history entries, which keeps the query under Linear's 10,000-point complexity limit), at most 20 pages; past that the suggestion
   carries a `notice` the UI shows beside the button, never in the notes. A failure after the first
   page (e.g. rate limited) keeps the pages already fetched, with the same notice; only a
   first-page failure is an error. The further back the day,

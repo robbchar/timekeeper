@@ -73,43 +73,36 @@ impl ActivityQuery {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct IssueActivity {
     pub identifier: String,
-    pub title: String,
-    pub created: bool,
-    pub assigned: bool,
     /// States the viewer moved the issue to, in order.
     pub moved_to: Vec<String>,
     pub commented: bool,
     /// Linked GitHub PRs updated that day, e.g. `timekeeper#104`.
     pub prs: Vec<String>,
+    /// The issue's first label, which names its group in the notes.
+    pub label: Option<String>,
+    /// The Linear project, the group name for unlabelled issues.
+    pub project: Option<String>,
 }
 
-impl IssueActivity {
-    /// Whether the viewer did anything themselves; a PR update alone could be anyone's.
-    fn acted(&self) -> bool {
-        self.created || self.assigned || !self.moved_to.is_empty() || self.commented
+/// One line per group, `product access isolation (LABS-778, LABS-864)`, in first-seen order.
+/// Issues with no label or project end up on a last line of bare keys.
+pub fn notes_lines(issues: &[IssueActivity]) -> Vec<String> {
+    let mut groups: Vec<(Option<&str>, Vec<&str>)> = Vec::new();
+    for issue in issues {
+        let name = issue.label.as_deref().or(issue.project.as_deref());
+        match groups.iter_mut().find(|(n, _)| *n == name) {
+            Some((_, keys)) => keys.push(&issue.identifier),
+            None => groups.push((name, vec![&issue.identifier])),
+        }
     }
-
-    /// `LABS-852 Product Isolation ADR — moved to In Review; commented`, or `None` if nothing happened.
-    pub fn line(&self) -> Option<String> {
-        let mut parts = Vec::new();
-        if self.created {
-            parts.push("created".to_owned());
-        }
-        if self.assigned {
-            parts.push("assigned".to_owned());
-        }
-        if !self.moved_to.is_empty() {
-            parts.push(format!("moved to {}", self.moved_to.join(", then ")));
-        }
-        if self.commented {
-            parts.push("commented".to_owned());
-        }
-        if !self.prs.is_empty() {
-            parts.push(format!("PR {}", self.prs.join(", ")));
-        }
-        (!parts.is_empty())
-            .then(|| format!("{} {} — {}", self.identifier, self.title, parts.join("; ")))
-    }
+    groups.sort_by_key(|(name, _)| name.is_none());
+    groups
+        .iter()
+        .map(|(name, keys)| match name {
+            Some(name) => format!("{name} ({})", keys.join(", ")),
+            None => format!("({})", keys.join(", ")),
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -122,7 +115,7 @@ pub struct Activity {
 pub trait LinearApi {
     /// The name of the Linear user `key` belongs to.
     fn viewer(&self, key: &str) -> impl Future<Output = Result<String, LinearError>> + Send;
-    /// The issues the key's user created, was assigned, moved or commented on in `query`'s span.
+    /// The issues the key's user moved, commented on or had a PR change on in `query`'s span.
     fn activity(
         &self,
         key: &str,
@@ -234,13 +227,12 @@ const ACTIVITY_QUERY: &str = "query Activity(
     pageInfo { hasNextPage endCursor }
     nodes {
       identifier
-      title
-      createdAt
-      creator { isMe }
       assignee { isMe }
-      history(first: 100) { nodes { createdAt actor { isMe } toState { name } toAssignee { isMe } } }
+      history(first: 100) { nodes { createdAt actor { isMe } toState { name } } }
       comments(first: 1, filter: $comments) { nodes { id } }
       attachments(first: 10, filter: $attachments) { nodes { url } }
+      labels(first: 1) { nodes { name } }
+      project { name }
     }
   }
 }";
@@ -321,7 +313,7 @@ struct ActivityPage {
     next: Option<String>,
 }
 
-/// Keeps, per issue, only what the viewer did inside `query`'s span; drops issues with nothing.
+/// Keeps, per issue, only what the viewer did inside `query`'s span; drops issues that took no time.
 fn parse_activity(
     status: u16,
     body: &str,
@@ -347,8 +339,6 @@ fn parse_activity(
         history.sort_by_key(|e| str_of(&e["createdAt"]));
         let mut issue = IssueActivity {
             identifier: str_of(&node["identifier"]),
-            title: str_of(&node["title"]),
-            created: is_me(&node["creator"]) && query.contains(&str_of(&node["createdAt"])),
             commented: node["comments"]["nodes"]
                 .as_array()
                 .is_some_and(|c| !c.is_empty()),
@@ -358,10 +348,13 @@ fn parse_activity(
                 .flatten()
                 .filter_map(|a| pr_label(a["url"].as_str()?))
                 .collect(),
+            label: node["labels"]["nodes"][0]["name"]
+                .as_str()
+                .map(str::to_owned),
+            project: node["project"]["name"].as_str().map(str::to_owned),
             ..IssueActivity::default()
         };
         for entry in history {
-            issue.assigned |= is_me(&entry["toAssignee"]);
             if let (true, Some(state)) = (is_me(&entry["actor"]), entry["toState"]["name"].as_str())
             {
                 if issue.moved_to.last().map(String::as_str) != Some(state) {
@@ -369,8 +362,9 @@ fn parse_activity(
                 }
             }
         }
-        // A PR update counts on the viewer's own issue; elsewhere it only adds to their activity.
-        if issue.acted() || (is_me(&node["assignee"]) && !issue.prs.is_empty()) {
+        // Creating or being assigned isn't work; a PR update only counts on the viewer's own issue.
+        let pr_of_mine = is_me(&node["assignee"]) && !issue.prs.is_empty();
+        if !issue.moved_to.is_empty() || issue.commented || pr_of_mine {
             found.push(issue);
         }
     }
@@ -444,7 +438,7 @@ pub struct Lines {
     pub notice: Option<String>,
 }
 
-/// One line per issue the saved key's user worked on in `query`'s span, for appending to notes.
+/// One line per label or project the saved key's user worked in during `query`'s span, for the notes.
 pub async fn suggest(
     secrets: &impl SecretStore,
     api: &impl LinearApi,
@@ -461,11 +455,7 @@ pub async fn suggest(
         .to_owned()
     });
     Ok(Lines {
-        lines: activity
-            .issues
-            .iter()
-            .filter_map(IssueActivity::line)
-            .collect(),
+        lines: notes_lines(&activity.issues),
         notice,
     })
 }
@@ -554,9 +544,6 @@ mod tests {
     fn issue_node(extra: Value) -> Value {
         let mut node = json!({
             "identifier": "LABS-852",
-            "title": "Product Isolation ADR",
-            "createdAt": "2026-09-01T12:00:00.000Z",
-            "creator": { "isMe": false },
             "history": { "nodes": [] },
             "comments": { "nodes": [] },
             "attachments": { "nodes": [] },
@@ -848,41 +835,38 @@ mod tests {
         assert!(api.asked.lock().unwrap().is_empty());
     }
 
-    #[test]
-    fn line_reads_like_the_spec_example() {
-        let issue = IssueActivity {
-            identifier: "LABS-852".into(),
-            title: "Product Isolation ADR".into(),
-            moved_to: vec!["In Review".into()],
+    fn worked(id: &str, label: Option<&str>, project: Option<&str>) -> IssueActivity {
+        IssueActivity {
+            identifier: id.into(),
             commented: true,
+            label: label.map(Into::into),
+            project: project.map(Into::into),
             ..IssueActivity::default()
-        };
+        }
+    }
+
+    #[test]
+    fn lines_group_keys_by_label_then_project_then_bare() {
+        let isolation = Some("product access isolation");
+        let issues = [
+            worked("LABS-778", isolation, Some("Elevate")),
+            worked("LABS-1", None, None),
+            worked("LABS-1053", None, Some("Insights")),
+            worked("LABS-864", isolation, None),
+        ];
         assert_eq!(
-            issue.line().as_deref(),
-            Some("LABS-852 Product Isolation ADR — moved to In Review; commented")
+            notes_lines(&issues),
+            [
+                "product access isolation (LABS-778, LABS-864)",
+                "Insights (LABS-1053)",
+                "(LABS-1)",
+            ]
         );
     }
 
     #[test]
-    fn line_lists_every_kind_of_activity_in_order() {
-        let issue = IssueActivity {
-            identifier: "LABS-1".into(),
-            title: "T".into(),
-            created: true,
-            assigned: true,
-            moved_to: vec!["In Progress".into(), "In Review".into()],
-            commented: true,
-            prs: vec!["app#12".into(), "api#3".into()],
-        };
-        assert_eq!(
-            issue.line().as_deref(),
-            Some("LABS-1 T — created; assigned; moved to In Progress, then In Review; commented; PR app#12, api#3")
-        );
-    }
-
-    #[test]
-    fn line_is_none_without_activity() {
-        assert_eq!(IssueActivity::default().line(), None);
+    fn lines_are_empty_without_issues() {
+        assert_eq!(notes_lines(&[]), Vec::<String>::new());
     }
 
     #[test]
@@ -898,7 +882,7 @@ mod tests {
         let issues = parse(vec![issue_node(history)]);
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].moved_to, ["In Progress", "In Review"]);
-        assert!(!issues[0].created && !issues[0].assigned && !issues[0].commented);
+        assert!(!issues[0].commented);
     }
 
     #[test]
@@ -915,22 +899,23 @@ mod tests {
     }
 
     #[test]
-    fn parse_activity_assigned_to_me_that_day_by_anyone() {
-        let history = json!({ "history": { "nodes": [
+    fn parse_activity_drops_issues_i_only_created_or_was_assigned() {
+        let assigned = json!({ "history": { "nodes": [
             { "createdAt": "2026-10-16T14:00:00Z", "actor": { "isMe": false }, "toAssignee": { "isMe": true } },
         ] } });
-        let issues = parse(vec![issue_node(history)]);
-        assert!(issues[0].assigned);
-        assert!(issues[0].moved_to.is_empty());
+        let created = json!({ "creator": { "isMe": true }, "createdAt": "2026-10-16T15:00:00Z" });
+        assert!(parse(vec![issue_node(assigned), issue_node(created)]).is_empty());
     }
 
     #[test]
-    fn parse_activity_created_only_counts_inside_the_day() {
-        let today = json!({ "creator": { "isMe": true }, "createdAt": "2026-10-16T15:00:00Z" });
-        let yesterday = json!({ "creator": { "isMe": true }, "createdAt": "2026-10-15T15:00:00Z" });
-        let issues = parse(vec![issue_node(today), issue_node(yesterday)]);
-        assert_eq!(issues.len(), 1);
-        assert!(issues[0].created);
+    fn parse_activity_ignores_someone_elses_pr_on_an_issue_i_created() {
+        let handed_off = json!({
+            "creator": { "isMe": true },
+            "createdAt": "2026-10-16T15:00:00Z",
+            "assignee": { "isMe": false },
+            "attachments": { "nodes": [{ "url": "https://github.com/o/app/pull/12" }] },
+        });
+        assert!(parse(vec![issue_node(handed_off)]).is_empty());
     }
 
     #[test]
@@ -945,6 +930,24 @@ mod tests {
         let issues = parse(vec![issue_node(extra)]);
         assert!(issues[0].commented);
         assert_eq!(issues[0].prs, ["timekeeper#104"]);
+    }
+
+    #[test]
+    fn parse_activity_reads_the_first_label_and_the_project() {
+        let commented = json!({ "nodes": [{ "id": "c1" }] });
+        let tagged = json!({
+            "comments": commented,
+            "labels": { "nodes": [{ "name": "product access isolation" }, { "name": "bug" }] },
+            "project": { "name": "Elevate" },
+        });
+        let issues = parse(vec![issue_node(tagged)]);
+        assert_eq!(issues[0].label.as_deref(), Some("product access isolation"));
+        assert_eq!(issues[0].project.as_deref(), Some("Elevate"));
+        let bare = parse(vec![issue_node(
+            json!({ "comments": commented, "labels": { "nodes": [] }, "project": null }),
+        )]);
+        assert_eq!(bare[0].label, None);
+        assert_eq!(bare[0].project, None);
     }
 
     #[test]
@@ -1182,7 +1185,6 @@ mod tests {
         secrets.set("lin_api_saved").unwrap();
         let issue = IssueActivity {
             identifier: "LABS-1".into(),
-            title: "T".into(),
             commented: true,
             ..IssueActivity::default()
         };
@@ -1193,7 +1195,7 @@ mod tests {
         assert_eq!(
             block_on(suggest(&secrets, &api, &day())),
             Ok(Lines {
-                lines: vec!["LABS-1 T — commented".into()],
+                lines: vec!["(LABS-1)".into()],
                 notice: Some(
                     "Linear had more activity than this. Set a team key in Settings to narrow it."
                         .into()

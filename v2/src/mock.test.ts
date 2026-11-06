@@ -72,7 +72,7 @@ describe("mock invoke", () => {
     await expect(invoke("suggest_notes", { projectId: 2, day: "2026-10-16" })).resolves.toEqual([
       {
         source: "linear",
-        lines: ["MOCK-1 Mock issue for 2026-10-16 — moved to In Review; commented"],
+        lines: ["mock label for 2026-10-16 (MOCK-1, MOCK-2)"],
         notice: null,
       },
     ]);
